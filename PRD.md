@@ -89,6 +89,27 @@ This is a task management tool with standard CRUD operations, filtering, and ass
 - **Progression**: Click Analytics → View dashboard with charts → Switch between Overview/Team Performance/Trends tabs → Analyze data
 - **Success criteria**: Charts update in real-time, show accurate metrics, and provide actionable insights about team performance
 
+### AI Assistant
+- **Functionality**: Conversational AI interface that provides intelligent task management assistance
+- **Purpose**: Enable natural language interactions for task creation, analysis, and recommendations
+- **Trigger**: Click "AI Assistant" button in header
+- **Progression**: Open dialog → Ask questions or request actions → Review AI suggestions → Apply recommended changes
+- **Success criteria**: AI responds contextually, generates actionable suggestions, and successfully applies changes when approved
+
+### AI-Powered Insights
+- **Functionality**: Automatically generated team performance insights and recommendations
+- **Purpose**: Proactively identify issues like workload imbalances, overdue patterns, and productivity opportunities
+- **Trigger**: Displays automatically in Analytics view, refreshable on demand
+- **Progression**: View Analytics → See AI insights card → Read recommendations → Take action based on insights
+- **Success criteria**: Insights are relevant, specific, and actionable with clear priorities
+
+### AI Auto-Assignment
+- **Functionality**: Intelligently assign unassigned tasks based on workload, skills, and priorities
+- **Purpose**: Optimize task distribution across the team automatically
+- **Trigger**: Click "AI Auto-Assign" button (appears when unassigned tasks exist)
+- **Progression**: Click button → AI analyzes tasks and team → Review assignment suggestions → Apply all or cancel
+- **Success criteria**: Assignments balance workload, consider priority and deadlines, persist correctly
+
 ## Edge Case Handling
 - **Empty States**: When no tasks exist or filters return no results, show encouraging message with quick action to add first task
 - **Overdue Tasks**: Automatically highlight tasks past due date with visual indicator (red accent)
@@ -100,6 +121,8 @@ This is a task management tool with standard CRUD operations, filtering, and ass
 - **Empty Comments**: Prevent submission of blank comments
 - **No Data Analytics**: When no tasks exist, show empty state encouraging user to create tasks to see analytics
 - **Single Team Member**: Analytics still display meaningfully with just one team member
+- **AI Failures**: If AI requests fail, show friendly error message and allow retry without breaking app
+- **No Unassigned Tasks**: Auto-assign button only appears when there are unassigned tasks to distribute
 
 ## Design Direction
 Professional yet approachable workspace tool that feels organized without being sterile. Should evoke a sense of control and clarity, like a well-organized desk. Modern corporate aesthetic with warm touches.
@@ -182,6 +205,7 @@ Animations reinforce status changes and provide feedback without slowing workflo
   - ListChecks (tasks view)
   - TrendUp (performance indicators)
   - Target (goals/metrics)
+  - Sparkle (AI features icon)
 
 - **Spacing**: 
   - Page padding: p-6 (24px)

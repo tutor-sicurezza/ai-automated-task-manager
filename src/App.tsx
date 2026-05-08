@@ -4,13 +4,16 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, FunnelSimple, ArrowsDownUp, CheckCircle, CheckSquare, Square, Trash, X, PlayCircle, Circle, ChartBar, ListChecks } from '@phosphor-icons/react';
+import { Plus, FunnelSimple, ArrowsDownUp, CheckCircle, CheckSquare, Square, Trash, X, PlayCircle, Circle, ChartBar, ListChecks, Sparkle } from '@phosphor-icons/react';
 import { TaskCard } from '@/components/TaskCard';
 import { CreateTaskDialog } from '@/components/CreateTaskDialog';
 import { EditTaskDialog } from '@/components/EditTaskDialog';
 import { TaskDetailsDialog } from '@/components/TaskDetailsDialog';
 import { UsersManagement } from '@/components/UsersManagement';
 import { TeamAnalytics } from '@/components/TeamAnalytics';
+import { AIAssistant, AISuggestion } from '@/components/AIAssistant';
+import { AIInsights } from '@/components/AIInsights';
+import { AIAutoAssign } from '@/components/AIAutoAssign';
 import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment } from '@/lib/types';
 import { Toaster, toast } from 'sonner';
 import confetti from 'canvas-confetti';
@@ -33,6 +36,7 @@ function App() {
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; avatar: string } | null>(null);
   const [viewMode, setViewMode] = useState<'tasks' | 'analytics'>('tasks');
+  const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
 
   useEffect(() => {
     if (employees && employees.length > 0) {
@@ -395,6 +399,55 @@ function App() {
     setSelectedTasks(new Set());
   };
 
+  const handleAISuggestion = (suggestion: AISuggestion) => {
+    if (!suggestion.action) return;
+
+    switch (suggestion.type) {
+      case 'create_task':
+        if (suggestion.action.taskData) {
+          handleCreateTask(suggestion.action.taskData);
+        }
+        break;
+      case 'reassign':
+        if (suggestion.action.taskId && suggestion.action.newAssigneeId) {
+          handleAssigneeChange(suggestion.action.taskId, suggestion.action.newAssigneeId);
+        }
+        break;
+      case 'priority_change':
+        if (suggestion.action.taskId && suggestion.action.newPriority) {
+          const task = (tasks || []).find(t => t.id === suggestion.action!.taskId);
+          if (task) {
+            setTasks((currentTasks) =>
+              (currentTasks || []).map(t =>
+                t.id === suggestion.action!.taskId
+                  ? { ...t, priority: suggestion.action!.newPriority! }
+                  : t
+              )
+            );
+            addActivity(suggestion.action.taskId, 'priority_changed', task.priority, suggestion.action.newPriority);
+          }
+        }
+        break;
+    }
+  };
+
+  const handleAutoAssign = (assignments: Array<{ taskId: string; employeeId: string }>) => {
+    assignments.forEach(({ taskId, employeeId }) => {
+      const task = (tasks || []).find(t => t.id === taskId);
+      const employee = (employees || []).find(e => e.id === employeeId);
+      if (task && employee) {
+        addActivity(taskId, 'assignee_changed', 'Unassigned', employee.name);
+      }
+    });
+
+    setTasks((currentTasks) =>
+      (currentTasks || []).map(task => {
+        const assignment = assignments.find(a => a.taskId === task.id);
+        return assignment ? { ...task, assigneeId: assignment.employeeId } : task;
+      })
+    );
+  };
+
   const handleBulkStatusChange = (status: TaskStatus) => {
     if (selectedTasks.size === 0) return;
     
@@ -558,7 +611,7 @@ function App() {
                 Manage your team's work efficiently
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <div className="flex border rounded-lg">
                 <Button
                   variant={viewMode === 'tasks' ? 'default' : 'ghost'}
@@ -577,6 +630,14 @@ function App() {
                   Analytics
                 </Button>
               </div>
+              <Button
+                variant="outline"
+                onClick={() => setAiAssistantOpen(true)}
+                className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-300 hover:from-purple-500/20 hover:to-pink-500/20"
+              >
+                <Sparkle className="mr-2 h-5 w-5 text-purple-600" weight="fill" />
+                AI Assistant
+              </Button>
               <UsersManagement
                 employees={employees || []}
                 onAddEmployee={handleAddEmployee}
@@ -586,6 +647,11 @@ function App() {
               />
               {viewMode === 'tasks' && (
                 <>
+                  <AIAutoAssign
+                    tasks={tasks || []}
+                    employees={employees || []}
+                    onAssignTasks={handleAutoAssign}
+                  />
                   <Button 
                     variant={bulkMode ? "secondary" : "outline"} 
                     onClick={handleToggleBulkMode}
@@ -624,9 +690,14 @@ function App() {
         </div>
 
         {viewMode === 'analytics' ? (
-          <div className="bg-card rounded-xl border p-4 sm:p-6 mb-6">
-            <TeamAnalytics tasks={tasks || []} employees={employees || []} />
-          </div>
+          <>
+            <div className="mb-6">
+              <AIInsights tasks={tasks || []} employees={employees || []} />
+            </div>
+            <div className="bg-card rounded-xl border p-4 sm:p-6 mb-6">
+              <TeamAnalytics tasks={tasks || []} employees={employees || []} />
+            </div>
+          </>
         ) : (
           <div className="bg-card rounded-xl border p-4 sm:p-6 mb-6">
           <div className="flex flex-col sm:flex-row gap-3 mb-4">
@@ -863,6 +934,14 @@ function App() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AIAssistant
+        open={aiAssistantOpen}
+        onOpenChange={setAiAssistantOpen}
+        tasks={tasks || []}
+        employees={employees || []}
+        onSuggestionApply={handleAISuggestion}
+      />
     </div>
   );
 }
