@@ -47,12 +47,50 @@ This is a task management tool with standard CRUD operations, filtering, and ass
 - **Progression**: Click delete → Confirmation dialog → Confirm → Task removed
 - **Success criteria**: Task disappears immediately and doesn't return on refresh
 
+### User Management
+- **Functionality**: Add, edit, and remove team members from the workspace
+- **Purpose**: Maintain accurate team roster and enable proper task assignment
+- **Trigger**: Click "Manage Users" button in header
+- **Progression**: Click button → Dialog opens with user list → Add/Edit/Delete users → Changes persist immediately
+- **Success criteria**: Users persist across sessions, deleted users' tasks become unassigned, edited user info updates everywhere
+
+### Edit Task Details
+- **Functionality**: Update existing task information (title, description, assignee, priority, due date)
+- **Purpose**: Adapt tasks as requirements change without recreating them
+- **Trigger**: Click edit icon on task card
+- **Progression**: Click edit → Modal opens with pre-filled form → Update fields → Save → Changes reflected immediately
+- **Success criteria**: All changes persist, activity history tracks what changed
+
+### Bulk Operations
+- **Functionality**: Select multiple tasks and perform actions on all at once (complete, change status, delete)
+- **Purpose**: Efficiently manage multiple related tasks
+- **Trigger**: Click "Bulk Select" button to enter bulk mode
+- **Progression**: Enter bulk mode → Select tasks → Choose action → Confirm → All tasks update
+- **Success criteria**: All selected tasks update correctly, appropriate feedback shown
+
+### Comments and Activity History
+- **Functionality**: Add comments to tasks and view complete audit trail of changes
+- **Purpose**: Enable team collaboration and maintain transparency on task evolution
+- **Trigger**: Click on task card to open details dialog
+- **Progression**: Open details → View activity tab → Add comment or see history → Changes tracked automatically
+- **Success criteria**: Comments persist, activity log shows all changes with timestamps and user attribution
+
+### File Attachments
+- **Functionality**: Upload and attach files to tasks (images, documents, etc.)
+- **Purpose**: Keep task-related resources organized and accessible
+- **Trigger**: Click attachment button in task details dialog
+- **Progression**: Open details → Click attach → Select file → Upload → File appears in attachments list
+- **Success criteria**: Files persist, can be downloaded, and can be deleted by authorized users
+
 ## Edge Case Handling
 - **Empty States**: When no tasks exist or filters return no results, show encouraging message with quick action to add first task
 - **Overdue Tasks**: Automatically highlight tasks past due date with visual indicator (red accent)
 - **Unassigned Tasks**: Allow tasks without assignee, group in "Unassigned" section
 - **Long Text**: Truncate long titles/descriptions with ellipsis, expand on hover or in detail view
-- **No Employees**: If employee list is empty, prompt to add employees first before creating tasks
+- **No Employees**: If employee list is empty, show empty state in user management with prominent "Add User" action
+- **Delete Employee with Tasks**: Warn user when deleting an employee who has assigned tasks, automatically unassign those tasks
+- **Large File Uploads**: Limit file attachments to 10MB, show clear error message if exceeded
+- **Empty Comments**: Prevent submission of blank comments
 
 ## Design Direction
 Professional yet approachable workspace tool that feels organized without being sterile. Should evoke a sense of control and clarity, like a well-organized desk. Modern corporate aesthetic with warm touches.
@@ -117,6 +155,9 @@ Animations reinforce status changes and provide feedback without slowing workflo
 - **Icon Selection**: 
   - Plus (add task)
   - UserCircle (assign employee)
+  - Users (manage team members)
+  - UserPlus (add new user)
+  - PencilSimple (edit)
   - Clock (due dates)
   - CheckCircle (completed)
   - Circle (not started)
@@ -125,6 +166,9 @@ Animations reinforce status changes and provide feedback without slowing workflo
   - FunnelSimple (filter)
   - Trash (delete)
   - CalendarBlank (date picker trigger)
+  - ChatCircle (comments)
+  - Paperclip (attachments)
+  - CheckSquare (bulk select)
 
 - **Spacing**: 
   - Page padding: p-6 (24px)

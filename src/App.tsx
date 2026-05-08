@@ -9,6 +9,7 @@ import { TaskCard } from '@/components/TaskCard';
 import { CreateTaskDialog } from '@/components/CreateTaskDialog';
 import { EditTaskDialog } from '@/components/EditTaskDialog';
 import { TaskDetailsDialog } from '@/components/TaskDetailsDialog';
+import { UsersManagement } from '@/components/UsersManagement';
 import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment } from '@/lib/types';
 import { Toaster, toast } from 'sonner';
 import confetti from 'canvas-confetti';
@@ -16,7 +17,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 function App() {
   const [tasks, setTasks] = useKV<Task[]>('tasks', []);
-  const [employees] = useKV<Employee[]>('employees', []);
+  const [employees, setEmployees] = useKV<Employee[]>('employees', []);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -410,6 +411,39 @@ function App() {
     setSelectedTasks(new Set());
   };
 
+  const handleAddEmployee = (employeeData: Omit<Employee, 'id'>) => {
+    const newEmployee: Employee = {
+      ...employeeData,
+      id: Date.now().toString(),
+    };
+    
+    setEmployees((currentEmployees) => [...(currentEmployees || []), newEmployee]);
+    toast.success('Team member added successfully!');
+  };
+
+  const handleEditEmployee = (id: string, updates: Omit<Employee, 'id'>) => {
+    setEmployees((currentEmployees) =>
+      (currentEmployees || []).map(employee =>
+        employee.id === id ? { ...employee, ...updates } : employee
+      )
+    );
+    toast.success('Team member updated successfully!');
+  };
+
+  const handleDeleteEmployee = (id: string) => {
+    setTasks((currentTasks) =>
+      (currentTasks || []).map(task =>
+        task.assigneeId === id ? { ...task, assigneeId: null } : task
+      )
+    );
+    
+    setEmployees((currentEmployees) =>
+      (currentEmployees || []).filter(employee => employee.id !== id)
+    );
+    
+    toast.success('Team member removed');
+  };
+
   const filteredAndSortedTasks = useMemo(() => {
     let filtered = [...(tasks || [])];
 
@@ -480,6 +514,16 @@ function App() {
 
   const unassignedCount = (tasks || []).filter(t => !t.assigneeId).length;
 
+  const taskCountsByEmployee = useMemo(() => {
+    const countMap = new Map<string, number>();
+    (tasks || []).forEach(task => {
+      if (task.assigneeId) {
+        countMap.set(task.assigneeId, (countMap.get(task.assigneeId) || 0) + 1);
+      }
+    });
+    return countMap;
+  }, [tasks]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-secondary via-background to-muted/30">
       <Toaster position="top-right" />
@@ -496,6 +540,13 @@ function App() {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <UsersManagement
+                employees={employees || []}
+                onAddEmployee={handleAddEmployee}
+                onEditEmployee={handleEditEmployee}
+                onDeleteEmployee={handleDeleteEmployee}
+                taskCounts={taskCountsByEmployee}
+              />
               <Button 
                 variant={bulkMode ? "secondary" : "outline"} 
                 onClick={handleToggleBulkMode}
