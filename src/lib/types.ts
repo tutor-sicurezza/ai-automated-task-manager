@@ -12,6 +12,10 @@ export interface Employee {
   phone?: string;
   status: 'active' | 'inactive';
   joinedDate: string;
+  location?: string;
+  bio?: string;
+  skills?: string[];
+  teamLead?: boolean;
 }
 
 export interface TaskComment {

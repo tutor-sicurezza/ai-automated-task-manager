@@ -40,13 +40,17 @@ function App() {
 
   useEffect(() => {
     if (employees && employees.length > 0) {
-      const needsMigration = employees.some(emp => !emp.status || !emp.joinedDate);
+      const needsMigration = employees.some(emp => !emp.status || !emp.joinedDate || emp.teamLead === undefined);
       if (needsMigration) {
         setEmployees((currentEmployees) =>
           (currentEmployees || []).map(emp => ({
             ...emp,
             status: emp.status || 'active',
             joinedDate: emp.joinedDate || new Date().toISOString(),
+            teamLead: emp.teamLead || false,
+            location: emp.location || undefined,
+            bio: emp.bio || undefined,
+            skills: emp.skills || undefined,
           }))
         );
       }
