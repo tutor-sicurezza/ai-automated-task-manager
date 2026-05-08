@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Trash, Clock, Circle, CircleHalf, CheckCircle, PencilSimple } from '@phosphor-icons/react';
+import { Trash, Clock, Circle, CircleHalf, CheckCircle, PencilSimple, ChatCircle, Eye } from '@phosphor-icons/react';
 import { Task, Employee, TaskStatus, TaskPriority } from '@/lib/types';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -16,12 +16,13 @@ interface TaskCardProps {
   onAssigneeChange: (taskId: string, assigneeId: string | null) => void;
   onDelete: (taskId: string) => void;
   onEdit: (taskId: string) => void;
+  onViewDetails: (taskId: string) => void;
   bulkMode?: boolean;
   isSelected?: boolean;
   onToggleSelect?: (taskId: string) => void;
 }
 
-export function TaskCard({ task, employees, onStatusChange, onAssigneeChange, onDelete, onEdit, bulkMode = false, isSelected = false, onToggleSelect }: TaskCardProps) {
+export function TaskCard({ task, employees, onStatusChange, onAssigneeChange, onDelete, onEdit, onViewDetails, bulkMode = false, isSelected = false, onToggleSelect }: TaskCardProps) {
   const assignee = employees.find(e => e.id === task.assigneeId);
   const isOverdue = new Date(task.dueDate) < new Date() && task.status !== 'completed';
   
@@ -151,10 +152,26 @@ export function TaskCard({ task, employees, onStatusChange, onAssigneeChange, on
                   ))}
                 </SelectContent>
               </Select>
+
+              {(task.comments && task.comments.length > 0) && (
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <ChatCircle weight="fill" className="w-3.5 h-3.5" />
+                  <span>{task.comments.length}</span>
+                </div>
+              )}
             </div>
           </div>
           
           <div className="flex items-start gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-accent hover:text-accent hover:bg-accent/10"
+              onClick={() => onViewDetails(task.id)}
+              title="View details & comments"
+            >
+              <Eye className="w-4 h-4" weight="bold" />
+            </Button>
             <Button
               variant="ghost"
               size="icon"

@@ -1,11 +1,35 @@
 export type TaskStatus = 'not-started' | 'in-progress' | 'completed';
 export type TaskPriority = 'low' | 'medium' | 'high';
+export type ActivityType = 'created' | 'status_changed' | 'priority_changed' | 'assignee_changed' | 'due_date_changed' | 'title_changed' | 'description_changed' | 'comment_added';
 
 export interface Employee {
   id: string;
   name: string;
   avatar: string;
   role: string;
+}
+
+export interface TaskComment {
+  id: string;
+  taskId: string;
+  userId: string;
+  userName: string;
+  userAvatar: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface TaskActivity {
+  id: string;
+  taskId: string;
+  userId: string;
+  userName: string;
+  userAvatar: string;
+  type: ActivityType;
+  oldValue?: string;
+  newValue?: string;
+  details?: string;
+  createdAt: string;
 }
 
 export interface Task {
@@ -17,4 +41,6 @@ export interface Task {
   status: TaskStatus;
   dueDate: string;
   createdAt: string;
+  comments?: TaskComment[];
+  activities?: TaskActivity[];
 }
