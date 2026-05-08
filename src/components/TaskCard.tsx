@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Trash, Clock, Circle, CircleHalf, CheckCircle } from '@phosphor-icons/react';
+import { Trash, Clock, Circle, CircleHalf, CheckCircle, PencilSimple } from '@phosphor-icons/react';
 import { Task, Employee, TaskStatus, TaskPriority } from '@/lib/types';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -14,9 +14,10 @@ interface TaskCardProps {
   onStatusChange: (taskId: string, status: TaskStatus) => void;
   onAssigneeChange: (taskId: string, assigneeId: string | null) => void;
   onDelete: (taskId: string) => void;
+  onEdit: (taskId: string) => void;
 }
 
-export function TaskCard({ task, employees, onStatusChange, onAssigneeChange, onDelete }: TaskCardProps) {
+export function TaskCard({ task, employees, onStatusChange, onAssigneeChange, onDelete, onEdit }: TaskCardProps) {
   const assignee = employees.find(e => e.id === task.assigneeId);
   const isOverdue = new Date(task.dueDate) < new Date() && task.status !== 'completed';
   
@@ -139,14 +140,24 @@ export function TaskCard({ task, employees, onStatusChange, onAssigneeChange, on
             </div>
           </div>
           
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-            onClick={() => onDelete(task.id)}
-          >
-            <Trash className="w-4 h-4" />
-          </Button>
+          <div className="flex items-start gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
+              onClick={() => onEdit(task.id)}
+            >
+              <PencilSimple className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={() => onDelete(task.id)}
+            >
+              <Trash className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
       </Card>
     </motion.div>

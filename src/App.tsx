@@ -7,6 +7,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Plus, FunnelSimple, ArrowsDownUp, CheckCircle } from '@phosphor-icons/react';
 import { TaskCard } from '@/components/TaskCard';
 import { CreateTaskDialog } from '@/components/CreateTaskDialog';
+import { EditTaskDialog } from '@/components/EditTaskDialog';
 import { Task, Employee, TaskStatus, TaskPriority } from '@/lib/types';
 import { Toaster, toast } from 'sonner';
 import confetti from 'canvas-confetti';
@@ -15,6 +16,8 @@ function App() {
   const [tasks, setTasks] = useKV<Task[]>('tasks', []);
   const [employees] = useKV<Employee[]>('employees', []);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | TaskStatus>('all');
   const [filterPriority, setFilterPriority] = useState<'all' | TaskPriority>('all');
@@ -61,6 +64,29 @@ function App() {
       )
     );
     toast.success('Task reassigned successfully!');
+  };
+
+  const handleEditTask = (taskId: string) => {
+    const task = (tasks || []).find(t => t.id === taskId);
+    if (task) {
+      setEditingTask(task);
+      setEditDialogOpen(true);
+    }
+  };
+
+  const handleUpdateTask = (taskId: string, updates: {
+    title: string;
+    description: string;
+    assigneeId: string | null;
+    priority: TaskPriority;
+    dueDate: string;
+  }) => {
+    setTasks((currentTasks) =>
+      (currentTasks || []).map(task =>
+        task.id === taskId ? { ...task, ...updates } : task
+      )
+    );
+    toast.success('Task updated successfully!');
   };
 
   const handleDeleteTask = (taskId: string) => {
@@ -274,6 +300,7 @@ function App() {
                       employees={employees || []}
                       onStatusChange={handleStatusChange}
                       onAssigneeChange={handleAssigneeChange}
+                      onEdit={handleEditTask}
                       onDelete={handleDeleteTask}
                     />
                   ))}
@@ -289,6 +316,14 @@ function App() {
         onOpenChange={setCreateDialogOpen}
         employees={employees || []}
         onCreateTask={handleCreateTask}
+      />
+
+      <EditTaskDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        employees={employees || []}
+        task={editingTask}
+        onEditTask={handleUpdateTask}
       />
 
       <AlertDialog open={!!deleteTaskId} onOpenChange={(open) => !open && setDeleteTaskId(null)}>
