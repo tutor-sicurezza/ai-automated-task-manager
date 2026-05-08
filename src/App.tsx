@@ -31,6 +31,7 @@ function App() {
   const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | TaskStatus>('all');
   const [filterPriority, setFilterPriority] = useState<'all' | TaskPriority>('all');
+  const [filterDepartment, setFilterDepartment] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'dueDate' | 'priority' | 'status'>('dueDate');
   const [activeTab, setActiveTab] = useState('all');
   const [bulkMode, setBulkMode] = useState(false);
@@ -541,6 +542,14 @@ function App() {
       filtered = filtered.filter(task => task.priority === filterPriority);
     }
 
+    if (filterDepartment !== 'all') {
+      filtered = filtered.filter(task => {
+        if (!task.assigneeId) return false;
+        const assignee = (employees || []).find(e => e.id === task.assigneeId);
+        return assignee?.department === filterDepartment;
+      });
+    }
+
     const sorted = [...filtered].sort((a, b) => {
       switch (sortBy) {
         case 'dueDate':
@@ -559,7 +568,7 @@ function App() {
     });
 
     return sorted;
-  }, [tasks, activeTab, filterStatus, filterPriority, sortBy]);
+  }, [tasks, activeTab, filterStatus, filterPriority, filterDepartment, sortBy, employees]);
 
   const stats = useMemo(() => {
     const taskList = tasks || [];
@@ -591,6 +600,16 @@ function App() {
   }, [employees, tasks]);
 
   const unassignedCount = (tasks || []).filter(t => !t.assigneeId).length;
+
+  const availableDepartments = useMemo(() => {
+    const departments = new Set<string>();
+    (employees || []).forEach(emp => {
+      if (emp.department) {
+        departments.add(emp.department);
+      }
+    });
+    return Array.from(departments).sort();
+  }, [employees]);
 
   const taskCountsByEmployee = useMemo(() => {
     const countMap = new Map<string, number>();
@@ -765,6 +784,21 @@ function App() {
                   <SelectItem value="high">High</SelectItem>
                   <SelectItem value="medium">Medium</SelectItem>
                   <SelectItem value="low">Low</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-2 flex-1">
+              <FunnelSimple className="w-4 h-4 text-muted-foreground" weight="bold" />
+              <Select value={filterDepartment} onValueChange={(value) => setFilterDepartment(value)}>
+                <SelectTrigger className="w-full sm:w-[160px]">
+                  <SelectValue placeholder="Department" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Departments</SelectItem>
+                  {availableDepartments.map(dept => (
+                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
