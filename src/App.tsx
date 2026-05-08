@@ -896,6 +896,7 @@ function App() {
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
         employees={employees || []}
+        tasks={tasks || []}
         onCreateTask={handleCreateTask}
       />
 
@@ -903,6 +904,7 @@ function App() {
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
         employees={employees || []}
+        tasks={tasks || []}
         task={editingTask}
         onEditTask={handleUpdateTask}
       />

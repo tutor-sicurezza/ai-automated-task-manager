@@ -6,15 +6,18 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Separator } from '@/components/ui/separator';
 import { CalendarBlank } from '@phosphor-icons/react';
 import { useState, useEffect } from 'react';
 import { Employee, Task, TaskPriority } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { AITaskEstimator } from '@/components/AITaskEstimator';
 
 interface EditTaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   employees: Employee[];
+  tasks?: Task[];
   task: Task | null;
   onEditTask: (taskId: string, updates: {
     title: string;
@@ -25,12 +28,13 @@ interface EditTaskDialogProps {
   }) => void;
 }
 
-export function EditTaskDialog({ open, onOpenChange, employees, task, onEditTask }: EditTaskDialogProps) {
+export function EditTaskDialog({ open, onOpenChange, employees, tasks = [], task, onEditTask }: EditTaskDialogProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [assigneeId, setAssigneeId] = useState<string | null>(null);
   const [priority, setPriority] = useState<TaskPriority>('medium');
   const [dueDate, setDueDate] = useState<Date>();
+  const [estimatedDuration, setEstimatedDuration] = useState<number | null>(null);
 
   useEffect(() => {
     if (task) {
@@ -63,13 +67,19 @@ export function EditTaskDialog({ open, onOpenChange, employees, task, onEditTask
       setAssigneeId(task.assigneeId);
       setPriority(task.priority);
       setDueDate(new Date(task.dueDate));
+      setEstimatedDuration(null);
     }
     onOpenChange(false);
   };
 
+  const handleApplyAISuggestion = (suggestedDate: Date, duration: number) => {
+    setDueDate(suggestedDate);
+    setEstimatedDuration(duration);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl">Edit Task</DialogTitle>
           <DialogDescription>
@@ -157,6 +167,24 @@ export function EditTaskDialog({ open, onOpenChange, employees, task, onEditTask
               </SelectContent>
             </Select>
           </div>
+
+          <Separator className="my-2" />
+
+          <AITaskEstimator
+            title={title}
+            description={description}
+            priority={priority}
+            assigneeId={assigneeId}
+            employees={employees}
+            tasks={tasks}
+            onApplySuggestion={handleApplyAISuggestion}
+          />
+
+          {estimatedDuration && (
+            <div className="text-xs text-muted-foreground bg-purple-50 border border-purple-200 rounded-lg px-3 py-2">
+              💡 AI suggests this task will take approximately <span className="font-semibold text-purple-900">{estimatedDuration} day{estimatedDuration !== 1 ? 's' : ''}</span> to complete
+            </div>
+          )}
         </div>
         
         <DialogFooter>
