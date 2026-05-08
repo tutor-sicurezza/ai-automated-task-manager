@@ -4,13 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, FunnelSimple, ArrowsDownUp, CheckCircle, CheckSquare, Square, Trash, X, PlayCircle, Circle, ChartBar, ListChecks, Sparkle } from '@phosphor-icons/react';
+import { Plus, FunnelSimple, ArrowsDownUp, CheckCircle, CheckSquare, Square, Trash, X, PlayCircle, Circle, ChartBar, ListChecks, Sparkle, Users, Buildings } from '@phosphor-icons/react';
 import { TaskCard } from '@/components/TaskCard';
 import { CreateTaskDialog } from '@/components/CreateTaskDialog';
 import { EditTaskDialog } from '@/components/EditTaskDialog';
 import { TaskDetailsDialog } from '@/components/TaskDetailsDialog';
 import { UsersManagement } from '@/components/UsersManagement';
 import { TeamAnalytics } from '@/components/TeamAnalytics';
+import { DepartmentAnalytics } from '@/components/DepartmentAnalytics';
 import { AIAssistant, AISuggestion } from '@/components/AIAssistant';
 import { AIInsights } from '@/components/AIInsights';
 import { AIAutoAssign } from '@/components/AIAutoAssign';
@@ -36,6 +37,7 @@ function App() {
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; avatar: string } | null>(null);
   const [viewMode, setViewMode] = useState<'tasks' | 'analytics'>('tasks');
+  const [analyticsView, setAnalyticsView] = useState<'team' | 'departments'>('team');
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
 
   useEffect(() => {
@@ -699,7 +701,39 @@ function App() {
               <AIInsights tasks={tasks || []} employees={employees || []} />
             </div>
             <div className="bg-card rounded-xl border p-4 sm:p-6 mb-6">
-              <TeamAnalytics tasks={tasks || []} employees={employees || []} />
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-semibold">Analytics Dashboard</h2>
+                  <p className="text-muted-foreground text-sm mt-1">
+                    Comprehensive performance insights
+                  </p>
+                </div>
+                <div className="flex border rounded-lg">
+                  <Button
+                    variant={analyticsView === 'team' ? 'default' : 'ghost'}
+                    onClick={() => setAnalyticsView('team')}
+                    className="rounded-r-none"
+                    size="sm"
+                  >
+                    <Users className="mr-2 h-4 w-4" weight={analyticsView === 'team' ? 'fill' : 'regular'} />
+                    Team
+                  </Button>
+                  <Button
+                    variant={analyticsView === 'departments' ? 'default' : 'ghost'}
+                    onClick={() => setAnalyticsView('departments')}
+                    className="rounded-l-none"
+                    size="sm"
+                  >
+                    <Buildings className="mr-2 h-4 w-4" weight={analyticsView === 'departments' ? 'fill' : 'regular'} />
+                    Departments
+                  </Button>
+                </div>
+              </div>
+              {analyticsView === 'team' ? (
+                <TeamAnalytics tasks={tasks || []} employees={employees || []} />
+              ) : (
+                <DepartmentAnalytics tasks={tasks || []} employees={employees || []} />
+              )}
             </div>
           </>
         ) : (
