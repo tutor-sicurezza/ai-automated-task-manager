@@ -33,6 +33,21 @@ function App() {
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; avatar: string } | null>(null);
 
   useEffect(() => {
+    if (employees && employees.length > 0) {
+      const needsMigration = employees.some(emp => !emp.status || !emp.joinedDate);
+      if (needsMigration) {
+        setEmployees((currentEmployees) =>
+          (currentEmployees || []).map(emp => ({
+            ...emp,
+            status: emp.status || 'active',
+            joinedDate: emp.joinedDate || new Date().toISOString(),
+          }))
+        );
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     const loadUser = async () => {
       try {
         const user = await window.spark.user();
@@ -415,6 +430,8 @@ function App() {
     const newEmployee: Employee = {
       ...employeeData,
       id: Date.now().toString(),
+      status: employeeData.status || 'active',
+      joinedDate: employeeData.joinedDate || new Date().toISOString(),
     };
     
     setEmployees((currentEmployees) => [...(currentEmployees || []), newEmployee]);

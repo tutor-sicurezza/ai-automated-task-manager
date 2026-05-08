@@ -7,6 +7,11 @@ export interface Employee {
   name: string;
   avatar: string;
   role: string;
+  email?: string;
+  department?: string;
+  phone?: string;
+  status: 'active' | 'inactive';
+  joinedDate: string;
 }
 
 export interface TaskComment {
