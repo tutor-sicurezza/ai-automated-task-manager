@@ -66,12 +66,27 @@ export function DepartmentAnalytics({ tasks, employees }: DepartmentAnalyticsPro
     
     const departmentMap = new Map<string, DepartmentStats>();
     
-    const departmentNames = Array.from(
-      new Set(employees.map(emp => emp.department || 'Unassigned').filter(Boolean))
-    );
+    const allDepartments = new Set<string>();
+    employees.forEach(emp => {
+      if (emp.departments && emp.departments.length > 0) {
+        emp.departments.forEach(dept => allDepartments.add(dept));
+      } else if (emp.department) {
+        allDepartments.add(emp.department);
+      }
+    });
+    
+    const departmentNames = Array.from(allDepartments).filter(Boolean);
 
     departmentNames.forEach(deptName => {
-      const deptEmployees = employees.filter(emp => (emp.department || 'Unassigned') === deptName);
+      const deptEmployees = employees.filter(emp => {
+        const empDepts = emp.departments && emp.departments.length > 0 
+          ? emp.departments 
+          : emp.department 
+            ? [emp.department] 
+            : [];
+        return empDepts.includes(deptName);
+      });
+      
       const deptEmployeeIds = new Set(deptEmployees.map(emp => emp.id));
       const deptTasks = tasks.filter(t => t.assigneeId && deptEmployeeIds.has(t.assigneeId));
 

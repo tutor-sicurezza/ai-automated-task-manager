@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
-import { PencilSimple, Trash, UserPlus, Users, MagnifyingGlass, Briefcase, Buildings, EnvelopeSimple, Phone, CheckCircle, XCircle, UserCircle, MapPin, Star, CheckSquare, Download, Upload } from '@phosphor-icons/react';
+import { PencilSimple, Trash, UserPlus, Users, MagnifyingGlass, Briefcase, Buildings, EnvelopeSimple, Phone, CheckCircle, XCircle, UserCircle, MapPin, Star, CheckSquare, Download, Upload, X as XIcon } from '@phosphor-icons/react';
 import { Employee } from '@/lib/types';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -48,6 +48,7 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
     avatar: '',
     email: '',
     department: '',
+    departments: [] as string[],
     phone: '',
     location: '',
     bio: '',
@@ -55,11 +56,16 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
     status: 'active' as 'active' | 'inactive',
     teamLead: false,
   });
+  const [newDepartmentInput, setNewDepartmentInput] = useState('');
 
   const departments = useMemo(() => {
     const depts = new Set<string>();
     employees.forEach(emp => {
-      if (emp.department) depts.add(emp.department);
+      if (emp.departments && emp.departments.length > 0) {
+        emp.departments.forEach(dept => depts.add(dept));
+      } else if (emp.department) {
+        depts.add(emp.department);
+      }
     });
     return Array.from(depts).sort();
   }, [employees]);
@@ -69,18 +75,31 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(emp => 
-        emp.name.toLowerCase().includes(query) ||
-        emp.role.toLowerCase().includes(query) ||
-        emp.email?.toLowerCase().includes(query) ||
-        emp.department?.toLowerCase().includes(query) ||
-        emp.location?.toLowerCase().includes(query) ||
-        emp.skills?.some(skill => skill.toLowerCase().includes(query))
-      );
+      filtered = filtered.filter(emp => {
+        const empDepts = emp.departments && emp.departments.length > 0 
+          ? emp.departments 
+          : emp.department 
+            ? [emp.department] 
+            : [];
+        
+        return emp.name.toLowerCase().includes(query) ||
+          emp.role.toLowerCase().includes(query) ||
+          emp.email?.toLowerCase().includes(query) ||
+          empDepts.some(dept => dept.toLowerCase().includes(query)) ||
+          emp.location?.toLowerCase().includes(query) ||
+          emp.skills?.some(skill => skill.toLowerCase().includes(query));
+      });
     }
 
     if (filterDepartment !== 'all') {
-      filtered = filtered.filter(emp => emp.department === filterDepartment);
+      filtered = filtered.filter(emp => {
+        const empDepts = emp.departments && emp.departments.length > 0 
+          ? emp.departments 
+          : emp.department 
+            ? [emp.department] 
+            : [];
+        return empDepts.includes(filterDepartment);
+      });
     }
 
     if (filterStatus !== 'all') {
@@ -123,6 +142,7 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
       avatar: '',
       email: '',
       department: '',
+      departments: [],
       phone: '',
       location: '',
       bio: '',
@@ -130,6 +150,7 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
       status: 'active',
       teamLead: false,
     });
+    setNewDepartmentInput('');
   };
 
   const handleAddEmployee = () => {
@@ -148,12 +169,16 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
       ? formData.skills.split(',').map(s => s.trim()).filter(s => s)
       : undefined;
 
+    const departmentsArray = formData.departments.length > 0 ? formData.departments : undefined;
+    const primaryDept = departmentsArray && departmentsArray.length > 0 ? departmentsArray[0] : undefined;
+
     onAddEmployee({
       name: formData.name.trim(),
       role: formData.role.trim(),
       avatar: avatarUrl,
       email: formData.email.trim() || undefined,
-      department: formData.department.trim() || undefined,
+      department: primaryDept,
+      departments: departmentsArray,
       phone: formData.phone.trim() || undefined,
       location: formData.location.trim() || undefined,
       bio: formData.bio.trim() || undefined,
@@ -185,12 +210,16 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
       ? formData.skills.split(',').map(s => s.trim()).filter(s => s)
       : undefined;
 
+    const departmentsArray = formData.departments.length > 0 ? formData.departments : undefined;
+    const primaryDept = departmentsArray && departmentsArray.length > 0 ? departmentsArray[0] : undefined;
+
     onEditEmployee(editingEmployee.id, {
       name: formData.name.trim(),
       role: formData.role.trim(),
       avatar: avatarUrl,
       email: formData.email.trim() || undefined,
-      department: formData.department.trim() || undefined,
+      department: primaryDept,
+      departments: departmentsArray,
       phone: formData.phone.trim() || undefined,
       location: formData.location.trim() || undefined,
       bio: formData.bio.trim() || undefined,
@@ -290,12 +319,19 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
 
   const openEditDialog = (employee: Employee) => {
     setEditingEmployee(employee);
+    const empDepartments = employee.departments && employee.departments.length > 0 
+      ? employee.departments 
+      : employee.department 
+        ? [employee.department] 
+        : [];
+    
     setFormData({
       name: employee.name,
       role: employee.role,
       avatar: employee.avatar,
       email: employee.email || '',
       department: employee.department || '',
+      departments: empDepartments,
       phone: employee.phone || '',
       location: employee.location || '',
       bio: employee.bio || '',
@@ -382,10 +418,18 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
                   <Briefcase className="w-4 h-4 flex-shrink-0" weight="bold" />
                   <span className="truncate">{employee.role}</span>
                 </div>
-                {employee.department && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                {((employee.departments && employee.departments.length > 0) || employee.department) && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1 flex-wrap">
                     <Buildings className="w-4 h-4 flex-shrink-0" weight="bold" />
-                    <span className="truncate">{employee.department}</span>
+                    {employee.departments && employee.departments.length > 0 ? (
+                      employee.departments.map((dept, idx) => (
+                        <Badge key={idx} variant="secondary" className="text-xs">
+                          {dept}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="truncate">{employee.department}</span>
+                    )}
                   </div>
                 )}
                 {employee.location && (
@@ -713,22 +757,70 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="add-department">Department</Label>
-              <Input
-                id="add-department"
-                placeholder="Engineering"
-                value={formData.department}
-                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                list="departments-list"
-              />
-              {departments.length > 0 && (
-                <datalist id="departments-list">
-                  {departments.map(dept => (
-                    <option key={dept} value={dept} />
-                  ))}
-                </datalist>
-              )}
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="add-departments">Departments</Label>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Input
+                    id="add-departments"
+                    placeholder="Enter department name"
+                    value={newDepartmentInput}
+                    onChange={(e) => setNewDepartmentInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newDepartmentInput.trim()) {
+                        e.preventDefault();
+                        const dept = newDepartmentInput.trim();
+                        if (!formData.departments.includes(dept)) {
+                          setFormData({ ...formData, departments: [...formData.departments, dept] });
+                        }
+                        setNewDepartmentInput('');
+                      }
+                    }}
+                    list="add-departments-list"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      const dept = newDepartmentInput.trim();
+                      if (dept && !formData.departments.includes(dept)) {
+                        setFormData({ ...formData, departments: [...formData.departments, dept] });
+                        setNewDepartmentInput('');
+                      }
+                    }}
+                  >
+                    Add
+                  </Button>
+                </div>
+                {departments.length > 0 && (
+                  <datalist id="add-departments-list">
+                    {departments.map(dept => (
+                      <option key={dept} value={dept} />
+                    ))}
+                  </datalist>
+                )}
+                {formData.departments.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {formData.departments.map((dept, idx) => (
+                      <Badge key={idx} variant="secondary" className="text-sm gap-1">
+                        {dept}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData({
+                              ...formData,
+                              departments: formData.departments.filter((_, i) => i !== idx)
+                            });
+                          }}
+                          className="ml-1 hover:text-destructive"
+                        >
+                          <XIcon className="w-3 h-3" weight="bold" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="add-email">Email Address</Label>
@@ -857,22 +949,70 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-department">Department</Label>
-              <Input
-                id="edit-department"
-                placeholder="Engineering"
-                value={formData.department}
-                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                list="departments-list-edit"
-              />
-              {departments.length > 0 && (
-                <datalist id="departments-list-edit">
-                  {departments.map(dept => (
-                    <option key={dept} value={dept} />
-                  ))}
-                </datalist>
-              )}
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="edit-departments">Departments</Label>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Input
+                    id="edit-departments"
+                    placeholder="Enter department name"
+                    value={newDepartmentInput}
+                    onChange={(e) => setNewDepartmentInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newDepartmentInput.trim()) {
+                        e.preventDefault();
+                        const dept = newDepartmentInput.trim();
+                        if (!formData.departments.includes(dept)) {
+                          setFormData({ ...formData, departments: [...formData.departments, dept] });
+                        }
+                        setNewDepartmentInput('');
+                      }
+                    }}
+                    list="edit-departments-list"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      const dept = newDepartmentInput.trim();
+                      if (dept && !formData.departments.includes(dept)) {
+                        setFormData({ ...formData, departments: [...formData.departments, dept] });
+                        setNewDepartmentInput('');
+                      }
+                    }}
+                  >
+                    Add
+                  </Button>
+                </div>
+                {departments.length > 0 && (
+                  <datalist id="edit-departments-list">
+                    {departments.map(dept => (
+                      <option key={dept} value={dept} />
+                    ))}
+                  </datalist>
+                )}
+                {formData.departments.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {formData.departments.map((dept, idx) => (
+                      <Badge key={idx} variant="secondary" className="text-sm gap-1">
+                        {dept}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData({
+                              ...formData,
+                              departments: formData.departments.filter((_, i) => i !== idx)
+                            });
+                          }}
+                          className="ml-1 hover:text-destructive"
+                        >
+                          <XIcon className="w-3 h-3" weight="bold" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-email">Email Address</Label>

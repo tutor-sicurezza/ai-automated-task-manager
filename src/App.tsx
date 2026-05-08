@@ -43,18 +43,33 @@ function App() {
 
   useEffect(() => {
     if (employees && employees.length > 0) {
-      const needsMigration = employees.some(emp => !emp.status || !emp.joinedDate || emp.teamLead === undefined);
+      const needsMigration = employees.some(emp => 
+        !emp.status || 
+        !emp.joinedDate || 
+        emp.teamLead === undefined ||
+        (emp.department && !emp.departments)
+      );
       if (needsMigration) {
         setEmployees((currentEmployees) =>
-          (currentEmployees || []).map(emp => ({
-            ...emp,
-            status: emp.status || 'active',
-            joinedDate: emp.joinedDate || new Date().toISOString(),
-            teamLead: emp.teamLead || false,
-            location: emp.location || undefined,
-            bio: emp.bio || undefined,
-            skills: emp.skills || undefined,
-          }))
+          (currentEmployees || []).map(emp => {
+            const departments = emp.departments 
+              ? emp.departments 
+              : emp.department 
+                ? [emp.department] 
+                : [];
+            
+            return {
+              ...emp,
+              status: emp.status || 'active',
+              joinedDate: emp.joinedDate || new Date().toISOString(),
+              teamLead: emp.teamLead || false,
+              location: emp.location || undefined,
+              bio: emp.bio || undefined,
+              skills: emp.skills || undefined,
+              departments: departments,
+              department: departments[0] || undefined,
+            };
+          })
         );
       }
     }
