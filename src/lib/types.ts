@@ -85,3 +85,30 @@ export interface Announcement {
   isPinned: boolean;
   readBy: string[];
 }
+
+export type NotificationType = 
+  | 'task_assigned'
+  | 'task_reassigned'
+  | 'task_updated'
+  | 'task_comment'
+  | 'task_due_soon'
+  | 'task_overdue'
+  | 'task_completed'
+  | 'task_status_changed'
+  | 'task_priority_changed'
+  | 'mention';
+
+export interface TaskNotification {
+  id: string;
+  userId: string;
+  taskId: string;
+  taskTitle: string;
+  type: NotificationType;
+  message: string;
+  actionBy?: string;
+  actionByName?: string;
+  actionByAvatar?: string;
+  createdAt: string;
+  read: boolean;
+  link?: string;
+}

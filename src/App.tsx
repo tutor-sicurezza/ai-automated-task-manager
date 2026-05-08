@@ -16,7 +16,8 @@ import { AIAssistant, AISuggestion } from '@/components/AIAssistant';
 import { AIInsights } from '@/components/AIInsights';
 import { AIAutoAssign } from '@/components/AIAutoAssign';
 import { AnnouncementsDialog } from '@/components/AnnouncementsDialog';
-import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment, Announcement } from '@/lib/types';
+import { TaskNotifications } from '@/components/TaskNotifications';
+import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment, Announcement, TaskNotification } from '@/lib/types';
 import { Toaster, toast } from 'sonner';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -25,6 +26,7 @@ function App() {
   const [tasks, setTasks] = useKV<Task[]>('tasks', []);
   const [employees, setEmployees] = useKV<Employee[]>('employees', []);
   const [announcements, setAnnouncements] = useKV<Announcement[]>('announcements', []);
+  const [notifications, setNotifications] = useKV<TaskNotification[]>('notifications', []);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -99,6 +101,66 @@ function App() {
     loadUser();
   }, []);
 
+  useEffect(() => {
+    const checkDeadlines = () => {
+      if (!currentUser || !tasks) return;
+
+      const now = new Date();
+      const oneDayFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+      (tasks || []).forEach(task => {
+        if (task.status === 'completed' || !task.assigneeId) return;
+
+        const dueDate = new Date(task.dueDate);
+        const notificationId = `${task.id}-${task.assigneeId}-`;
+
+        const existingDueSoonNotif = (notifications || []).find(
+          n => n.id.startsWith(notificationId + 'due-soon')
+        );
+        const existingOverdueNotif = (notifications || []).find(
+          n => n.id.startsWith(notificationId + 'overdue')
+        );
+
+        if (dueDate < now && !existingOverdueNotif) {
+          addNotification({
+            id: `${notificationId}overdue-${Date.now()}`,
+            userId: task.assigneeId,
+            taskId: task.id,
+            taskTitle: task.title,
+            type: 'task_overdue',
+            message: `Task is overdue! Due date was ${dueDate.toLocaleDateString()}`,
+            createdAt: new Date().toISOString(),
+            read: false,
+          });
+        } else if (dueDate >= now && dueDate <= oneDayFromNow && !existingDueSoonNotif) {
+          addNotification({
+            id: `${notificationId}due-soon-${Date.now()}`,
+            userId: task.assigneeId,
+            taskId: task.id,
+            taskTitle: task.title,
+            type: 'task_due_soon',
+            message: `Task is due soon on ${dueDate.toLocaleDateString()}`,
+            createdAt: new Date().toISOString(),
+            read: false,
+          });
+        }
+      });
+    };
+
+    checkDeadlines();
+    const interval = setInterval(checkDeadlines, 60000);
+
+    return () => clearInterval(interval);
+  }, [tasks, currentUser]);
+
+  const addNotification = (notification: TaskNotification) => {
+    setNotifications((currentNotifications) => {
+      const existing = (currentNotifications || []).find(n => n.id === notification.id);
+      if (existing) return currentNotifications || [];
+      return [...(currentNotifications || []), notification];
+    });
+  };
+
   const addActivity = (taskId: string, type: TaskActivity['type'], oldValue?: string, newValue?: string, details?: string) => {
     if (!currentUser) return;
 
@@ -152,7 +214,7 @@ function App() {
 
   const handleStatusChange = (taskId: string, status: TaskStatus) => {
     const task = (tasks || []).find(t => t.id === taskId);
-    if (!task) return;
+    if (!task || !currentUser) return;
 
     const oldStatus = task.status;
     const wasCompleted = oldStatus === 'completed';
@@ -173,12 +235,47 @@ function App() {
         origin: { y: 0.6 }
       });
       toast.success('Task completed! 🎉');
+      
+      if (task.assigneeId && task.assigneeId !== currentUser.id) {
+        addNotification({
+          id: `notif-${Date.now()}-${taskId}`,
+          userId: task.assigneeId,
+          taskId: task.id,
+          taskTitle: task.title,
+          type: 'task_completed',
+          message: `Your task "${task.title}" was marked as completed`,
+          actionBy: currentUser.id,
+          actionByName: currentUser.name,
+          actionByAvatar: currentUser.avatar,
+          createdAt: new Date().toISOString(),
+          read: false,
+        });
+      }
+    } else if (oldStatus !== status && task.assigneeId && task.assigneeId !== currentUser.id) {
+      const statusLabels: Record<TaskStatus, string> = {
+        'not-started': 'Not Started',
+        'in-progress': 'In Progress',
+        'completed': 'Completed'
+      };
+      addNotification({
+        id: `notif-${Date.now()}-${taskId}`,
+        userId: task.assigneeId,
+        taskId: task.id,
+        taskTitle: task.title,
+        type: 'task_status_changed',
+        message: `Task status changed from ${statusLabels[oldStatus]} to ${statusLabels[status]}`,
+        actionBy: currentUser.id,
+        actionByName: currentUser.name,
+        actionByAvatar: currentUser.avatar,
+        createdAt: new Date().toISOString(),
+        read: false,
+      });
     }
   };
 
   const handleAssigneeChange = (taskId: string, assigneeId: string | null) => {
     const task = (tasks || []).find(t => t.id === taskId);
-    if (!task) return;
+    if (!task || !currentUser) return;
 
     const oldAssignee = task.assigneeId ? (employees || []).find(e => e.id === task.assigneeId)?.name : 'Unassigned';
     const newAssignee = assigneeId ? (employees || []).find(e => e.id === assigneeId)?.name : 'Unassigned';
@@ -190,6 +287,26 @@ function App() {
     );
 
     addActivity(taskId, 'assignee_changed', oldAssignee, newAssignee);
+    
+    if (assigneeId) {
+      const isReassign = task.assigneeId !== null;
+      addNotification({
+        id: `notif-${Date.now()}-${taskId}`,
+        userId: assigneeId,
+        taskId: task.id,
+        taskTitle: task.title,
+        type: isReassign ? 'task_reassigned' : 'task_assigned',
+        message: isReassign 
+          ? `Task was reassigned to you by ${currentUser.name}`
+          : `New task assigned to you by ${currentUser.name}`,
+        actionBy: currentUser.id,
+        actionByName: currentUser.name,
+        actionByAvatar: currentUser.avatar,
+        createdAt: new Date().toISOString(),
+        read: false,
+      });
+    }
+    
     toast.success('Task reassigned successfully!');
   };
 
@@ -261,6 +378,8 @@ function App() {
       createdAt: new Date().toISOString(),
     };
 
+    const task = (tasks || []).find(t => t.id === taskId);
+
     setTasks((currentTasks) =>
       (currentTasks || []).map(task => {
         if (task.id === taskId) {
@@ -272,6 +391,23 @@ function App() {
     );
 
     addActivity(taskId, 'comment_added', undefined, undefined, content);
+    
+    if (task && task.assigneeId && task.assigneeId !== currentUser.id) {
+      addNotification({
+        id: `notif-${Date.now()}-${taskId}`,
+        userId: task.assigneeId,
+        taskId: task.id,
+        taskTitle: task.title,
+        type: 'task_comment',
+        message: `${currentUser.name} commented: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`,
+        actionBy: currentUser.id,
+        actionByName: currentUser.name,
+        actionByAvatar: currentUser.avatar,
+        createdAt: new Date().toISOString(),
+        read: false,
+      });
+    }
+    
     toast.success('Comment added!');
   };
 
@@ -677,6 +813,34 @@ function App() {
     return countMap;
   }, [tasks]);
 
+  const handleMarkNotificationAsRead = (notificationId: string) => {
+    setNotifications((currentNotifications) =>
+      (currentNotifications || []).map(notif =>
+        notif.id === notificationId ? { ...notif, read: true } : notif
+      )
+    );
+  };
+
+  const handleMarkAllNotificationsAsRead = () => {
+    setNotifications((currentNotifications) =>
+      (currentNotifications || []).map(notif => ({ ...notif, read: true }))
+    );
+  };
+
+  const handleDeleteNotification = (notificationId: string) => {
+    setNotifications((currentNotifications) =>
+      (currentNotifications || []).filter(notif => notif.id !== notificationId)
+    );
+  };
+
+  const handleDeleteAllNotifications = () => {
+    setNotifications([]);
+  };
+
+  const handleNotificationClick = (notification: TaskNotification) => {
+    handleViewDetails(notification.taskId);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-secondary via-background to-muted/30">
       <Toaster position="top-right" />
@@ -693,6 +857,14 @@ function App() {
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              <TaskNotifications
+                notifications={notifications || []}
+                onMarkAsRead={handleMarkNotificationAsRead}
+                onMarkAllAsRead={handleMarkAllNotificationsAsRead}
+                onDelete={handleDeleteNotification}
+                onDeleteAll={handleDeleteAllNotifications}
+                onNotificationClick={handleNotificationClick}
+              />
               <div className="flex border rounded-lg">
                 <Button
                   variant={viewMode === 'tasks' ? 'default' : 'ghost'}
