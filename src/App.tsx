@@ -15,7 +15,8 @@ import { DepartmentAnalytics } from '@/components/DepartmentAnalytics';
 import { AIAssistant, AISuggestion } from '@/components/AIAssistant';
 import { AIInsights } from '@/components/AIInsights';
 import { AIAutoAssign } from '@/components/AIAutoAssign';
-import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment } from '@/lib/types';
+import { AnnouncementsDialog } from '@/components/AnnouncementsDialog';
+import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment, Announcement } from '@/lib/types';
 import { Toaster, toast } from 'sonner';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -23,6 +24,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 function App() {
   const [tasks, setTasks] = useKV<Task[]>('tasks', []);
   const [employees, setEmployees] = useKV<Employee[]>('employees', []);
+  const [announcements, setAnnouncements] = useKV<Announcement[]>('announcements', []);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -538,6 +540,45 @@ function App() {
     toast.success('Team member removed');
   };
 
+  const handleCreateAnnouncement = (announcementData: Omit<Announcement, 'id' | 'createdAt' | 'readBy'>) => {
+    const newAnnouncement: Announcement = {
+      ...announcementData,
+      id: Date.now().toString(),
+      createdAt: new Date().toISOString(),
+      readBy: [],
+    };
+    
+    setAnnouncements((currentAnnouncements) => [...(currentAnnouncements || []), newAnnouncement]);
+  };
+
+  const handleDeleteAnnouncement = (id: string) => {
+    setAnnouncements((currentAnnouncements) =>
+      (currentAnnouncements || []).filter(announcement => announcement.id !== id)
+    );
+    toast.success('Announcement deleted');
+  };
+
+  const handlePinAnnouncement = (id: string) => {
+    setAnnouncements((currentAnnouncements) =>
+      (currentAnnouncements || []).map(announcement =>
+        announcement.id === id ? { ...announcement, isPinned: !announcement.isPinned } : announcement
+      )
+    );
+  };
+
+  const handleMarkAnnouncementAsRead = (id: string) => {
+    if (!currentUser) return;
+    
+    setAnnouncements((currentAnnouncements) =>
+      (currentAnnouncements || []).map(announcement => {
+        if (announcement.id === id && !announcement.readBy.includes(currentUser.id)) {
+          return { ...announcement, readBy: [...announcement.readBy, currentUser.id] };
+        }
+        return announcement;
+      })
+    );
+  };
+
   const filteredAndSortedTasks = useMemo(() => {
     let filtered = [...(tasks || [])];
 
@@ -670,6 +711,15 @@ function App() {
                   Analytics
                 </Button>
               </div>
+              <AnnouncementsDialog
+                announcements={announcements || []}
+                employees={employees || []}
+                currentUser={currentUser}
+                onCreateAnnouncement={handleCreateAnnouncement}
+                onDeleteAnnouncement={handleDeleteAnnouncement}
+                onPinAnnouncement={handlePinAnnouncement}
+                onMarkAsRead={handleMarkAnnouncementAsRead}
+              />
               <Button
                 variant="outline"
                 onClick={() => setAiAssistantOpen(true)}

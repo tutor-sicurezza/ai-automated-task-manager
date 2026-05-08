@@ -68,3 +68,20 @@ export interface Task {
   activities?: TaskActivity[];
   attachments?: TaskAttachment[];
 }
+
+export type AnnouncementPriority = 'info' | 'important' | 'urgent';
+
+export interface Announcement {
+  id: string;
+  title: string;
+  message: string;
+  departments: string[];
+  priority: AnnouncementPriority;
+  createdBy: string;
+  createdByName: string;
+  createdByAvatar: string;
+  createdAt: string;
+  expiresAt?: string;
+  isPinned: boolean;
+  readBy: string[];
+}
