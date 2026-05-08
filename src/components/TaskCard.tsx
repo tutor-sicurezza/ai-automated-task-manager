@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Trash, Clock, Circle, CircleHalf, CheckCircle, PencilSimple } from '@phosphor-icons/react';
 import { Task, Employee, TaskStatus, TaskPriority } from '@/lib/types';
 import { motion } from 'framer-motion';
@@ -15,9 +16,12 @@ interface TaskCardProps {
   onAssigneeChange: (taskId: string, assigneeId: string | null) => void;
   onDelete: (taskId: string) => void;
   onEdit: (taskId: string) => void;
+  bulkMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (taskId: string) => void;
 }
 
-export function TaskCard({ task, employees, onStatusChange, onAssigneeChange, onDelete, onEdit }: TaskCardProps) {
+export function TaskCard({ task, employees, onStatusChange, onAssigneeChange, onDelete, onEdit, bulkMode = false, isSelected = false, onToggleSelect }: TaskCardProps) {
   const assignee = employees.find(e => e.id === task.assigneeId);
   const isOverdue = new Date(task.dueDate) < new Date() && task.status !== 'completed';
   
@@ -53,9 +57,19 @@ export function TaskCard({ task, employees, onStatusChange, onAssigneeChange, on
         'p-4 border-l-4 transition-all duration-200',
         borderColors[task.priority],
         isOverdue && 'task-card-overdue border-destructive',
-        'hover:shadow-lg'
+        'hover:shadow-lg',
+        isSelected && 'ring-2 ring-primary bg-primary/5'
       )}>
         <div className="flex items-start justify-between gap-3">
+          {bulkMode && (
+            <div className="pt-1">
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={() => onToggleSelect?.(task.id)}
+                className="h-5 w-5"
+              />
+            </div>
+          )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2">
               <h3 className="font-medium text-base truncate">{task.title}</h3>

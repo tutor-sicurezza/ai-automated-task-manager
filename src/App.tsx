@@ -4,13 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, FunnelSimple, ArrowsDownUp, CheckCircle } from '@phosphor-icons/react';
+import { Plus, FunnelSimple, ArrowsDownUp, CheckCircle, CheckSquare, Square, Trash, X } from '@phosphor-icons/react';
 import { TaskCard } from '@/components/TaskCard';
 import { CreateTaskDialog } from '@/components/CreateTaskDialog';
 import { EditTaskDialog } from '@/components/EditTaskDialog';
 import { Task, Employee, TaskStatus, TaskPriority } from '@/lib/types';
 import { Toaster, toast } from 'sonner';
 import confetti from 'canvas-confetti';
+import { motion, AnimatePresence } from 'framer-motion';
 
 function App() {
   const [tasks, setTasks] = useKV<Task[]>('tasks', []);
@@ -23,6 +24,8 @@ function App() {
   const [filterPriority, setFilterPriority] = useState<'all' | TaskPriority>('all');
   const [sortBy, setSortBy] = useState<'dueDate' | 'priority' | 'status'>('dueDate');
   const [activeTab, setActiveTab] = useState('all');
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
 
   const handleCreateTask = (taskData: Omit<Task, 'id' | 'status' | 'createdAt'>) => {
     const newTask: Task = {
@@ -99,6 +102,69 @@ function App() {
       toast.success('Task deleted');
       setDeleteTaskId(null);
     }
+  };
+
+  const handleToggleBulkMode = () => {
+    setBulkMode(!bulkMode);
+    setSelectedTasks(new Set());
+  };
+
+  const handleToggleTaskSelect = (taskId: string) => {
+    setSelectedTasks((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(taskId)) {
+        newSet.delete(taskId);
+      } else {
+        newSet.add(taskId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    const visibleTaskIds = filteredAndSortedTasks.map(t => t.id);
+    setSelectedTasks(new Set(visibleTaskIds));
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedTasks(new Set());
+  };
+
+  const handleBulkComplete = () => {
+    if (selectedTasks.size === 0) return;
+    
+    const completedCount = Array.from(selectedTasks).filter(taskId => {
+      const task = (tasks || []).find(t => t.id === taskId);
+      return task?.status !== 'completed';
+    }).length;
+
+    setTasks((currentTasks) =>
+      (currentTasks || []).map(task =>
+        selectedTasks.has(task.id) ? { ...task, status: 'completed' as TaskStatus } : task
+      )
+    );
+    
+    if (completedCount > 0) {
+      confetti({
+        particleCount: 150,
+        spread: 100,
+        origin: { y: 0.6 }
+      });
+      toast.success(`${completedCount} task${completedCount > 1 ? 's' : ''} marked as complete! 🎉`);
+    }
+    
+    setSelectedTasks(new Set());
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedTasks.size === 0) return;
+    
+    setTasks((currentTasks) => 
+      (currentTasks || []).filter(task => !selectedTasks.has(task.id))
+    );
+    
+    toast.success(`${selectedTasks.size} task${selectedTasks.size > 1 ? 's' : ''} deleted`);
+    setSelectedTasks(new Set());
   };
 
   const filteredAndSortedTasks = useMemo(() => {
@@ -186,10 +252,20 @@ function App() {
                 Manage your team's work efficiently
               </p>
             </div>
-            <Button size="lg" onClick={() => setCreateDialogOpen(true)} className="w-full sm:w-auto">
-              <Plus className="mr-2 h-5 w-5" weight="bold" />
-              Add Task
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant={bulkMode ? "secondary" : "outline"} 
+                onClick={handleToggleBulkMode}
+                className="w-full sm:w-auto"
+              >
+                <CheckSquare className="mr-2 h-5 w-5" weight={bulkMode ? "fill" : "regular"} />
+                {bulkMode ? 'Exit Bulk Mode' : 'Bulk Select'}
+              </Button>
+              <Button size="lg" onClick={() => setCreateDialogOpen(true)} className="w-full sm:w-auto">
+                <Plus className="mr-2 h-5 w-5" weight="bold" />
+                Add Task
+              </Button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
@@ -259,6 +335,75 @@ function App() {
             </div>
           </div>
 
+          <AnimatePresence>
+            {bulkMode && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2 }}
+                className="mb-4 overflow-hidden"
+              >
+                <div className="bg-primary/10 border-2 border-primary rounded-lg p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 flex-wrap w-full sm:w-auto">
+                    <span className="text-sm font-medium">
+                      {selectedTasks.size} task{selectedTasks.size !== 1 ? 's' : ''} selected
+                    </span>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleSelectAll}
+                        disabled={selectedTasks.size === filteredAndSortedTasks.length}
+                      >
+                        <CheckSquare className="mr-1 h-4 w-4" weight="bold" />
+                        Select All
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleDeselectAll}
+                        disabled={selectedTasks.size === 0}
+                      >
+                        <Square className="mr-1 h-4 w-4" weight="bold" />
+                        Deselect All
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 w-full sm:w-auto">
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={handleBulkComplete}
+                      disabled={selectedTasks.size === 0}
+                      className="flex-1 sm:flex-none"
+                    >
+                      <CheckCircle className="mr-1 h-4 w-4" weight="bold" />
+                      Mark Complete
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={handleBulkDelete}
+                      disabled={selectedTasks.size === 0}
+                      className="flex-1 sm:flex-none"
+                    >
+                      <Trash className="mr-1 h-4 w-4" weight="bold" />
+                      Delete
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleToggleBulkMode}
+                    >
+                      <X className="h-4 w-4" weight="bold" />
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="w-full justify-start overflow-x-auto flex-wrap h-auto gap-1 bg-transparent p-0 mb-4">
               <TabsTrigger value="all" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
@@ -302,6 +447,9 @@ function App() {
                       onAssigneeChange={handleAssigneeChange}
                       onEdit={handleEditTask}
                       onDelete={handleDeleteTask}
+                      bulkMode={bulkMode}
+                      isSelected={selectedTasks.has(task.id)}
+                      onToggleSelect={handleToggleTaskSelect}
                     />
                   ))}
                 </div>
