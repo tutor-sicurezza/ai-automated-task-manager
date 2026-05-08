@@ -41,6 +41,10 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+  const [bulkDepartmentDialogOpen, setBulkDepartmentDialogOpen] = useState(false);
+  const [bulkDepartmentMode, setBulkDepartmentMode] = useState<'add' | 'replace'>('add');
+  const [bulkDepartments, setBulkDepartments] = useState<string[]>([]);
+  const [bulkDepartmentInput, setBulkDepartmentInput] = useState('');
   
   const [formData, setFormData] = useState({
     name: '',
@@ -285,6 +289,46 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
     
     toast.success(`${selectedUsers.size} user${selectedUsers.size > 1 ? 's' : ''} set to ${status}`);
     setSelectedUsers(new Set());
+    setBulkMode(false);
+  };
+
+  const handleBulkDepartmentAssignment = () => {
+    if (selectedUsers.size === 0 || bulkDepartments.length === 0) return;
+    
+    selectedUsers.forEach(id => {
+      const employee = employees.find(e => e.id === id);
+      if (employee) {
+        let newDepartments: string[];
+        
+        if (bulkDepartmentMode === 'replace') {
+          newDepartments = [...bulkDepartments];
+        } else {
+          const existingDepts = employee.departments && employee.departments.length > 0 
+            ? employee.departments 
+            : employee.department 
+              ? [employee.department] 
+              : [];
+          
+          const deptSet = new Set([...existingDepts, ...bulkDepartments]);
+          newDepartments = Array.from(deptSet);
+        }
+        
+        const primaryDept = newDepartments.length > 0 ? newDepartments[0] : undefined;
+        
+        onEditEmployee(id, {
+          ...employee,
+          departments: newDepartments,
+          department: primaryDept,
+        });
+      }
+    });
+    
+    const action = bulkDepartmentMode === 'replace' ? 'assigned to' : 'added to';
+    toast.success(`${selectedUsers.size} user${selectedUsers.size > 1 ? 's' : ''} ${action} ${bulkDepartments.length} department${bulkDepartments.length > 1 ? 's' : ''}`);
+    setSelectedUsers(new Set());
+    setBulkDepartments([]);
+    setBulkDepartmentInput('');
+    setBulkDepartmentDialogOpen(false);
     setBulkMode(false);
   };
 
@@ -656,6 +700,16 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
                       </div>
                     </div>
                     <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setBulkDepartmentDialogOpen(true)}
+                        disabled={selectedUsers.size === 0}
+                        className="bg-blue-500/10 border-blue-300 hover:bg-blue-500/20"
+                      >
+                        <Buildings className="mr-1 h-4 w-4" weight="bold" />
+                        Departments
+                      </Button>
                       <Button
                         size="sm"
                         variant="default"
@@ -1150,6 +1204,149 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={bulkDepartmentDialogOpen} onOpenChange={(open) => {
+        setBulkDepartmentDialogOpen(open);
+        if (!open) {
+          setBulkDepartments([]);
+          setBulkDepartmentInput('');
+          setBulkDepartmentMode('add');
+        }
+      }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Assign Departments to {selectedUsers.size} User{selectedUsers.size > 1 ? 's' : ''}</DialogTitle>
+            <DialogDescription>
+              Choose departments to assign to the selected team members
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Assignment Mode</Label>
+              <Select 
+                value={bulkDepartmentMode} 
+                onValueChange={(value) => setBulkDepartmentMode(value as 'add' | 'replace')}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="add">Add to existing departments</SelectItem>
+                  <SelectItem value="replace">Replace all departments</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {bulkDepartmentMode === 'add' 
+                  ? 'Selected departments will be added to each user\'s current departments'
+                  : 'Selected departments will replace all current departments for each user'}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Departments</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Enter department name"
+                  value={bulkDepartmentInput}
+                  onChange={(e) => setBulkDepartmentInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && bulkDepartmentInput.trim()) {
+                      e.preventDefault();
+                      const dept = bulkDepartmentInput.trim();
+                      if (!bulkDepartments.includes(dept)) {
+                        setBulkDepartments([...bulkDepartments, dept]);
+                      }
+                      setBulkDepartmentInput('');
+                    }
+                  }}
+                  list="bulk-departments-list"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    const dept = bulkDepartmentInput.trim();
+                    if (dept && !bulkDepartments.includes(dept)) {
+                      setBulkDepartments([...bulkDepartments, dept]);
+                      setBulkDepartmentInput('');
+                    }
+                  }}
+                >
+                  Add
+                </Button>
+              </div>
+              {departments.length > 0 && (
+                <datalist id="bulk-departments-list">
+                  {departments.map(dept => (
+                    <option key={dept} value={dept} />
+                  ))}
+                </datalist>
+              )}
+              {bulkDepartments.length > 0 ? (
+                <div className="flex flex-wrap gap-2 mt-3 p-3 bg-muted rounded-lg">
+                  {bulkDepartments.map((dept, idx) => (
+                    <Badge key={idx} variant="secondary" className="text-sm gap-1">
+                      {dept}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBulkDepartments(bulkDepartments.filter((_, i) => i !== idx));
+                        }}
+                        className="ml-1 hover:text-destructive"
+                      >
+                        <XIcon className="w-3 h-3" weight="bold" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 px-4 border-2 border-dashed rounded-lg">
+                  <Buildings className="w-12 h-12 mx-auto mb-2 text-muted-foreground" weight="light" />
+                  <p className="text-sm text-muted-foreground">
+                    No departments selected. Add departments above.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-blue-500/10 border border-blue-300 rounded-lg p-3">
+              <div className="flex items-start gap-2">
+                <Buildings className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" weight="bold" />
+                <div className="text-sm">
+                  <p className="font-medium text-blue-900 mb-1">
+                    {selectedUsers.size} user{selectedUsers.size > 1 ? 's' : ''} will be affected
+                  </p>
+                  <p className="text-blue-700">
+                    {bulkDepartments.length === 0 
+                      ? 'Select at least one department to continue'
+                      : bulkDepartmentMode === 'add'
+                        ? `${bulkDepartments.length} department${bulkDepartments.length > 1 ? 's' : ''} will be added to existing departments`
+                        : `All existing departments will be replaced with ${bulkDepartments.length} new department${bulkDepartments.length > 1 ? 's' : ''}`
+                    }
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setBulkDepartmentDialogOpen(false);
+              setBulkDepartments([]);
+              setBulkDepartmentInput('');
+              setBulkDepartmentMode('add');
+            }}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleBulkDepartmentAssignment}
+              disabled={bulkDepartments.length === 0}
+            >
+              <Buildings className="mr-2 h-4 w-4" weight="bold" />
+              Assign Departments
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
