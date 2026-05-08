@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, FunnelSimple, ArrowsDownUp, CheckCircle, CheckSquare, Square, Trash, X } from '@phosphor-icons/react';
+import { Plus, FunnelSimple, ArrowsDownUp, CheckCircle, CheckSquare, Square, Trash, X, PlayCircle, Circle } from '@phosphor-icons/react';
 import { TaskCard } from '@/components/TaskCard';
 import { CreateTaskDialog } from '@/components/CreateTaskDialog';
 import { EditTaskDialog } from '@/components/EditTaskDialog';
@@ -164,6 +164,32 @@ function App() {
     );
     
     toast.success(`${selectedTasks.size} task${selectedTasks.size > 1 ? 's' : ''} deleted`);
+    setSelectedTasks(new Set());
+  };
+
+  const handleBulkStatusChange = (status: TaskStatus) => {
+    if (selectedTasks.size === 0) return;
+    
+    const changedCount = Array.from(selectedTasks).filter(taskId => {
+      const task = (tasks || []).find(t => t.id === taskId);
+      return task?.status !== status;
+    }).length;
+
+    setTasks((currentTasks) =>
+      (currentTasks || []).map(task =>
+        selectedTasks.has(task.id) ? { ...task, status } : task
+      )
+    );
+    
+    if (changedCount > 0) {
+      const statusLabels: Record<TaskStatus, string> = {
+        'not-started': 'Not Started',
+        'in-progress': 'In Progress',
+        'completed': 'Completed'
+      };
+      toast.success(`${changedCount} task${changedCount > 1 ? 's' : ''} set to ${statusLabels[status]}`);
+    }
+    
     setSelectedTasks(new Set());
   };
 
@@ -379,7 +405,27 @@ function App() {
                       className="flex-1 sm:flex-none"
                     >
                       <CheckCircle className="mr-1 h-4 w-4" weight="bold" />
-                      Mark Complete
+                      Complete
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => handleBulkStatusChange('in-progress')}
+                      disabled={selectedTasks.size === 0}
+                      className="flex-1 sm:flex-none"
+                    >
+                      <PlayCircle className="mr-1 h-4 w-4" weight="bold" />
+                      In Progress
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleBulkStatusChange('not-started')}
+                      disabled={selectedTasks.size === 0}
+                      className="flex-1 sm:flex-none"
+                    >
+                      <Circle className="mr-1 h-4 w-4" weight="bold" />
+                      Not Started
                     </Button>
                     <Button
                       size="sm"
