@@ -1,110 +1,67 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textar
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import { useState, useEffect, useRef } from 'react';
-import { Task, Employee, TaskComment, TaskActivity, TaskAttachment, TaskPriority, TaskStatus } from '@/lib/types';
-import { Clock, Circle, CircleHalf, CheckCircle, ChatCircle, ClockCounterClockwise, PaperPlaneTilt, ArrowsLeftRight, User, Calendar, Flag, FileText, CheckSquare, Paperclip, UploadSimple, Download, Trash, File, FileDoc, FilePdf, FileJpg, FilePng, FileZip } from '@phosphor-icons/react';
-import { formatDistanceToNow } from 'date-fns';
+import { useState, useEffect, useRef } from 'r
+import { Clock, Circle, CircleHalf, CheckCircle, ChatCircle, ClockCounterClockwi
+import { cn } from '@/lib/utils';
+interface TaskDetailsDialogProps {
+import { useState, useEffect } from 'react';
+  employees: Employee[];
+  onAddComment: (taskId: string, content: string) => void;
+  onDeleteAttachment: (taskId: string, attachme
 import { cn } from '@/lib/utils';
 
 interface TaskDetailsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   task: Task | null;
-  employees: Employee[];
+
   currentUser: { id: string; name: string; avatar: string } | null;
   onAddComment: (taskId: string, content: string) => void;
-  onAddAttachment: (taskId: string, file: File) => void;
-  onDeleteAttachment: (taskId: string, attachmentId: string) => void;
-}
+ 
 
-export function TaskDetailsDialog({ open, onOpenChange, task, employees, currentUser, onAddComment, onAddAttachment, onDeleteAttachment }: TaskDetailsDialogProps) {
+export function TaskDetailsDialog({ open, onOpenChange, task, employees, currentUser, onAddComment }: TaskDetailsDialogProps) {
   const [commentText, setCommentText] = useState('');
   const [activeTab, setActiveTab] = useState('comments');
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) {
       setCommentText('');
       setActiveTab('comments');
     }
-  }, [open]);
+    if (file 
 
-  if (!task) return null;
-
-  const handleAddComment = () => {
-    if (!commentText.trim()) return;
-    onAddComment(task.id, commentText);
-    setCommentText('');
-  };
-
-  const assignee = task.assigneeId ? employees.find(e => e.id === task.assigneeId) : null;
-  const isOverdue = new Date(task.dueDate) < new Date() && task.status !== 'completed';
-
-  const priorityColors: Record<TaskPriority, string> = {
-    high: 'bg-accent text-accent-foreground',
-    medium: 'bg-amber-500 text-white',
-    low: 'bg-slate-400 text-white'
-  };
-
-  const statusIcons = {
-    'not-started': Circle,
-    'in-progress': CircleHalf,
-    'completed': CheckCircle
-  };
-
-  const StatusIcon = statusIcons[task.status];
-
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file && task) {
-      const MAX_FILE_SIZE = 10 * 1024 * 1024;
-      if (file.size > MAX_FILE_SIZE) {
-        return;
       }
-      onAddAttachment(task.id, file);
-    }
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
 
-  const handleDownloadAttachment = (attachment: TaskAttachment) => {
-    const link = document.createElement('a');
-    link.href = attachment.fileData;
-    link.download = attachment.fileName;
-    link.click();
+      fileInputRef.current.value =
   };
+  const handleDownloadAttachment = (att
+    link.href = attachm
+    
 
-  const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 B';
-    const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${Math.round(bytes / Math.pow(k, i) * 100) / 100} ${sizes[i]}`;
-  };
 
-  const getFileIcon = (fileType: string) => {
-    if (fileType.includes('pdf')) return FilePdf;
-    if (fileType.includes('image')) {
-      if (fileType.includes('png')) return FilePng;
-      if (fileType.includes('jpg') || fileType.includes('jpeg')) return FileJpg;
+
+    if (fileType.includes('pdf')) return File
+      if (fileType.includes('png')) re
     }
-    if (fileType.includes('word') || fileType.includes('document')) return FileDoc;
-    if (fileType.includes('zip') || fileType.includes('rar')) return FileZip;
-    return File;
-  };
+    
 
-  const getActivityIcon = (type: TaskActivity['type']) => {
-    switch (type) {
+  const getActivityIcon
       case 'created':
-        return CheckSquare;
       case 'status_changed':
+      case 'assignee_changed
+    
+
+      case 'title_changed':
+
+        return ChatCircle;
+        return Pape
+        return Paperc
+        return ClockCounter
+  };
         return ArrowsLeftRight;
       case 'assignee_changed':
         return User;
@@ -117,10 +74,6 @@ export function TaskDetailsDialog({ open, onOpenChange, task, employees, current
         return FileText;
       case 'comment_added':
         return ChatCircle;
-      case 'attachment_added':
-        return Paperclip;
-      case 'attachment_removed':
-        return Paperclip;
       default:
         return ClockCounterClockwise;
     }
@@ -146,10 +99,6 @@ export function TaskDetailsDialog({ open, onOpenChange, task, employees, current
         return 'updated the description';
       case 'comment_added':
         return 'added a comment';
-      case 'attachment_added':
-        return `attached ${activity.details}`;
-      case 'attachment_removed':
-        return `removed attachment ${activity.details}`;
       default:
         return activity.details || 'made a change';
     }
@@ -157,7 +106,6 @@ export function TaskDetailsDialog({ open, onOpenChange, task, employees, current
 
   const comments = task.comments || [];
   const activities = task.activities || [];
-  const attachments = task.attachments || [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -178,80 +126,76 @@ export function TaskDetailsDialog({ open, onOpenChange, task, employees, current
                   <Clock weight="bold" className="w-3.5 h-3.5" />
                   <span className={cn(isOverdue && 'text-destructive font-medium')}>
                     {new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
+            {currentUser 
+                <div c
+                    
+                  
+                
 
-          {task.description && (
-            <div className="text-sm text-muted-foreground bg-muted/50 rounded-lg p-3">
-              {task.description}
-            </div>
-          )}
+                      className=
+                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                          handle
+                  
+            
 
-          {assignee && (
-            <div className="flex items-center gap-2 pt-2">
-              <span className="text-xs text-muted-foreground">Assigned to:</span>
-              <div className="flex items-center gap-2">
-                <Avatar className="w-6 h-6">
-                  <AvatarImage src={assignee.avatar} alt={assignee.name} />
-                  <AvatarFallback className="text-[10px]">{assignee.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                </Avatar>
-                <span className="text-sm font-medium">{assignee.name}</span>
-              </div>
-            </div>
-          )}
-        </DialogHeader>
-
-        <Separator />
-
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-          <TabsList className="mx-6 mt-4 w-auto self-start">
-            <TabsTrigger value="comments" className="flex items-center gap-1.5">
-              <ChatCircle className="w-4 h-4" weight="bold" />
-              Comments ({comments.length})
-            </TabsTrigger>
-            <TabsTrigger value="attachments" className="flex items-center gap-1.5">
-              <Paperclip className="w-4 h-4" weight="bold" />
-              Attachments ({attachments.length})
-            </TabsTrigger>
-            <TabsTrigger value="activity" className="flex items-center gap-1.5">
-              <ClockCounterClockwise className="w-4 h-4" weight="bold" />
-              Activity ({activities.length})
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="comments" className="flex-1 flex flex-col overflow-hidden mt-4 px-6">
-            <ScrollArea className="flex-1 pr-4">
-              <div className="space-y-4 pb-4">
-                {comments.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <ChatCircle className="w-12 h-12 mx-auto mb-2 opacity-50" weight="light" />
-                    <p className="text-sm">No comments yet. Start the conversation!</p>
+                      cl
+                      <PaperPlaneTilt className="w-4 h-4" 
                   </div>
-                ) : (
-                  comments.map((comment) => (
-                    <div key={comment.id} className="flex gap-3">
-                      <Avatar className="w-8 h-8 flex-shrink-0">
-                        <AvatarImage src={comment.userAvatar} alt={comment.userName} />
-                        <AvatarFallback className="text-xs">{comment.userName.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-medium">{comment.userName}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
-                          </span>
+                <p className="text-xs text-muted-foregr
+                </p>
+            )}
+
+            <ScrollArea c
+                {attachments.length === 0 ? (
+                    
+                  
+            
+                    con
+
+                     
+
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                            <span>•</span>
+                            <span>by {attachment.uploadedByName}</span>
                         </div>
-                        <div className="text-sm bg-muted rounded-lg p-3">
-                          {comment.content}
+                          <Button
+                          
+                            onClick={() => handleDownloadAttachment(attachment)}
+                          >
+                          </Button>
+                          
+                     
+
+                            >
+                            </Button>
                         </div>
-                      </div>
-                    </div>
-                  ))
+                    );
                 )}
-              </div>
+            </ScrollArea>
+            {currentUser && (
+                <input
+                  ref
+                  className="hidden"
+                />
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  <UploadSimple className="mr-2 h-4 w-4" weight="bold" />
+                </Button>
+            )}
+
+            <ScrollArea className="h-full pr-4">
+                {activities.length === 0 ? (
+                    <ClockCounterClockwise className="w-12 h-12 mx-auto mb-2 opacity-50" weight="li
+                  </div>
+                  activities.m
+                    return (
+                        <div className="fle
+                        </div>
+                          <d
+                          
+                    
+                  
+                    
             </ScrollArea>
 
             {currentUser && (
@@ -287,82 +231,6 @@ export function TaskDetailsDialog({ open, onOpenChange, task, employees, current
                 <p className="text-xs text-muted-foreground mt-2 ml-10">
                   Press ⌘+Enter to post
                 </p>
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="attachments" className="flex-1 flex flex-col overflow-hidden mt-4 px-6">
-            <ScrollArea className="flex-1 pr-4">
-              <div className="space-y-3 pb-4">
-                {attachments.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Paperclip className="w-12 h-12 mx-auto mb-2 opacity-50" weight="light" />
-                    <p className="text-sm mb-2">No attachments yet</p>
-                    <p className="text-xs">Upload files up to 10MB</p>
-                  </div>
-                ) : (
-                  attachments.map((attachment) => {
-                    const FileIconComponent = getFileIcon(attachment.fileType);
-                    return (
-                      <div key={attachment.id} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors">
-                        <div className="flex-shrink-0 w-10 h-10 rounded bg-primary/10 flex items-center justify-center">
-                          <FileIconComponent className="w-5 h-5 text-primary" weight="fill" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm truncate">{attachment.fileName}</div>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                            <span>{formatFileSize(attachment.fileSize)}</span>
-                            <span>•</span>
-                            <span>{formatDistanceToNow(new Date(attachment.uploadedAt), { addSuffix: true })}</span>
-                            <span>by {attachment.uploadedByName}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8"
-                            onClick={() => handleDownloadAttachment(attachment)}
-                            title="Download"
-                          >
-                            <Download className="w-4 h-4" weight="bold" />
-                          </Button>
-                          {currentUser && attachment.uploadedBy === currentUser.id && (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => onDeleteAttachment(task.id, attachment.id)}
-                              title="Delete"
-                            >
-                              <Trash className="w-4 h-4" weight="bold" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </ScrollArea>
-
-            {currentUser && (
-              <div className="pt-4 pb-6 flex-shrink-0">
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileUpload}
-                  className="hidden"
-                  accept="*/*"
-                />
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <UploadSimple className="mr-2 h-4 w-4" weight="bold" />
-                  Upload File (Max 10MB)
-                </Button>
               </div>
             )}
           </TabsContent>
