@@ -82,6 +82,13 @@ This is a task management tool with standard CRUD operations, filtering, and ass
 - **Progression**: Open details → Click attach → Select file → Upload → File appears in attachments list
 - **Success criteria**: Files persist, can be downloaded, and can be deleted by authorized users
 
+### Team Performance Analytics
+- **Functionality**: Visualize team performance metrics with interactive charts and dashboards
+- **Purpose**: Provide managers with insights into task completion rates, workload distribution, and team member performance
+- **Trigger**: Click "Analytics" button in main header
+- **Progression**: Click Analytics → View dashboard with charts → Switch between Overview/Team Performance/Trends tabs → Analyze data
+- **Success criteria**: Charts update in real-time, show accurate metrics, and provide actionable insights about team performance
+
 ## Edge Case Handling
 - **Empty States**: When no tasks exist or filters return no results, show encouraging message with quick action to add first task
 - **Overdue Tasks**: Automatically highlight tasks past due date with visual indicator (red accent)
@@ -91,6 +98,8 @@ This is a task management tool with standard CRUD operations, filtering, and ass
 - **Delete Employee with Tasks**: Warn user when deleting an employee who has assigned tasks, automatically unassign those tasks
 - **Large File Uploads**: Limit file attachments to 10MB, show clear error message if exceeded
 - **Empty Comments**: Prevent submission of blank comments
+- **No Data Analytics**: When no tasks exist, show empty state encouraging user to create tasks to see analytics
+- **Single Team Member**: Analytics still display meaningfully with just one team member
 
 ## Design Direction
 Professional yet approachable workspace tool that feels organized without being sterile. Should evoke a sense of control and clarity, like a well-organized desk. Modern corporate aesthetic with warm touches.
@@ -169,6 +178,10 @@ Animations reinforce status changes and provide feedback without slowing workflo
   - ChatCircle (comments)
   - Paperclip (attachments)
   - CheckSquare (bulk select)
+  - ChartBar (analytics view)
+  - ListChecks (tasks view)
+  - TrendUp (performance indicators)
+  - Target (goals/metrics)
 
 - **Spacing**: 
   - Page padding: p-6 (24px)

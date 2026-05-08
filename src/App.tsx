@@ -4,12 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, FunnelSimple, ArrowsDownUp, CheckCircle, CheckSquare, Square, Trash, X, PlayCircle, Circle } from '@phosphor-icons/react';
+import { Plus, FunnelSimple, ArrowsDownUp, CheckCircle, CheckSquare, Square, Trash, X, PlayCircle, Circle, ChartBar, ListChecks } from '@phosphor-icons/react';
 import { TaskCard } from '@/components/TaskCard';
 import { CreateTaskDialog } from '@/components/CreateTaskDialog';
 import { EditTaskDialog } from '@/components/EditTaskDialog';
 import { TaskDetailsDialog } from '@/components/TaskDetailsDialog';
 import { UsersManagement } from '@/components/UsersManagement';
+import { TeamAnalytics } from '@/components/TeamAnalytics';
 import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment } from '@/lib/types';
 import { Toaster, toast } from 'sonner';
 import confetti from 'canvas-confetti';
@@ -31,6 +32,7 @@ function App() {
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; avatar: string } | null>(null);
+  const [viewMode, setViewMode] = useState<'tasks' | 'analytics'>('tasks');
 
   useEffect(() => {
     if (employees && employees.length > 0) {
@@ -557,6 +559,24 @@ function App() {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <div className="flex border rounded-lg">
+                <Button
+                  variant={viewMode === 'tasks' ? 'default' : 'ghost'}
+                  onClick={() => setViewMode('tasks')}
+                  className="rounded-r-none"
+                >
+                  <ListChecks className="mr-2 h-5 w-5" weight={viewMode === 'tasks' ? 'fill' : 'regular'} />
+                  Tasks
+                </Button>
+                <Button
+                  variant={viewMode === 'analytics' ? 'default' : 'ghost'}
+                  onClick={() => setViewMode('analytics')}
+                  className="rounded-l-none"
+                >
+                  <ChartBar className="mr-2 h-5 w-5" weight={viewMode === 'analytics' ? 'fill' : 'regular'} />
+                  Analytics
+                </Button>
+              </div>
               <UsersManagement
                 employees={employees || []}
                 onAddEmployee={handleAddEmployee}
@@ -564,18 +584,22 @@ function App() {
                 onDeleteEmployee={handleDeleteEmployee}
                 taskCounts={taskCountsByEmployee}
               />
-              <Button 
-                variant={bulkMode ? "secondary" : "outline"} 
-                onClick={handleToggleBulkMode}
-                className="w-full sm:w-auto"
-              >
-                <CheckSquare className="mr-2 h-5 w-5" weight={bulkMode ? "fill" : "regular"} />
-                {bulkMode ? 'Exit Bulk Mode' : 'Bulk Select'}
-              </Button>
-              <Button size="lg" onClick={() => setCreateDialogOpen(true)} className="w-full sm:w-auto">
-                <Plus className="mr-2 h-5 w-5" weight="bold" />
-                Add Task
-              </Button>
+              {viewMode === 'tasks' && (
+                <>
+                  <Button 
+                    variant={bulkMode ? "secondary" : "outline"} 
+                    onClick={handleToggleBulkMode}
+                    className="w-full sm:w-auto"
+                  >
+                    <CheckSquare className="mr-2 h-5 w-5" weight={bulkMode ? "fill" : "regular"} />
+                    {bulkMode ? 'Exit Bulk Mode' : 'Bulk Select'}
+                  </Button>
+                  <Button size="lg" onClick={() => setCreateDialogOpen(true)} className="w-full sm:w-auto">
+                    <Plus className="mr-2 h-5 w-5" weight="bold" />
+                    Add Task
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
@@ -599,7 +623,12 @@ function App() {
           </div>
         </div>
 
-        <div className="bg-card rounded-xl border p-4 sm:p-6 mb-6">
+        {viewMode === 'analytics' ? (
+          <div className="bg-card rounded-xl border p-4 sm:p-6 mb-6">
+            <TeamAnalytics tasks={tasks || []} employees={employees || []} />
+          </div>
+        ) : (
+          <div className="bg-card rounded-xl border p-4 sm:p-6 mb-6">
           <div className="flex flex-col sm:flex-row gap-3 mb-4">
             <div className="flex items-center gap-2 flex-1">
               <FunnelSimple className="w-4 h-4 text-muted-foreground" weight="bold" />
@@ -789,6 +818,7 @@ function App() {
             </TabsContent>
           </Tabs>
         </div>
+        )}
       </div>
 
       <CreateTaskDialog
