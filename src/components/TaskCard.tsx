@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Trash, Clock, Circle, CircleHalf, CheckCircle, PencilSimple, ChatCircle, Eye } from '@phosphor-icons/react';
+import { Trash, Clock, Circle, CircleHalf, CheckCircle, PencilSimple, ChatCircle, Eye, Paperclip } from '@phosphor-icons/react';
 import { Task, Employee, TaskStatus, TaskPriority } from '@/lib/types';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -157,6 +157,13 @@ export function TaskCard({ task, employees, onStatusChange, onAssigneeChange, on
                 <div className="flex items-center gap-1 text-muted-foreground">
                   <ChatCircle weight="fill" className="w-3.5 h-3.5" />
                   <span>{task.comments.length}</span>
+                </div>
+              )}
+
+              {(task.attachments && task.attachments.length > 0) && (
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <Paperclip weight="fill" className="w-3.5 h-3.5" />
+                  <span>{task.attachments.length}</span>
                 </div>
               )}
             </div>

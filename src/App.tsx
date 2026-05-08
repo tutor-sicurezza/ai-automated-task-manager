@@ -9,7 +9,7 @@ import { TaskCard } from '@/components/TaskCard';
 import { CreateTaskDialog } from '@/components/CreateTaskDialog';
 import { EditTaskDialog } from '@/components/EditTaskDialog';
 import { TaskDetailsDialog } from '@/components/TaskDetailsDialog';
-import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment } from '@/lib/types';
+import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment } from '@/lib/types';
 import { Toaster, toast } from 'sonner';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -227,6 +227,72 @@ function App() {
 
     addActivity(taskId, 'comment_added', undefined, undefined, content);
     toast.success('Comment added!');
+  };
+
+  const handleAddAttachment = async (taskId: string, file: File) => {
+    if (!currentUser) return;
+
+    const MAX_FILE_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error('File size must be less than 10MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const attachment: TaskAttachment = {
+        id: `attachment-${Date.now()}`,
+        taskId,
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        fileData: reader.result as string,
+        uploadedBy: currentUser.id,
+        uploadedByName: currentUser.name,
+        uploadedByAvatar: currentUser.avatar,
+        uploadedAt: new Date().toISOString(),
+      };
+
+      setTasks((currentTasks) =>
+        (currentTasks || []).map(task => {
+          if (task.id === taskId) {
+            const attachments = task.attachments || [];
+            return { ...task, attachments: [...attachments, attachment] };
+          }
+          return task;
+        })
+      );
+
+      addActivity(taskId, 'attachment_added', undefined, undefined, file.name);
+      toast.success('File attached successfully!');
+    };
+
+    reader.onerror = () => {
+      toast.error('Failed to read file');
+    };
+
+    reader.readAsDataURL(file);
+  };
+
+  const handleDeleteAttachment = (taskId: string, attachmentId: string) => {
+    const task = (tasks || []).find(t => t.id === taskId);
+    if (!task) return;
+
+    const attachment = task.attachments?.find(a => a.id === attachmentId);
+    if (!attachment) return;
+
+    setTasks((currentTasks) =>
+      (currentTasks || []).map(task => {
+        if (task.id === taskId) {
+          const attachments = task.attachments || [];
+          return { ...task, attachments: attachments.filter(a => a.id !== attachmentId) };
+        }
+        return task;
+      })
+    );
+
+    addActivity(taskId, 'attachment_removed', undefined, undefined, attachment.fileName);
+    toast.success('Attachment removed');
   };
 
   const handleDeleteTask = (taskId: string) => {
@@ -679,6 +745,8 @@ function App() {
         employees={employees || []}
         currentUser={currentUser}
         onAddComment={handleAddComment}
+        onAddAttachment={handleAddAttachment}
+        onDeleteAttachment={handleDeleteAttachment}
       />
 
       <AlertDialog open={!!deleteTaskId} onOpenChange={(open) => !open && setDeleteTaskId(null)}>

@@ -6,9 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { useState, useEffect } from 'react';
-import { Task, Employee, TaskComment, TaskActivity, TaskPriority, TaskStatus } from '@/lib/types';
-import { Clock, Circle, CircleHalf, CheckCircle, ChatCircle, ClockCounterClockwise, PaperPlaneTilt, ArrowsLeftRight, User, Calendar, Flag, FileText, CheckSquare } from '@phosphor-icons/react';
+import { useState, useEffect, useRef } from 'react';
+import { Task, Employee, TaskComment, TaskActivity, TaskAttachment, TaskPriority, TaskStatus } from '@/lib/types';
+import { Clock, Circle, CircleHalf, CheckCircle, ChatCircle, ClockCounterClockwise, PaperPlaneTilt, ArrowsLeftRight, User, Calendar, Flag, FileText, CheckSquare, Paperclip, UploadSimple, Download, Trash, File, FileDoc, FilePdf, FileJpg, FilePng, FileZip } from '@phosphor-icons/react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -19,11 +19,14 @@ interface TaskDetailsDialogProps {
   employees: Employee[];
   currentUser: { id: string; name: string; avatar: string } | null;
   onAddComment: (taskId: string, content: string) => void;
+  onAddAttachment: (taskId: string, file: File) => void;
+  onDeleteAttachment: (taskId: string, attachmentId: string) => void;
 }
 
-export function TaskDetailsDialog({ open, onOpenChange, task, employees, currentUser, onAddComment }: TaskDetailsDialogProps) {
+export function TaskDetailsDialog({ open, onOpenChange, task, employees, currentUser, onAddComment, onAddAttachment, onDeleteAttachment }: TaskDetailsDialogProps) {
   const [commentText, setCommentText] = useState('');
   const [activeTab, setActiveTab] = useState('comments');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) {
@@ -57,6 +60,46 @@ export function TaskDetailsDialog({ open, onOpenChange, task, employees, current
 
   const StatusIcon = statusIcons[task.status];
 
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && task) {
+      const MAX_FILE_SIZE = 10 * 1024 * 1024;
+      if (file.size > MAX_FILE_SIZE) {
+        return;
+      }
+      onAddAttachment(task.id, file);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDownloadAttachment = (attachment: TaskAttachment) => {
+    const link = document.createElement('a');
+    link.href = attachment.fileData;
+    link.download = attachment.fileName;
+    link.click();
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${Math.round(bytes / Math.pow(k, i) * 100) / 100} ${sizes[i]}`;
+  };
+
+  const getFileIcon = (fileType: string) => {
+    if (fileType.includes('pdf')) return FilePdf;
+    if (fileType.includes('image')) {
+      if (fileType.includes('png')) return FilePng;
+      if (fileType.includes('jpg') || fileType.includes('jpeg')) return FileJpg;
+    }
+    if (fileType.includes('word') || fileType.includes('document')) return FileDoc;
+    if (fileType.includes('zip') || fileType.includes('rar')) return FileZip;
+    return File;
+  };
+
   const getActivityIcon = (type: TaskActivity['type']) => {
     switch (type) {
       case 'created':
@@ -74,6 +117,10 @@ export function TaskDetailsDialog({ open, onOpenChange, task, employees, current
         return FileText;
       case 'comment_added':
         return ChatCircle;
+      case 'attachment_added':
+        return Paperclip;
+      case 'attachment_removed':
+        return Paperclip;
       default:
         return ClockCounterClockwise;
     }
@@ -99,6 +146,10 @@ export function TaskDetailsDialog({ open, onOpenChange, task, employees, current
         return 'updated the description';
       case 'comment_added':
         return 'added a comment';
+      case 'attachment_added':
+        return `attached ${activity.details}`;
+      case 'attachment_removed':
+        return `removed attachment ${activity.details}`;
       default:
         return activity.details || 'made a change';
     }
@@ -106,6 +157,7 @@ export function TaskDetailsDialog({ open, onOpenChange, task, employees, current
 
   const comments = task.comments || [];
   const activities = task.activities || [];
+  const attachments = task.attachments || [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -159,6 +211,10 @@ export function TaskDetailsDialog({ open, onOpenChange, task, employees, current
             <TabsTrigger value="comments" className="flex items-center gap-1.5">
               <ChatCircle className="w-4 h-4" weight="bold" />
               Comments ({comments.length})
+            </TabsTrigger>
+            <TabsTrigger value="attachments" className="flex items-center gap-1.5">
+              <Paperclip className="w-4 h-4" weight="bold" />
+              Attachments ({attachments.length})
             </TabsTrigger>
             <TabsTrigger value="activity" className="flex items-center gap-1.5">
               <ClockCounterClockwise className="w-4 h-4" weight="bold" />
@@ -231,6 +287,82 @@ export function TaskDetailsDialog({ open, onOpenChange, task, employees, current
                 <p className="text-xs text-muted-foreground mt-2 ml-10">
                   Press ⌘+Enter to post
                 </p>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="attachments" className="flex-1 flex flex-col overflow-hidden mt-4 px-6">
+            <ScrollArea className="flex-1 pr-4">
+              <div className="space-y-3 pb-4">
+                {attachments.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Paperclip className="w-12 h-12 mx-auto mb-2 opacity-50" weight="light" />
+                    <p className="text-sm mb-2">No attachments yet</p>
+                    <p className="text-xs">Upload files up to 10MB</p>
+                  </div>
+                ) : (
+                  attachments.map((attachment) => {
+                    const FileIconComponent = getFileIcon(attachment.fileType);
+                    return (
+                      <div key={attachment.id} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors">
+                        <div className="flex-shrink-0 w-10 h-10 rounded bg-primary/10 flex items-center justify-center">
+                          <FileIconComponent className="w-5 h-5 text-primary" weight="fill" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm truncate">{attachment.fileName}</div>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                            <span>{formatFileSize(attachment.fileSize)}</span>
+                            <span>•</span>
+                            <span>{formatDistanceToNow(new Date(attachment.uploadedAt), { addSuffix: true })}</span>
+                            <span>by {attachment.uploadedByName}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8"
+                            onClick={() => handleDownloadAttachment(attachment)}
+                            title="Download"
+                          >
+                            <Download className="w-4 h-4" weight="bold" />
+                          </Button>
+                          {currentUser && attachment.uploadedBy === currentUser.id && (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => onDeleteAttachment(task.id, attachment.id)}
+                              title="Delete"
+                            >
+                              <Trash className="w-4 h-4" weight="bold" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </ScrollArea>
+
+            {currentUser && (
+              <div className="pt-4 pb-6 flex-shrink-0">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  accept="*/*"
+                />
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <UploadSimple className="mr-2 h-4 w-4" weight="bold" />
+                  Upload File (Max 10MB)
+                </Button>
               </div>
             )}
           </TabsContent>

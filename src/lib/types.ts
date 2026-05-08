@@ -1,6 +1,6 @@
 export type TaskStatus = 'not-started' | 'in-progress' | 'completed';
 export type TaskPriority = 'low' | 'medium' | 'high';
-export type ActivityType = 'created' | 'status_changed' | 'priority_changed' | 'assignee_changed' | 'due_date_changed' | 'title_changed' | 'description_changed' | 'comment_added';
+export type ActivityType = 'created' | 'status_changed' | 'priority_changed' | 'assignee_changed' | 'due_date_changed' | 'title_changed' | 'description_changed' | 'comment_added' | 'attachment_added' | 'attachment_removed';
 
 export interface Employee {
   id: string;
@@ -32,6 +32,19 @@ export interface TaskActivity {
   createdAt: string;
 }
 
+export interface TaskAttachment {
+  id: string;
+  taskId: string;
+  fileName: string;
+  fileSize: number;
+  fileType: string;
+  fileData: string;
+  uploadedBy: string;
+  uploadedByName: string;
+  uploadedByAvatar: string;
+  uploadedAt: string;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -43,4 +56,5 @@ export interface Task {
   createdAt: string;
   comments?: TaskComment[];
   activities?: TaskActivity[];
+  attachments?: TaskAttachment[];
 }
