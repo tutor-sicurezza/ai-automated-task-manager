@@ -112,3 +112,26 @@ export interface TaskNotification {
   read: boolean;
   link?: string;
 }
+
+export interface NotificationPreferences {
+  userId: string;
+  emailNotifications: boolean;
+  enabledNotifications: {
+    task_assigned: boolean;
+    task_reassigned: boolean;
+    task_updated: boolean;
+    task_comment: boolean;
+    task_due_soon: boolean;
+    task_overdue: boolean;
+    task_completed: boolean;
+    task_status_changed: boolean;
+    task_priority_changed: boolean;
+    mention: boolean;
+  };
+  notificationFrequency: 'instant' | 'daily' | 'weekly';
+  quietHours: {
+    enabled: boolean;
+    startTime: string;
+    endTime: string;
+  };
+}

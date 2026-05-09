@@ -17,7 +17,8 @@ import { AIInsights } from '@/components/AIInsights';
 import { AIAutoAssign } from '@/components/AIAutoAssign';
 import { AnnouncementsDialog } from '@/components/AnnouncementsDialog';
 import { TaskNotifications } from '@/components/TaskNotifications';
-import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment, Announcement, TaskNotification } from '@/lib/types';
+import { NotificationPreferences } from '@/components/NotificationPreferences';
+import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment, Announcement, TaskNotification, NotificationPreferences as NotificationPreferencesType, NotificationType } from '@/lib/types';
 import { Toaster, toast } from 'sonner';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -101,6 +102,42 @@ function App() {
     loadUser();
   }, []);
 
+  const shouldSendNotification = async (userId: string, notificationType: NotificationType): Promise<boolean> => {
+    try {
+      const prefsKey = `notification-preferences-${userId}`;
+      const prefs = await window.spark.kv.get<NotificationPreferencesType>(prefsKey);
+      
+      if (!prefs) return true;
+      
+      if (!prefs.enabledNotifications[notificationType]) {
+        return false;
+      }
+      
+      if (prefs.quietHours.enabled) {
+        const now = new Date();
+        const currentTime = now.getHours() * 60 + now.getMinutes();
+        const [startHour, startMin] = prefs.quietHours.startTime.split(':').map(Number);
+        const [endHour, endMin] = prefs.quietHours.endTime.split(':').map(Number);
+        const startTime = startHour * 60 + startMin;
+        const endTime = endHour * 60 + endMin;
+        
+        if (startTime < endTime) {
+          if (currentTime >= startTime && currentTime < endTime) {
+            return false;
+          }
+        } else {
+          if (currentTime >= startTime || currentTime < endTime) {
+            return false;
+          }
+        }
+      }
+      
+      return true;
+    } catch (error) {
+      return true;
+    }
+  };
+
   useEffect(() => {
     const checkDeadlines = () => {
       if (!currentUser || !tasks) return;
@@ -153,7 +190,10 @@ function App() {
     return () => clearInterval(interval);
   }, [tasks, currentUser]);
 
-  const addNotification = (notification: TaskNotification) => {
+  const addNotification = async (notification: TaskNotification) => {
+    const shouldSend = await shouldSendNotification(notification.userId, notification.type);
+    if (!shouldSend) return;
+    
     setNotifications((currentNotifications) => {
       const existing = (currentNotifications || []).find(n => n.id === notification.id);
       if (existing) return currentNotifications || [];
@@ -865,6 +905,7 @@ function App() {
                 onDeleteAll={handleDeleteAllNotifications}
                 onNotificationClick={handleNotificationClick}
               />
+              {currentUser && <NotificationPreferences userId={currentUser.id} />}
               <div className="flex border rounded-lg">
                 <Button
                   variant={viewMode === 'tasks' ? 'default' : 'ghost'}
