@@ -110,6 +110,13 @@ This is a task management tool with standard CRUD operations, filtering, and ass
 - **Progression**: Click button → AI analyzes tasks and team → Review assignment suggestions → Apply all or cancel
 - **Success criteria**: Assignments balance workload, consider priority and deadlines, persist correctly
 
+### Department Management
+- **Functionality**: Create and manage organizational departments with comprehensive details including leads, budgets, and locations
+- **Purpose**: Organize team structure, track departmental information, and assign employees to multiple departments
+- **Trigger**: Click "Departments" button in header
+- **Progression**: Click button → View all departments → Add/Edit/Archive departments → Assign department leads → View department details with team roster
+- **Success criteria**: Departments persist with all metadata, color-coding displays consistently, employee assignments update across the system, archived departments remain accessible but hidden from active use, department details show accurate team member counts and lead information
+
 ## Edge Case Handling
 - **Empty States**: When no tasks exist or filters return no results, show encouraging message with quick action to add first task
 - **Overdue Tasks**: Automatically highlight tasks past due date with visual indicator (red accent)
@@ -123,6 +130,11 @@ This is a task management tool with standard CRUD operations, filtering, and ass
 - **Single Team Member**: Analytics still display meaningfully with just one team member
 - **AI Failures**: If AI requests fail, show friendly error message and allow retry without breaking app
 - **No Unassigned Tasks**: Auto-assign button only appears when there are unassigned tasks to distribute
+- **Department Name Conflicts**: Prevent creating departments with duplicate names among active departments
+- **Delete Department with Employees**: Prevent deletion of departments that have assigned employees, require reassignment first
+- **Archive Department with Employees**: Prevent archiving departments that have assigned employees
+- **Department Rename**: When renaming a department, automatically update all employee assignments to reference new name
+- **No Departments**: Show empty state with encouragement to create first department
 
 ## Design Direction
 Professional yet approachable workspace tool that feels organized without being sterile. Should evoke a sense of control and clarity, like a well-organized desk. Modern corporate aesthetic with warm touches.

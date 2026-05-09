@@ -19,6 +19,7 @@ import { AnnouncementsDialog } from '@/components/AnnouncementsDialog';
 import { TaskNotifications } from '@/components/TaskNotifications';
 import { NotificationPreferences } from '@/components/NotificationPreferences';
 import { PermissionsOverview } from '@/components/PermissionsOverview';
+import { DepartmentManagement } from '@/components/DepartmentManagement';
 import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment, Announcement, TaskNotification, NotificationPreferences as NotificationPreferencesType, NotificationType } from '@/lib/types';
 import { playNotificationSound } from '@/lib/notificationSounds';
 import { canPerformAction } from '@/lib/permissions';
@@ -985,6 +986,10 @@ function App() {
                   AI Assistant
                 </Button>
               )}
+              <DepartmentManagement
+                employees={employees || []}
+                onEmployeeUpdate={handleEditEmployee}
+              />
               {canPerformAction(currentEmployee, 'employees', 'view') && (
                 <UsersManagement
                   employees={employees || []}
