@@ -19,6 +19,7 @@ import { AnnouncementsDialog } from '@/components/AnnouncementsDialog';
 import { TaskNotifications } from '@/components/TaskNotifications';
 import { NotificationPreferences } from '@/components/NotificationPreferences';
 import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment, Announcement, TaskNotification, NotificationPreferences as NotificationPreferencesType, NotificationType } from '@/lib/types';
+import { playNotificationSound } from '@/lib/notificationSounds';
 import { Toaster, toast } from 'sonner';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -199,6 +200,13 @@ function App() {
       if (existing) return currentNotifications || [];
       return [...(currentNotifications || []), notification];
     });
+
+    const prefsKey = `notification-preferences-${notification.userId}`;
+    const prefs = await window.spark.kv.get<NotificationPreferencesType>(prefsKey);
+    
+    if (prefs?.soundEnabled) {
+      await playNotificationSound(notification.type, prefs.soundVolume || 0.3);
+    }
   };
 
   const addActivity = (taskId: string, type: TaskActivity['type'], oldValue?: string, newValue?: string, details?: string) => {

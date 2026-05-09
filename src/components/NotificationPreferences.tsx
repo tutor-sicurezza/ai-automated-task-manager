@@ -3,13 +3,15 @@ import { useKV } from '@github/spark/hooks';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { Gear, EnvelopeSimple, Bell, ClockCountdown, User, ArrowsClockwise, FlagBanner, ChatCircle, CheckCircle, WarningCircle, Moon } from '@phosphor-icons/react';
-import { NotificationPreferences as NotificationPreferencesType } from '@/lib/types';
+import { Gear, EnvelopeSimple, Bell, ClockCountdown, User, ArrowsClockwise, FlagBanner, ChatCircle, CheckCircle, WarningCircle, Moon, SpeakerHigh, SpeakerX } from '@phosphor-icons/react';
+import { NotificationPreferences as NotificationPreferencesType, NotificationType } from '@/lib/types';
+import { playNotificationSound, getSoundDescription } from '@/lib/notificationSounds';
 import { toast } from 'sonner';
 
 interface NotificationPreferencesProps {
@@ -36,6 +38,8 @@ const defaultPreferences: Omit<NotificationPreferencesType, 'userId'> = {
     startTime: '22:00',
     endTime: '08:00',
   },
+  soundEnabled: true,
+  soundVolume: 0.3,
 };
 
 const quietHoursPresets = [
@@ -169,6 +173,26 @@ export function NotificationPreferences({ userId }: NotificationPreferencesProps
       },
     }));
     toast.success('All notification types disabled');
+  };
+
+  const handleToggleSound = (checked: boolean) => {
+    setPreferences((current) => ({
+      ...(current || { ...defaultPreferences, userId }),
+      soundEnabled: checked,
+    }));
+    toast.success(checked ? 'Notification sounds enabled' : 'Notification sounds muted');
+  };
+
+  const handleChangeVolume = (value: number[]) => {
+    setPreferences((current) => ({
+      ...(current || { ...defaultPreferences, userId }),
+      soundVolume: value[0],
+    }));
+  };
+
+  const handleTestSound = async (notificationType: NotificationType) => {
+    await playNotificationSound(notificationType, currentPreferences.soundVolume);
+    toast.success(`Playing ${getSoundDescription(notificationType)}`);
   };
 
   const notificationTypes = [
@@ -410,6 +434,96 @@ export function NotificationPreferences({ userId }: NotificationPreferencesProps
                     </SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
+                  <SpeakerHigh className="w-4 h-4 text-blue-600" weight="fill" />
+                  Notification Sounds
+                </h3>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Customize audio alerts for different notification types
+                </p>
+              </div>
+              
+              <div className="space-y-4 rounded-lg border p-4 bg-gradient-to-br from-blue-50/50 to-indigo-50/50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="sound-enabled" className="text-sm font-medium">
+                      Enable Notification Sounds
+                    </Label>
+                    {!currentPreferences.soundEnabled && (
+                      <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-gray-200 text-xs">
+                        <SpeakerX className="w-3 h-3 mr-1" weight="fill" />
+                        Muted
+                      </Badge>
+                    )}
+                  </div>
+                  <Switch
+                    id="sound-enabled"
+                    checked={currentPreferences.soundEnabled}
+                    onCheckedChange={handleToggleSound}
+                  />
+                </div>
+                
+                {currentPreferences.soundEnabled && (
+                  <>
+                    <Separator className="bg-blue-200/50" />
+                    
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="volume-slider" className="text-sm font-medium">
+                          Volume
+                        </Label>
+                        <span className="text-xs text-muted-foreground">
+                          {Math.round(currentPreferences.soundVolume * 100)}%
+                        </span>
+                      </div>
+                      <Slider
+                        id="volume-slider"
+                        min={0}
+                        max={1}
+                        step={0.1}
+                        value={[currentPreferences.soundVolume]}
+                        onValueChange={handleChangeVolume}
+                        className="w-full"
+                      />
+                    </div>
+
+                    <Separator className="bg-blue-200/50" />
+                    
+                    <div className="space-y-2">
+                      <div className="text-xs font-medium text-muted-foreground mb-2">
+                        Test Notification Sounds
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {notificationTypes.slice(0, 6).map((type) => (
+                          <Button
+                            key={type.key}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleTestSound(type.key)}
+                            className="h-auto py-2 px-3 text-left justify-start"
+                          >
+                            <div className="flex items-center gap-2 w-full">
+                              {type.icon}
+                              <div className="flex flex-col items-start flex-1">
+                                <span className="text-xs font-medium">{type.label}</span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  {getSoundDescription(type.key)}
+                                </span>
+                              </div>
+                            </div>
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 

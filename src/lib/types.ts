@@ -134,4 +134,6 @@ export interface NotificationPreferences {
     startTime: string;
     endTime: string;
   };
+  soundEnabled: boolean;
+  soundVolume: number;
 }
