@@ -117,6 +117,13 @@ This is a task management tool with standard CRUD operations, filtering, and ass
 - **Progression**: Click button → View all departments → Add/Edit/Archive departments → Assign department leads → View department details with team roster
 - **Success criteria**: Departments persist with all metadata, color-coding displays consistently, employee assignments update across the system, archived departments remain accessible but hidden from active use, department details show accurate team member counts and lead information
 
+### Email Template Customization
+- **Functionality**: Customize email notification templates for all automated task notifications with HTML and plain text versions
+- **Purpose**: Allow super admins to tailor email communications to match company branding and communication style
+- **Trigger**: Click "Email Templates" button in header (admin only)
+- **Progression**: Open dialog → Select notification type → Edit subject line → Modify HTML/plain text content → Insert variables → Preview changes → Save template
+- **Success criteria**: Templates persist across sessions, variables automatically populate with actual values, reset to default option available, preview accurately represents final output, active/inactive toggle controls template usage
+
 ## Edge Case Handling
 - **Empty States**: When no tasks exist or filters return no results, show encouraging message with quick action to add first task
 - **Overdue Tasks**: Automatically highlight tasks past due date with visual indicator (red accent)
@@ -135,6 +142,9 @@ This is a task management tool with standard CRUD operations, filtering, and ass
 - **Archive Department with Employees**: Prevent archiving departments that have assigned employees
 - **Department Rename**: When renaming a department, automatically update all employee assignments to reference new name
 - **No Departments**: Show empty state with encouragement to create first department
+- **Invalid Email Template Variables**: If template contains variables that don't exist for that notification type, they display as-is without replacement
+- **Missing Subject Line**: Prevent saving template without a subject line
+- **Template Reset Confirmation**: Warn users before resetting to default that all customizations will be lost
 
 ## Design Direction
 Professional yet approachable workspace tool that feels organized without being sterile. Should evoke a sense of control and clarity, like a well-organized desk. Modern corporate aesthetic with warm touches.

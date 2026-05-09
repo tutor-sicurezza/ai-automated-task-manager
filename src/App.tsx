@@ -24,6 +24,7 @@ import { SuperAdminDashboard } from '@/components/dashboards/SuperAdminDashboard
 import { DepartmentAdminDashboard } from '@/components/dashboards/DepartmentAdminDashboard';
 import { UserDashboard } from '@/components/dashboards/UserDashboard';
 import { SuperAdminSettings } from '@/components/SuperAdminSettings';
+import { EmailTemplateCustomization } from '@/components/EmailTemplateCustomization';
 import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment, Announcement, TaskNotification, NotificationPreferences as NotificationPreferencesType, NotificationType } from '@/lib/types';
 import { playNotificationSound } from '@/lib/notificationSounds';
 import { canPerformAction } from '@/lib/permissions';
@@ -1057,10 +1058,16 @@ function App() {
                 </Button>
               )}
               {currentEmployee?.userRole === 'admin' && (
-                <SuperAdminSettings
-                  currentUserId={currentUser?.id}
-                  currentUserName={currentUser?.name}
-                />
+                <>
+                  <EmailTemplateCustomization
+                    currentUserId={currentUser?.id}
+                    currentUserName={currentUser?.name}
+                  />
+                  <SuperAdminSettings
+                    currentUserId={currentUser?.id}
+                    currentUserName={currentUser?.name}
+                  />
+                </>
               )}
               <DepartmentManagement
                 employees={employees || []}

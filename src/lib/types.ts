@@ -264,3 +264,22 @@ export interface AuditLogEntry {
   ipAddress?: string;
   userAgent?: string;
 }
+
+export interface EmailTemplate {
+  id: string;
+  name: string;
+  type: NotificationType;
+  subject: string;
+  htmlContent: string;
+  textContent: string;
+  isActive: boolean;
+  lastModifiedAt: string;
+  lastModifiedBy: string;
+  variables: string[];
+}
+
+export interface EmailTemplateVariable {
+  name: string;
+  description: string;
+  example: string;
+}
