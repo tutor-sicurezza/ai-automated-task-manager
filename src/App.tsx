@@ -18,8 +18,10 @@ import { AIAutoAssign } from '@/components/AIAutoAssign';
 import { AnnouncementsDialog } from '@/components/AnnouncementsDialog';
 import { TaskNotifications } from '@/components/TaskNotifications';
 import { NotificationPreferences } from '@/components/NotificationPreferences';
+import { PermissionsOverview } from '@/components/PermissionsOverview';
 import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment, Announcement, TaskNotification, NotificationPreferences as NotificationPreferencesType, NotificationType } from '@/lib/types';
 import { playNotificationSound } from '@/lib/notificationSounds';
+import { canPerformAction } from '@/lib/permissions';
 import { Toaster, toast } from 'sonner';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -43,6 +45,7 @@ function App() {
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; avatar: string } | null>(null);
+  const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
   const [viewMode, setViewMode] = useState<'tasks' | 'analytics'>('tasks');
   const [analyticsView, setAnalyticsView] = useState<'team' | 'departments'>('team');
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
@@ -86,22 +89,52 @@ function App() {
       try {
         const user = await window.spark.user();
         if (user) {
+          const userId = user.id.toString();
           setCurrentUser({
-            id: user.id.toString(),
+            id: userId,
             name: user.login || 'User',
             avatar: user.avatarUrl || 'https://api.dicebear.com/7.x/avataaars/svg?seed=default',
           });
+          
+          const employee = (employees || []).find(e => e.id === userId);
+          if (employee) {
+            setCurrentEmployee(employee);
+          } else {
+            setCurrentEmployee({
+              id: userId,
+              name: user.login || 'User',
+              avatar: user.avatarUrl || 'https://api.dicebear.com/7.x/avataaars/svg?seed=default',
+              role: 'User',
+              userRole: 'member',
+              status: 'active',
+              joinedDate: new Date().toISOString(),
+            });
+          }
         }
       } catch (error) {
-        setCurrentUser({
+        const demoUser = {
           id: 'demo-user',
           name: 'Demo User',
           avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=demo',
-        });
+        };
+        setCurrentUser(demoUser);
+        
+        const demoEmployee = (employees || []).find(e => e.id === 'demo-user');
+        if (demoEmployee) {
+          setCurrentEmployee(demoEmployee);
+        } else {
+          setCurrentEmployee({
+            ...demoUser,
+            role: 'Demo User',
+            userRole: 'admin',
+            status: 'active',
+            joinedDate: new Date().toISOString(),
+          });
+        }
       }
     };
     loadUser();
-  }, []);
+  }, [employees]);
 
   const shouldSendNotification = async (userId: string, notificationType: NotificationType): Promise<boolean> => {
     try {
@@ -914,6 +947,7 @@ function App() {
                 onNotificationClick={handleNotificationClick}
               />
               {currentUser && <NotificationPreferences userId={currentUser.id} />}
+              <PermissionsOverview employee={currentEmployee} />
               <div className="flex border rounded-lg">
                 <Button
                   variant={viewMode === 'tasks' ? 'default' : 'ghost'}
@@ -941,40 +975,50 @@ function App() {
                 onPinAnnouncement={handlePinAnnouncement}
                 onMarkAsRead={handleMarkAnnouncementAsRead}
               />
-              <Button
-                variant="outline"
-                onClick={() => setAiAssistantOpen(true)}
-                className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-300 hover:from-purple-500/20 hover:to-pink-500/20"
-              >
-                <Sparkle className="mr-2 h-5 w-5 text-purple-600" weight="fill" />
-                AI Assistant
-              </Button>
-              <UsersManagement
-                employees={employees || []}
-                onAddEmployee={handleAddEmployee}
-                onEditEmployee={handleEditEmployee}
-                onDeleteEmployee={handleDeleteEmployee}
-                taskCounts={taskCountsByEmployee}
-              />
+              {canPerformAction(currentEmployee, 'ai_features', 'use_assistant') && (
+                <Button
+                  variant="outline"
+                  onClick={() => setAiAssistantOpen(true)}
+                  className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-300 hover:from-purple-500/20 hover:to-pink-500/20"
+                >
+                  <Sparkle className="mr-2 h-5 w-5 text-purple-600" weight="fill" />
+                  AI Assistant
+                </Button>
+              )}
+              {canPerformAction(currentEmployee, 'employees', 'view') && (
+                <UsersManagement
+                  employees={employees || []}
+                  onAddEmployee={handleAddEmployee}
+                  onEditEmployee={handleEditEmployee}
+                  onDeleteEmployee={handleDeleteEmployee}
+                  taskCounts={taskCountsByEmployee}
+                />
+              )}
               {viewMode === 'tasks' && (
                 <>
-                  <AIAutoAssign
-                    tasks={tasks || []}
-                    employees={employees || []}
-                    onAssignTasks={handleAutoAssign}
-                  />
-                  <Button 
-                    variant={bulkMode ? "secondary" : "outline"} 
-                    onClick={handleToggleBulkMode}
-                    className="w-full sm:w-auto"
-                  >
-                    <CheckSquare className="mr-2 h-5 w-5" weight={bulkMode ? "fill" : "regular"} />
-                    {bulkMode ? 'Exit Bulk Mode' : 'Bulk Select'}
-                  </Button>
-                  <Button size="lg" onClick={() => setCreateDialogOpen(true)} className="w-full sm:w-auto">
-                    <Plus className="mr-2 h-5 w-5" weight="bold" />
-                    Add Task
-                  </Button>
+                  {canPerformAction(currentEmployee, 'ai_features', 'auto_assign') && (
+                    <AIAutoAssign
+                      tasks={tasks || []}
+                      employees={employees || []}
+                      onAssignTasks={handleAutoAssign}
+                    />
+                  )}
+                  {canPerformAction(currentEmployee, 'tasks', 'bulk_operations') && (
+                    <Button 
+                      variant={bulkMode ? "secondary" : "outline"} 
+                      onClick={handleToggleBulkMode}
+                      className="w-full sm:w-auto"
+                    >
+                      <CheckSquare className="mr-2 h-5 w-5" weight={bulkMode ? "fill" : "regular"} />
+                      {bulkMode ? 'Exit Bulk Mode' : 'Bulk Select'}
+                    </Button>
+                  )}
+                  {canPerformAction(currentEmployee, 'tasks', 'create') && (
+                    <Button size="lg" onClick={() => setCreateDialogOpen(true)} className="w-full sm:w-auto">
+                      <Plus className="mr-2 h-5 w-5" weight="bold" />
+                      Add Task
+                    </Button>
+                  )}
                 </>
               )}
             </div>
@@ -1002,9 +1046,11 @@ function App() {
 
         {viewMode === 'analytics' ? (
           <>
-            <div className="mb-6">
-              <AIInsights tasks={tasks || []} employees={employees || []} />
-            </div>
+            {canPerformAction(currentEmployee, 'ai_features', 'get_insights') && (
+              <div className="mb-6">
+                <AIInsights tasks={tasks || []} employees={employees || []} />
+              </div>
+            )}
             <div className="bg-card rounded-xl border p-4 sm:p-6 mb-6">
               <div className="flex items-center justify-between mb-6">
                 <div>

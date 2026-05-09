@@ -2,11 +2,63 @@ export type TaskStatus = 'not-started' | 'in-progress' | 'completed';
 export type TaskPriority = 'low' | 'medium' | 'high';
 export type ActivityType = 'created' | 'status_changed' | 'priority_changed' | 'assignee_changed' | 'due_date_changed' | 'title_changed' | 'description_changed' | 'comment_added' | 'attachment_added' | 'attachment_removed';
 
+export type UserRole = 'admin' | 'manager' | 'member' | 'viewer';
+
+export interface Permission {
+  tasks: {
+    create: boolean;
+    edit_own: boolean;
+    edit_any: boolean;
+    delete_own: boolean;
+    delete_any: boolean;
+    view_own: boolean;
+    view_team: boolean;
+    view_all: boolean;
+    assign: boolean;
+    change_status: boolean;
+    comment: boolean;
+    attach_files: boolean;
+    bulk_operations: boolean;
+  };
+  employees: {
+    view: boolean;
+    add: boolean;
+    edit: boolean;
+    delete: boolean;
+    manage_roles: boolean;
+  };
+  announcements: {
+    view: boolean;
+    create: boolean;
+    edit: boolean;
+    delete: boolean;
+  };
+  analytics: {
+    view_own: boolean;
+    view_team: boolean;
+    view_all: boolean;
+  };
+  ai_features: {
+    use_assistant: boolean;
+    auto_assign: boolean;
+    get_insights: boolean;
+    estimate_duration: boolean;
+  };
+}
+
+export interface RoleDefinition {
+  role: UserRole;
+  name: string;
+  description: string;
+  permissions: Permission;
+}
+
 export interface Employee {
   id: string;
   name: string;
   avatar: string;
   role: string;
+  userRole?: UserRole;
   email?: string;
   department?: string;
   departments?: string[];
@@ -17,6 +69,7 @@ export interface Employee {
   bio?: string;
   skills?: string[];
   teamLead?: boolean;
+  customPermissions?: Partial<Permission>;
 }
 
 export interface TaskComment {

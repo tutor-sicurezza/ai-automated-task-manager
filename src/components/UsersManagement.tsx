@@ -14,8 +14,10 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { PencilSimple, Trash, UserPlus, Users, MagnifyingGlass, Briefcase, Buildings, EnvelopeSimple, Phone, CheckCircle, XCircle, UserCircle, MapPin, Star, CheckSquare, Download, Upload, X as XIcon, ArrowsDownUp, Eye, SquaresFour, ListBullets, Funnel, CaretDown, CaretUp, TrendUp, Calendar } from '@phosphor-icons/react';
-import { Employee } from '@/lib/types';
+import { PencilSimple, Trash, UserPlus, Users, MagnifyingGlass, Briefcase, Buildings, EnvelopeSimple, Phone, CheckCircle, XCircle, UserCircle, MapPin, Star, CheckSquare, Download, Upload, X as XIcon, ArrowsDownUp, Eye, SquaresFour, ListBullets, Funnel, CaretDown, CaretUp, TrendUp, Calendar, ShieldCheck } from '@phosphor-icons/react';
+import { RoleManagementDialog } from '@/components/RoleManagementDialog';
+import { Employee, UserRole } from '@/lib/types';
+import { DEFAULT_ROLES } from '@/lib/permissions';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -51,6 +53,8 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
+  const [roleManagementDialogOpen, setRoleManagementDialogOpen] = useState(false);
+  const [managingRoleEmployee, setManagingRoleEmployee] = useState<Employee | null>(null);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -1492,6 +1496,21 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {managingRoleEmployee && (
+        <RoleManagementDialog
+          open={roleManagementDialogOpen}
+          onOpenChange={setRoleManagementDialogOpen}
+          employee={managingRoleEmployee}
+          onUpdateEmployee={(id, updates) => {
+            const employee = employees.find(e => e.id === id);
+            if (employee) {
+              onEditEmployee(id, { ...employee, ...updates });
+            }
+          }}
+          currentUserRole="admin"
+        />
+      )}
     </>
   );
 }
