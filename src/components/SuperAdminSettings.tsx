@@ -1,0 +1,896 @@
+import { useState, useEffect } from 'react';
+import { useKV } from '@github/spark/hooks';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Gear, FloppyDisk, Warning, CheckCircle, ShieldCheck, Robot, Bell, Users, FolderOpen, Globe, Plugs, ClockCounterClockwise } from '@phosphor-icons/react';
+import { SystemSettings, UserRole, AuditLogEntry } from '@/lib/types';
+import { toast } from 'sonner';
+
+const DEFAULT_SETTINGS: SystemSettings = {
+  general: {
+    applicationName: 'TaskFlow',
+    companyName: 'Your Company',
+    timezone: 'UTC',
+    dateFormat: 'MM/DD/YYYY',
+    weekStartDay: 'monday',
+    language: 'en',
+  },
+  tasks: {
+    defaultTaskDuration: 7,
+    allowTaskDeletion: true,
+    requireTaskApproval: false,
+    autoArchiveCompletedAfterDays: 30,
+    maxAttachmentSize: 10,
+    allowedFileTypes: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'jpg', 'jpeg', 'png'],
+    enableSubtasks: true,
+    enableTaskDependencies: false,
+  },
+  notifications: {
+    enableSystemNotifications: true,
+    dailyDigestTime: '09:00',
+    reminderBeforeDueDays: 1,
+    escalateOverdueAfterDays: 3,
+    notificationRetentionDays: 30,
+  },
+  users: {
+    requireEmailVerification: false,
+    allowSelfRegistration: false,
+    defaultUserRole: 'member',
+    passwordExpiryDays: 90,
+    sessionTimeoutMinutes: 60,
+    maxLoginAttempts: 5,
+  },
+  departments: {
+    requireDepartmentAssignment: false,
+    allowMultipleDepartments: true,
+    enableDepartmentBudgets: false,
+  },
+  ai: {
+    enableAIFeatures: true,
+    aiModel: 'gpt-4o',
+    maxAIRequestsPerDay: 100,
+    enableAutoAssignment: true,
+    enableSmartSuggestions: true,
+  },
+  security: {
+    enableTwoFactorAuth: false,
+    requireStrongPasswords: true,
+    enableAuditLog: true,
+    dataRetentionDays: 365,
+    enableIPWhitelist: false,
+    allowedIPs: [],
+  },
+  integrations: {
+    enableAPIAccess: false,
+    webhookURL: '',
+    enableSlackIntegration: false,
+    slackWebhookURL: '',
+  },
+};
+
+interface SuperAdminSettingsProps {
+  currentUserId?: string;
+  currentUserName?: string;
+}
+
+export function SuperAdminSettings({ currentUserId, currentUserName }: SuperAdminSettingsProps) {
+  const [open, setOpen] = useState(false);
+  const [settings, setSettings] = useKV<SystemSettings>('system-settings', DEFAULT_SETTINGS);
+  const [auditLog, setAuditLog] = useKV<AuditLogEntry[]>('audit-log', []);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [localSettings, setLocalSettings] = useState<SystemSettings>(settings || DEFAULT_SETTINGS);
+
+  useEffect(() => {
+    if (settings) {
+      setLocalSettings(settings);
+    }
+  }, [settings]);
+
+  useEffect(() => {
+    if (JSON.stringify(localSettings) !== JSON.stringify(settings)) {
+      setHasChanges(true);
+    } else {
+      setHasChanges(false);
+    }
+  }, [localSettings, settings]);
+
+  const logAuditEntry = (action: string, details: string, category: AuditLogEntry['category'] = 'settings') => {
+    if (!currentUserId || !currentUserName) return;
+
+    const entry: AuditLogEntry = {
+      id: `audit-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      userId: currentUserId,
+      userName: currentUserName,
+      action,
+      category,
+      details,
+    };
+
+    setAuditLog((currentLog) => [...(currentLog || []), entry]);
+  };
+
+  const handleSave = () => {
+    setSettings(localSettings);
+    setHasChanges(false);
+    logAuditEntry('System Settings Updated', 'Super admin updated system-wide settings');
+    toast.success('Settings saved successfully!');
+  };
+
+  const handleReset = () => {
+    setLocalSettings(settings || DEFAULT_SETTINGS);
+    setHasChanges(false);
+    toast.info('Changes discarded');
+  };
+
+  const handleResetToDefaults = () => {
+    if (window.confirm('Are you sure you want to reset all settings to default values? This cannot be undone.')) {
+      setSettings(DEFAULT_SETTINGS);
+      setLocalSettings(DEFAULT_SETTINGS);
+      setHasChanges(false);
+      logAuditEntry('System Settings Reset', 'Super admin reset all settings to defaults', 'system');
+      toast.success('Settings reset to defaults');
+    }
+  };
+
+  const updateSetting = <K extends keyof SystemSettings>(
+    category: K,
+    key: keyof SystemSettings[K],
+    value: any
+  ) => {
+    setLocalSettings((prev) => ({
+      ...prev,
+      [category]: {
+        ...prev[category],
+        [key]: value,
+      },
+    }));
+  };
+
+  const addAllowedIP = () => {
+    const ip = window.prompt('Enter IP address to whitelist:');
+    if (ip && /^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) {
+      setLocalSettings((prev) => ({
+        ...prev,
+        security: {
+          ...prev.security,
+          allowedIPs: [...prev.security.allowedIPs, ip],
+        },
+      }));
+      toast.success('IP address added');
+    } else if (ip) {
+      toast.error('Invalid IP address format');
+    }
+  };
+
+  const removeAllowedIP = (ip: string) => {
+    setLocalSettings((prev) => ({
+      ...prev,
+      security: {
+        ...prev.security,
+        allowedIPs: prev.security.allowedIPs.filter((i) => i !== ip),
+      },
+    }));
+    toast.success('IP address removed');
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          <Gear className="mr-2 h-4 w-4" weight="fill" />
+          System Settings
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-5xl max-h-[85vh] p-0">
+        <DialogHeader className="px-6 pt-6 pb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <DialogTitle className="text-2xl flex items-center gap-2">
+                <ShieldCheck className="h-6 w-6 text-primary" weight="fill" />
+                System Settings
+              </DialogTitle>
+              <DialogDescription>
+                Configure system-wide settings and preferences
+              </DialogDescription>
+            </div>
+            {hasChanges && (
+              <Badge variant="secondary" className="animate-pulse">
+                <Warning className="mr-1 h-3 w-3" weight="fill" />
+                Unsaved Changes
+              </Badge>
+            )}
+          </div>
+        </DialogHeader>
+
+        <ScrollArea className="h-[calc(85vh-180px)]">
+          <div className="px-6 pb-6">
+            <Tabs defaultValue="general" className="w-full">
+              <TabsList className="grid grid-cols-4 lg:grid-cols-8 mb-6">
+                <TabsTrigger value="general">
+                  <Globe className="h-4 w-4 mr-1" />
+                  General
+                </TabsTrigger>
+                <TabsTrigger value="tasks">
+                  <FolderOpen className="h-4 w-4 mr-1" />
+                  Tasks
+                </TabsTrigger>
+                <TabsTrigger value="notifications">
+                  <Bell className="h-4 w-4 mr-1" />
+                  Notifications
+                </TabsTrigger>
+                <TabsTrigger value="users">
+                  <Users className="h-4 w-4 mr-1" />
+                  Users
+                </TabsTrigger>
+                <TabsTrigger value="departments">
+                  <FolderOpen className="h-4 w-4 mr-1" />
+                  Departments
+                </TabsTrigger>
+                <TabsTrigger value="ai">
+                  <Robot className="h-4 w-4 mr-1" />
+                  AI
+                </TabsTrigger>
+                <TabsTrigger value="security">
+                  <ShieldCheck className="h-4 w-4 mr-1" />
+                  Security
+                </TabsTrigger>
+                <TabsTrigger value="integrations">
+                  <Plugs className="h-4 w-4 mr-1" />
+                  Integrations
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="general" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>General Settings</CardTitle>
+                    <CardDescription>Basic application configuration</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="app-name">Application Name</Label>
+                        <Input
+                          id="app-name"
+                          value={localSettings.general.applicationName}
+                          onChange={(e) => updateSetting('general', 'applicationName', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="company-name">Company Name</Label>
+                        <Input
+                          id="company-name"
+                          value={localSettings.general.companyName}
+                          onChange={(e) => updateSetting('general', 'companyName', e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="timezone">Timezone</Label>
+                        <Select
+                          value={localSettings.general.timezone}
+                          onValueChange={(value) => updateSetting('general', 'timezone', value)}
+                        >
+                          <SelectTrigger id="timezone">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="UTC">UTC</SelectItem>
+                            <SelectItem value="America/New_York">Eastern Time</SelectItem>
+                            <SelectItem value="America/Chicago">Central Time</SelectItem>
+                            <SelectItem value="America/Denver">Mountain Time</SelectItem>
+                            <SelectItem value="America/Los_Angeles">Pacific Time</SelectItem>
+                            <SelectItem value="Europe/London">London</SelectItem>
+                            <SelectItem value="Europe/Paris">Paris</SelectItem>
+                            <SelectItem value="Asia/Tokyo">Tokyo</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="date-format">Date Format</Label>
+                        <Select
+                          value={localSettings.general.dateFormat}
+                          onValueChange={(value) => updateSetting('general', 'dateFormat', value)}
+                        >
+                          <SelectTrigger id="date-format">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="MM/DD/YYYY">MM/DD/YYYY</SelectItem>
+                            <SelectItem value="DD/MM/YYYY">DD/MM/YYYY</SelectItem>
+                            <SelectItem value="YYYY-MM-DD">YYYY-MM-DD</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="week-start">Week Start Day</Label>
+                        <Select
+                          value={localSettings.general.weekStartDay}
+                          onValueChange={(value: 'monday' | 'sunday') => updateSetting('general', 'weekStartDay', value)}
+                        >
+                          <SelectTrigger id="week-start">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="monday">Monday</SelectItem>
+                            <SelectItem value="sunday">Sunday</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="language">Language</Label>
+                        <Select
+                          value={localSettings.general.language}
+                          onValueChange={(value) => updateSetting('general', 'language', value)}
+                        >
+                          <SelectTrigger id="language">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="en">English</SelectItem>
+                            <SelectItem value="es">Spanish</SelectItem>
+                            <SelectItem value="fr">French</SelectItem>
+                            <SelectItem value="de">German</SelectItem>
+                            <SelectItem value="it">Italian</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="tasks" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Task Management</CardTitle>
+                    <CardDescription>Configure task behavior and policies</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="default-duration">Default Task Duration (days)</Label>
+                        <Input
+                          id="default-duration"
+                          type="number"
+                          min="1"
+                          value={localSettings.tasks.defaultTaskDuration}
+                          onChange={(e) => updateSetting('tasks', 'defaultTaskDuration', parseInt(e.target.value))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="auto-archive">Auto-archive Completed After (days)</Label>
+                        <Input
+                          id="auto-archive"
+                          type="number"
+                          min="0"
+                          value={localSettings.tasks.autoArchiveCompletedAfterDays}
+                          onChange={(e) => updateSetting('tasks', 'autoArchiveCompletedAfterDays', parseInt(e.target.value))}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="max-attachment">Max Attachment Size (MB)</Label>
+                      <Input
+                        id="max-attachment"
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={localSettings.tasks.maxAttachmentSize}
+                        onChange={(e) => updateSetting('tasks', 'maxAttachmentSize', parseInt(e.target.value))}
+                      />
+                    </div>
+                    <Separator />
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="allow-deletion">Allow Task Deletion</Label>
+                        <Switch
+                          id="allow-deletion"
+                          checked={localSettings.tasks.allowTaskDeletion}
+                          onCheckedChange={(checked) => updateSetting('tasks', 'allowTaskDeletion', checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="require-approval">Require Task Approval</Label>
+                        <Switch
+                          id="require-approval"
+                          checked={localSettings.tasks.requireTaskApproval}
+                          onCheckedChange={(checked) => updateSetting('tasks', 'requireTaskApproval', checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="enable-subtasks">Enable Subtasks</Label>
+                        <Switch
+                          id="enable-subtasks"
+                          checked={localSettings.tasks.enableSubtasks}
+                          onCheckedChange={(checked) => updateSetting('tasks', 'enableSubtasks', checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="enable-dependencies">Enable Task Dependencies</Label>
+                        <Switch
+                          id="enable-dependencies"
+                          checked={localSettings.tasks.enableTaskDependencies}
+                          onCheckedChange={(checked) => updateSetting('tasks', 'enableTaskDependencies', checked)}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="notifications" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Notification Settings</CardTitle>
+                    <CardDescription>System-wide notification configuration</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="enable-notifications">Enable System Notifications</Label>
+                      <Switch
+                        id="enable-notifications"
+                        checked={localSettings.notifications.enableSystemNotifications}
+                        onCheckedChange={(checked) => updateSetting('notifications', 'enableSystemNotifications', checked)}
+                      />
+                    </div>
+                    <Separator />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="digest-time">Daily Digest Time</Label>
+                        <Input
+                          id="digest-time"
+                          type="time"
+                          value={localSettings.notifications.dailyDigestTime}
+                          onChange={(e) => updateSetting('notifications', 'dailyDigestTime', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="reminder-days">Reminder Before Due (days)</Label>
+                        <Input
+                          id="reminder-days"
+                          type="number"
+                          min="0"
+                          value={localSettings.notifications.reminderBeforeDueDays}
+                          onChange={(e) => updateSetting('notifications', 'reminderBeforeDueDays', parseInt(e.target.value))}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="escalate-days">Escalate Overdue After (days)</Label>
+                        <Input
+                          id="escalate-days"
+                          type="number"
+                          min="0"
+                          value={localSettings.notifications.escalateOverdueAfterDays}
+                          onChange={(e) => updateSetting('notifications', 'escalateOverdueAfterDays', parseInt(e.target.value))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="retention-days">Notification Retention (days)</Label>
+                        <Input
+                          id="retention-days"
+                          type="number"
+                          min="1"
+                          value={localSettings.notifications.notificationRetentionDays}
+                          onChange={(e) => updateSetting('notifications', 'notificationRetentionDays', parseInt(e.target.value))}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="users" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>User Management</CardTitle>
+                    <CardDescription>User account policies and defaults</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="default-role">Default User Role</Label>
+                      <Select
+                        value={localSettings.users.defaultUserRole}
+                        onValueChange={(value: UserRole) => updateSetting('users', 'defaultUserRole', value)}
+                      >
+                        <SelectTrigger id="default-role">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="viewer">Viewer</SelectItem>
+                          <SelectItem value="member">Member</SelectItem>
+                          <SelectItem value="manager">Manager</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="password-expiry">Password Expiry (days)</Label>
+                        <Input
+                          id="password-expiry"
+                          type="number"
+                          min="0"
+                          value={localSettings.users.passwordExpiryDays}
+                          onChange={(e) => updateSetting('users', 'passwordExpiryDays', parseInt(e.target.value))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="session-timeout">Session Timeout (minutes)</Label>
+                        <Input
+                          id="session-timeout"
+                          type="number"
+                          min="5"
+                          value={localSettings.users.sessionTimeoutMinutes}
+                          onChange={(e) => updateSetting('users', 'sessionTimeoutMinutes', parseInt(e.target.value))}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="max-login-attempts">Max Login Attempts</Label>
+                      <Input
+                        id="max-login-attempts"
+                        type="number"
+                        min="1"
+                        max="10"
+                        value={localSettings.users.maxLoginAttempts}
+                        onChange={(e) => updateSetting('users', 'maxLoginAttempts', parseInt(e.target.value))}
+                      />
+                    </div>
+                    <Separator />
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="email-verification">Require Email Verification</Label>
+                        <Switch
+                          id="email-verification"
+                          checked={localSettings.users.requireEmailVerification}
+                          onCheckedChange={(checked) => updateSetting('users', 'requireEmailVerification', checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="self-registration">Allow Self Registration</Label>
+                        <Switch
+                          id="self-registration"
+                          checked={localSettings.users.allowSelfRegistration}
+                          onCheckedChange={(checked) => updateSetting('users', 'allowSelfRegistration', checked)}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="departments" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Department Settings</CardTitle>
+                    <CardDescription>Department organization and policies</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="require-dept">Require Department Assignment</Label>
+                          <p className="text-sm text-muted-foreground">Users must be assigned to at least one department</p>
+                        </div>
+                        <Switch
+                          id="require-dept"
+                          checked={localSettings.departments.requireDepartmentAssignment}
+                          onCheckedChange={(checked) => updateSetting('departments', 'requireDepartmentAssignment', checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="multiple-depts">Allow Multiple Departments</Label>
+                          <p className="text-sm text-muted-foreground">Users can belong to multiple departments</p>
+                        </div>
+                        <Switch
+                          id="multiple-depts"
+                          checked={localSettings.departments.allowMultipleDepartments}
+                          onCheckedChange={(checked) => updateSetting('departments', 'allowMultipleDepartments', checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="dept-budgets">Enable Department Budgets</Label>
+                          <p className="text-sm text-muted-foreground">Track and manage department budgets</p>
+                        </div>
+                        <Switch
+                          id="dept-budgets"
+                          checked={localSettings.departments.enableDepartmentBudgets}
+                          onCheckedChange={(checked) => updateSetting('departments', 'enableDepartmentBudgets', checked)}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="ai" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>AI Features</CardTitle>
+                    <CardDescription>Configure AI-powered capabilities</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="enable-ai">Enable AI Features</Label>
+                        <p className="text-sm text-muted-foreground">Enable all AI-powered features</p>
+                      </div>
+                      <Switch
+                        id="enable-ai"
+                        checked={localSettings.ai.enableAIFeatures}
+                        onCheckedChange={(checked) => updateSetting('ai', 'enableAIFeatures', checked)}
+                      />
+                    </div>
+                    <Separator />
+                    <div className="space-y-2">
+                      <Label htmlFor="ai-model">AI Model</Label>
+                      <Select
+                        value={localSettings.ai.aiModel}
+                        onValueChange={(value: 'gpt-4o' | 'gpt-4o-mini') => updateSetting('ai', 'aiModel', value)}
+                        disabled={!localSettings.ai.enableAIFeatures}
+                      >
+                        <SelectTrigger id="ai-model">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="gpt-4o">GPT-4o (More capable)</SelectItem>
+                          <SelectItem value="gpt-4o-mini">GPT-4o-mini (Faster)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="max-ai-requests">Max AI Requests Per Day</Label>
+                      <Input
+                        id="max-ai-requests"
+                        type="number"
+                        min="1"
+                        value={localSettings.ai.maxAIRequestsPerDay}
+                        onChange={(e) => updateSetting('ai', 'maxAIRequestsPerDay', parseInt(e.target.value))}
+                        disabled={!localSettings.ai.enableAIFeatures}
+                      />
+                    </div>
+                    <Separator />
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="auto-assign">Enable Auto-Assignment</Label>
+                        <Switch
+                          id="auto-assign"
+                          checked={localSettings.ai.enableAutoAssignment}
+                          onCheckedChange={(checked) => updateSetting('ai', 'enableAutoAssignment', checked)}
+                          disabled={!localSettings.ai.enableAIFeatures}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="smart-suggestions">Enable Smart Suggestions</Label>
+                        <Switch
+                          id="smart-suggestions"
+                          checked={localSettings.ai.enableSmartSuggestions}
+                          onCheckedChange={(checked) => updateSetting('ai', 'enableSmartSuggestions', checked)}
+                          disabled={!localSettings.ai.enableAIFeatures}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="security" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Security Settings</CardTitle>
+                    <CardDescription>Security policies and audit configuration</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="2fa">Enable Two-Factor Authentication</Label>
+                          <p className="text-sm text-muted-foreground">Require 2FA for all users</p>
+                        </div>
+                        <Switch
+                          id="2fa"
+                          checked={localSettings.security.enableTwoFactorAuth}
+                          onCheckedChange={(checked) => updateSetting('security', 'enableTwoFactorAuth', checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="strong-passwords">Require Strong Passwords</Label>
+                          <p className="text-sm text-muted-foreground">Enforce password complexity rules</p>
+                        </div>
+                        <Switch
+                          id="strong-passwords"
+                          checked={localSettings.security.requireStrongPasswords}
+                          onCheckedChange={(checked) => updateSetting('security', 'requireStrongPasswords', checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="audit-log">Enable Audit Log</Label>
+                          <p className="text-sm text-muted-foreground">Track all system changes and actions</p>
+                        </div>
+                        <Switch
+                          id="audit-log"
+                          checked={localSettings.security.enableAuditLog}
+                          onCheckedChange={(checked) => updateSetting('security', 'enableAuditLog', checked)}
+                        />
+                      </div>
+                    </div>
+                    <Separator />
+                    <div className="space-y-2">
+                      <Label htmlFor="data-retention">Data Retention (days)</Label>
+                      <Input
+                        id="data-retention"
+                        type="number"
+                        min="30"
+                        value={localSettings.security.dataRetentionDays}
+                        onChange={(e) => updateSetting('security', 'dataRetentionDays', parseInt(e.target.value))}
+                      />
+                    </div>
+                    <Separator />
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="ip-whitelist">Enable IP Whitelist</Label>
+                        <Switch
+                          id="ip-whitelist"
+                          checked={localSettings.security.enableIPWhitelist}
+                          onCheckedChange={(checked) => updateSetting('security', 'enableIPWhitelist', checked)}
+                        />
+                      </div>
+                      {localSettings.security.enableIPWhitelist && (
+                        <div className="space-y-2 pt-2">
+                          <Label>Allowed IP Addresses</Label>
+                          <div className="flex flex-wrap gap-2 mb-2">
+                            {localSettings.security.allowedIPs.map((ip) => (
+                              <Badge key={ip} variant="secondary">
+                                {ip}
+                                <button
+                                  onClick={() => removeAllowedIP(ip)}
+                                  className="ml-2 text-destructive hover:text-destructive/80"
+                                >
+                                  ×
+                                </button>
+                              </Badge>
+                            ))}
+                          </div>
+                          <Button onClick={addAllowedIP} variant="outline" size="sm">
+                            Add IP Address
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <ClockCounterClockwise className="h-5 w-5" />
+                      Recent Audit Log
+                    </CardTitle>
+                    <CardDescription>Last 10 system changes</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {!auditLog || auditLog.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">No audit entries yet</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {(auditLog || []).slice(-10).reverse().map((entry) => (
+                          <div key={entry.id} className="flex items-start justify-between text-sm border-b pb-2 last:border-0">
+                            <div className="flex-1">
+                              <p className="font-medium">{entry.action}</p>
+                              <p className="text-muted-foreground text-xs">{entry.details}</p>
+                              <p className="text-muted-foreground text-xs">
+                                by {entry.userName} • {new Date(entry.timestamp).toLocaleString()}
+                              </p>
+                            </div>
+                            <Badge variant="outline" className="capitalize">
+                              {entry.category}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="integrations" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Integrations</CardTitle>
+                    <CardDescription>External service connections</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="api-access">Enable API Access</Label>
+                        <Switch
+                          id="api-access"
+                          checked={localSettings.integrations.enableAPIAccess}
+                          onCheckedChange={(checked) => updateSetting('integrations', 'enableAPIAccess', checked)}
+                        />
+                      </div>
+                      {localSettings.integrations.enableAPIAccess && (
+                        <div className="space-y-2 pt-2">
+                          <Label htmlFor="webhook-url">Webhook URL</Label>
+                          <Input
+                            id="webhook-url"
+                            placeholder="https://your-webhook-url.com/endpoint"
+                            value={localSettings.integrations.webhookURL || ''}
+                            onChange={(e) => updateSetting('integrations', 'webhookURL', e.target.value)}
+                          />
+                        </div>
+                      )}
+                    </div>
+                    <Separator />
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="slack-integration">Enable Slack Integration</Label>
+                        <Switch
+                          id="slack-integration"
+                          checked={localSettings.integrations.enableSlackIntegration}
+                          onCheckedChange={(checked) => updateSetting('integrations', 'enableSlackIntegration', checked)}
+                        />
+                      </div>
+                      {localSettings.integrations.enableSlackIntegration && (
+                        <div className="space-y-2 pt-2">
+                          <Label htmlFor="slack-webhook">Slack Webhook URL</Label>
+                          <Input
+                            id="slack-webhook"
+                            placeholder="https://hooks.slack.com/services/..."
+                            value={localSettings.integrations.slackWebhookURL || ''}
+                            onChange={(e) => updateSetting('integrations', 'slackWebhookURL', e.target.value)}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Get your webhook URL from Slack's Incoming Webhooks app
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </ScrollArea>
+
+        <div className="border-t px-6 py-4 bg-muted/30">
+          <div className="flex items-center justify-between">
+            <Button variant="outline" onClick={handleResetToDefaults} className="text-destructive hover:text-destructive">
+              Reset to Defaults
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleReset} disabled={!hasChanges}>
+                Discard Changes
+              </Button>
+              <Button onClick={handleSave} disabled={!hasChanges}>
+                <FloppyDisk className="mr-2 h-4 w-4" weight="fill" />
+                Save Settings
+              </Button>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

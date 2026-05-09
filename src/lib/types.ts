@@ -190,3 +190,77 @@ export interface NotificationPreferences {
   soundEnabled: boolean;
   soundVolume: number;
 }
+
+export interface SystemSettings {
+  general: {
+    applicationName: string;
+    companyName: string;
+    timezone: string;
+    dateFormat: string;
+    weekStartDay: 'monday' | 'sunday';
+    language: string;
+  };
+  tasks: {
+    defaultTaskDuration: number;
+    allowTaskDeletion: boolean;
+    requireTaskApproval: boolean;
+    autoArchiveCompletedAfterDays: number;
+    maxAttachmentSize: number;
+    allowedFileTypes: string[];
+    enableSubtasks: boolean;
+    enableTaskDependencies: boolean;
+  };
+  notifications: {
+    enableSystemNotifications: boolean;
+    dailyDigestTime: string;
+    reminderBeforeDueDays: number;
+    escalateOverdueAfterDays: number;
+    notificationRetentionDays: number;
+  };
+  users: {
+    requireEmailVerification: boolean;
+    allowSelfRegistration: boolean;
+    defaultUserRole: UserRole;
+    passwordExpiryDays: number;
+    sessionTimeoutMinutes: number;
+    maxLoginAttempts: number;
+  };
+  departments: {
+    requireDepartmentAssignment: boolean;
+    allowMultipleDepartments: boolean;
+    enableDepartmentBudgets: boolean;
+  };
+  ai: {
+    enableAIFeatures: boolean;
+    aiModel: 'gpt-4o' | 'gpt-4o-mini';
+    maxAIRequestsPerDay: number;
+    enableAutoAssignment: boolean;
+    enableSmartSuggestions: boolean;
+  };
+  security: {
+    enableTwoFactorAuth: boolean;
+    requireStrongPasswords: boolean;
+    enableAuditLog: boolean;
+    dataRetentionDays: number;
+    enableIPWhitelist: boolean;
+    allowedIPs: string[];
+  };
+  integrations: {
+    enableAPIAccess: boolean;
+    webhookURL?: string;
+    enableSlackIntegration: boolean;
+    slackWebhookURL?: string;
+  };
+}
+
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  userId: string;
+  userName: string;
+  action: string;
+  category: 'user' | 'task' | 'system' | 'security' | 'settings';
+  details: string;
+  ipAddress?: string;
+  userAgent?: string;
+}
