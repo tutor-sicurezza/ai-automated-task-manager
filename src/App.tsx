@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, FunnelSimple, ArrowsDownUp, CheckCircle, CheckSquare, Square, Trash, X, PlayCircle, Circle, ChartBar, ListChecks, Sparkle, Users, Buildings } from '@phosphor-icons/react';
+import { Plus, FunnelSimple, ArrowsDownUp, CheckCircle, CheckSquare, Square, Trash, X, PlayCircle, Circle, ChartBar, ListChecks, Sparkle, Users, Buildings, House } from '@phosphor-icons/react';
 import { TaskCard } from '@/components/TaskCard';
 import { CreateTaskDialog } from '@/components/CreateTaskDialog';
 import { EditTaskDialog } from '@/components/EditTaskDialog';
@@ -20,6 +20,9 @@ import { TaskNotifications } from '@/components/TaskNotifications';
 import { NotificationPreferences } from '@/components/NotificationPreferences';
 import { PermissionsOverview } from '@/components/PermissionsOverview';
 import { DepartmentManagement } from '@/components/DepartmentManagement';
+import { SuperAdminDashboard } from '@/components/dashboards/SuperAdminDashboard';
+import { DepartmentAdminDashboard } from '@/components/dashboards/DepartmentAdminDashboard';
+import { UserDashboard } from '@/components/dashboards/UserDashboard';
 import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment, Announcement, TaskNotification, NotificationPreferences as NotificationPreferencesType, NotificationType } from '@/lib/types';
 import { playNotificationSound } from '@/lib/notificationSounds';
 import { canPerformAction } from '@/lib/permissions';
@@ -47,7 +50,7 @@ function App() {
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; avatar: string } | null>(null);
   const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
-  const [viewMode, setViewMode] = useState<'tasks' | 'analytics'>('tasks');
+  const [viewMode, setViewMode] = useState<'dashboard' | 'tasks' | 'analytics'>('dashboard');
   const [analyticsView, setAnalyticsView] = useState<'team' | 'departments'>('team');
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
 
@@ -951,19 +954,30 @@ function App() {
               <PermissionsOverview employee={currentEmployee} />
               <div className="flex border rounded-lg">
                 <Button
+                  variant={viewMode === 'dashboard' ? 'default' : 'ghost'}
+                  onClick={() => setViewMode('dashboard')}
+                  className="rounded-r-none"
+                  size="sm"
+                >
+                  <House className="mr-2 h-4 w-4" weight={viewMode === 'dashboard' ? 'fill' : 'regular'} />
+                  Dashboard
+                </Button>
+                <Button
                   variant={viewMode === 'tasks' ? 'default' : 'ghost'}
                   onClick={() => setViewMode('tasks')}
-                  className="rounded-r-none"
+                  className="rounded-none"
+                  size="sm"
                 >
-                  <ListChecks className="mr-2 h-5 w-5" weight={viewMode === 'tasks' ? 'fill' : 'regular'} />
+                  <ListChecks className="mr-2 h-4 w-4" weight={viewMode === 'tasks' ? 'fill' : 'regular'} />
                   Tasks
                 </Button>
                 <Button
                   variant={viewMode === 'analytics' ? 'default' : 'ghost'}
                   onClick={() => setViewMode('analytics')}
                   className="rounded-l-none"
+                  size="sm"
                 >
-                  <ChartBar className="mr-2 h-5 w-5" weight={viewMode === 'analytics' ? 'fill' : 'regular'} />
+                  <ChartBar className="mr-2 h-4 w-4" weight={viewMode === 'analytics' ? 'fill' : 'regular'} />
                   Analytics
                 </Button>
               </div>
@@ -1049,7 +1063,40 @@ function App() {
           </div>
         </div>
 
-        {viewMode === 'analytics' ? (
+        {viewMode === 'dashboard' ? (
+          <>
+            {currentEmployee && (
+              <>
+                {currentEmployee.userRole === 'admin' ? (
+                  <SuperAdminDashboard
+                    tasks={tasks || []}
+                    employees={employees || []}
+                    announcements={announcements || []}
+                    notifications={notifications || []}
+                    onNavigateToTasks={() => setViewMode('tasks')}
+                    onNavigateToUsers={() => {}}
+                    onNavigateToAnnouncements={() => {}}
+                  />
+                ) : currentEmployee.userRole === 'manager' ? (
+                  <DepartmentAdminDashboard
+                    tasks={tasks || []}
+                    employees={employees || []}
+                    currentEmployee={currentEmployee}
+                    onNavigateToTasks={() => setViewMode('tasks')}
+                  />
+                ) : (
+                  <UserDashboard
+                    tasks={tasks || []}
+                    employees={employees || []}
+                    currentEmployee={currentEmployee}
+                    onNavigateToTasks={() => setViewMode('tasks')}
+                    onViewTaskDetails={handleViewDetails}
+                  />
+                )}
+              </>
+            )}
+          </>
+        ) : viewMode === 'analytics' ? (
           <>
             {canPerformAction(currentEmployee, 'ai_features', 'get_insights') && (
               <div className="mb-6">
