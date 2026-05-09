@@ -566,12 +566,12 @@ export function DepartmentManagement({ employees, onEmployeeUpdate }: Department
             </div>
             <div>
               <Label htmlFor="dept-lead">Department Lead</Label>
-              <Select value={formData.leadId} onValueChange={(value) => setFormData({ ...formData, leadId: value })}>
+              <Select value={formData.leadId || 'none'} onValueChange={(value) => setFormData({ ...formData, leadId: value === 'none' ? '' : value })}>
                 <SelectTrigger id="dept-lead">
                   <SelectValue placeholder="Select a team lead (optional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="none">None</SelectItem>
                   {(employees || [])
                     .filter(e => e.status === 'active')
                     .map((emp) => (
@@ -667,12 +667,12 @@ export function DepartmentManagement({ employees, onEmployeeUpdate }: Department
             </div>
             <div>
               <Label htmlFor="edit-dept-lead">Department Lead</Label>
-              <Select value={formData.leadId} onValueChange={(value) => setFormData({ ...formData, leadId: value })}>
+              <Select value={formData.leadId || 'none'} onValueChange={(value) => setFormData({ ...formData, leadId: value === 'none' ? '' : value })}>
                 <SelectTrigger id="edit-dept-lead">
                   <SelectValue placeholder="Select a team lead (optional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="none">None</SelectItem>
                   {(employees || [])
                     .filter(e => e.status === 'active')
                     .map((emp) => (
