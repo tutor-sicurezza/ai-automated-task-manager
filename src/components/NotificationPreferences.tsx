@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useKV } from '@github/spark/hooks';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -7,7 +7,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Gear, EnvelopeSimple, Bell, ClockCountdown, User, ArrowsClockwise, FlagBanner, ChatCircle, CheckCircle, WarningCircle } from '@phosphor-icons/react';
+import { Badge } from '@/components/ui/badge';
+import { Gear, EnvelopeSimple, Bell, ClockCountdown, User, ArrowsClockwise, FlagBanner, ChatCircle, CheckCircle, WarningCircle, Moon } from '@phosphor-icons/react';
 import { NotificationPreferences as NotificationPreferencesType } from '@/lib/types';
 import { toast } from 'sonner';
 
@@ -37,12 +38,41 @@ const defaultPreferences: Omit<NotificationPreferencesType, 'userId'> = {
   },
 };
 
+const quietHoursPresets = [
+  { label: 'Standard Sleep (10 PM - 7 AM)', start: '22:00', end: '07:00' },
+  { label: 'Early Bird (9 PM - 6 AM)', start: '21:00', end: '06:00' },
+  { label: 'Night Owl (12 AM - 9 AM)', start: '00:00', end: '09:00' },
+  { label: 'Working Hours (6 PM - 9 AM)', start: '18:00', end: '09:00' },
+];
+
+function isInQuietHours(startTime: string, endTime: string): boolean {
+  const now = new Date();
+  const currentTime = now.getHours() * 60 + now.getMinutes();
+  const [startHour, startMin] = startTime.split(':').map(Number);
+  const [endHour, endMin] = endTime.split(':').map(Number);
+  const start = startHour * 60 + startMin;
+  const end = endHour * 60 + endMin;
+  
+  if (start < end) {
+    return currentTime >= start && currentTime < end;
+  } else {
+    return currentTime >= start || currentTime < end;
+  }
+}
+
 export function NotificationPreferences({ userId }: NotificationPreferencesProps) {
   const [preferences, setPreferences] = useKV<NotificationPreferencesType>(
     `notification-preferences-${userId}`,
     { ...defaultPreferences, userId }
   );
   const [open, setOpen] = useState(false);
+
+  const currentPreferences = preferences || { ...defaultPreferences, userId };
+  
+  const inQuietHours = useMemo(() => {
+    if (!currentPreferences.quietHours.enabled) return false;
+    return isInQuietHours(currentPreferences.quietHours.startTime, currentPreferences.quietHours.endTime);
+  }, [currentPreferences.quietHours]);
 
   const handleToggleEmailNotifications = (checked: boolean) => {
     setPreferences((current) => ({
@@ -78,7 +108,7 @@ export function NotificationPreferences({ userId }: NotificationPreferencesProps
         enabled: checked,
       },
     }));
-    toast.success(checked ? 'Quiet hours enabled' : 'Quiet hours disabled');
+    toast.success(checked ? 'Quiet hours enabled - notifications paused during sleep times' : 'Quiet hours disabled');
   };
 
   const handleChangeQuietHours = (field: 'startTime' | 'endTime', value: string) => {
@@ -89,6 +119,18 @@ export function NotificationPreferences({ userId }: NotificationPreferencesProps
         [field]: value,
       },
     }));
+  };
+
+  const handleApplyPreset = (preset: typeof quietHoursPresets[0]) => {
+    setPreferences((current) => ({
+      ...(current || { ...defaultPreferences, userId }),
+      quietHours: {
+        enabled: true,
+        startTime: preset.start,
+        endTime: preset.end,
+      },
+    }));
+    toast.success(`Quiet hours set: ${preset.label}`);
   };
 
   const handleEnableAll = () => {
@@ -192,14 +234,18 @@ export function NotificationPreferences({ userId }: NotificationPreferencesProps
     },
   ];
 
-  const currentPreferences = preferences || { ...defaultPreferences, userId };
   const allEnabled = Object.values(currentPreferences.enabledNotifications).every(v => v === true);
   const allDisabled = Object.values(currentPreferences.enabledNotifications).every(v => v === false);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="icon">
+        <Button variant="outline" size="icon" className="relative">
+          {inQuietHours && (
+            <div className="absolute -top-1 -right-1">
+              <Moon className="h-3 w-3 text-purple-600" weight="fill" />
+            </div>
+          )}
           <Gear className="h-5 w-5" weight="fill" />
         </Button>
       </DialogTrigger>
@@ -208,6 +254,12 @@ export function NotificationPreferences({ userId }: NotificationPreferencesProps
           <DialogTitle className="flex items-center gap-2">
             <Gear className="h-5 w-5" weight="fill" />
             Notification Preferences
+            {inQuietHours && (
+              <Badge variant="secondary" className="ml-2 bg-purple-100 text-purple-700 border-purple-200">
+                <Moon className="w-3 h-3 mr-1" weight="fill" />
+                Quiet Hours Active
+              </Badge>
+            )}
           </DialogTitle>
           <DialogDescription>
             Control when and how you receive notifications
@@ -366,18 +418,26 @@ export function NotificationPreferences({ userId }: NotificationPreferencesProps
             <div className="space-y-4">
               <div>
                 <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
-                  <ClockCountdown className="w-4 h-4" weight="fill" />
+                  <Moon className="w-4 h-4 text-purple-600" weight="fill" />
                   Quiet Hours
                 </h3>
                 <p className="text-xs text-muted-foreground mb-3">
-                  Pause notifications during specific hours
+                  Pause notifications during specific hours (like sleep times)
                 </p>
               </div>
-              <div className="space-y-3 rounded-lg border p-4 bg-muted/50">
+              
+              <div className="space-y-4 rounded-lg border p-4 bg-gradient-to-br from-purple-50/50 to-blue-50/50">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="quiet-hours" className="text-sm font-medium">
-                    Enable Quiet Hours
-                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="quiet-hours" className="text-sm font-medium">
+                      Enable Quiet Hours
+                    </Label>
+                    {inQuietHours && (
+                      <Badge variant="secondary" className="bg-purple-100 text-purple-700 border-purple-200 text-xs">
+                        Active Now
+                      </Badge>
+                    )}
+                  </div>
                   <Switch
                     id="quiet-hours"
                     checked={currentPreferences.quietHours.enabled}
@@ -386,32 +446,67 @@ export function NotificationPreferences({ userId }: NotificationPreferencesProps
                 </div>
                 
                 {currentPreferences.quietHours.enabled && (
-                  <div className="grid grid-cols-2 gap-3 pt-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="start-time" className="text-xs">
-                        Start Time
-                      </Label>
-                      <input
-                        id="start-time"
-                        type="time"
-                        value={currentPreferences.quietHours.startTime}
-                        onChange={(e) => handleChangeQuietHours('startTime', e.target.value)}
-                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                      />
+                  <>
+                    <div className="pt-2 space-y-3">
+                      <div className="text-xs font-medium text-muted-foreground">
+                        Quick Presets
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {quietHoursPresets.map((preset) => (
+                          <Button
+                            key={preset.label}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleApplyPreset(preset)}
+                            className="h-auto py-2 px-3 text-left justify-start"
+                          >
+                            <div className="flex flex-col items-start w-full">
+                              <span className="text-xs font-medium">{preset.label.split('(')[0].trim()}</span>
+                              <span className="text-xs text-muted-foreground">{preset.start} - {preset.end}</span>
+                            </div>
+                          </Button>
+                        ))}
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="end-time" className="text-xs">
-                        End Time
-                      </Label>
-                      <input
-                        id="end-time"
-                        type="time"
-                        value={currentPreferences.quietHours.endTime}
-                        onChange={(e) => handleChangeQuietHours('endTime', e.target.value)}
-                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                      />
+
+                    <Separator className="bg-purple-200/50" />
+
+                    <div className="space-y-3">
+                      <div className="text-xs font-medium text-muted-foreground">
+                        Custom Time Range
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="start-time" className="text-xs">
+                            Start Time
+                          </Label>
+                          <input
+                            id="start-time"
+                            type="time"
+                            value={currentPreferences.quietHours.startTime}
+                            onChange={(e) => handleChangeQuietHours('startTime', e.target.value)}
+                            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="end-time" className="text-xs">
+                            End Time
+                          </Label>
+                          <input
+                            id="end-time"
+                            type="time"
+                            value={currentPreferences.quietHours.endTime}
+                            onChange={(e) => handleChangeQuietHours('endTime', e.target.value)}
+                            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                          />
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground bg-purple-50 border border-purple-200 rounded p-2">
+                        <Moon className="w-3 h-3 inline mr-1" weight="fill" />
+                        Notifications will be paused from {currentPreferences.quietHours.startTime} to {currentPreferences.quietHours.endTime}
+                      </div>
                     </div>
-                  </div>
+                  </>
                 )}
               </div>
             </div>
