@@ -12,7 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
-import { PencilSimple, Trash, UserPlus, Users, MagnifyingGlass, Briefcase, Buildings, EnvelopeSimple, Phone, CheckCircle, XCircle, UserCircle, MapPin, Star, CheckSquare, Download, Upload, X as XIcon } from '@phosphor-icons/react';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { PencilSimple, Trash, UserPlus, Users, MagnifyingGlass, Briefcase, Buildings, EnvelopeSimple, Phone, CheckCircle, XCircle, UserCircle, MapPin, Star, CheckSquare, Download, Upload, X as XIcon, ArrowsDownUp, Eye, SquaresFour, ListBullets, Funnel, CaretDown, CaretUp, TrendUp, Calendar } from '@phosphor-icons/react';
 import { Employee } from '@/lib/types';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -45,6 +47,10 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
   const [bulkDepartmentMode, setBulkDepartmentMode] = useState<'add' | 'replace'>('add');
   const [bulkDepartments, setBulkDepartments] = useState<string[]>([]);
   const [bulkDepartmentInput, setBulkDepartmentInput] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'role' | 'tasks' | 'joined'>('name');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -126,8 +132,32 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
       }
     }
 
-    return filtered.sort((a, b) => a.name.localeCompare(b.name));
-  }, [employees, searchQuery, filterDepartment, filterStatus, filterTeamLead, activeTab]);
+    const sorted = filtered.sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case 'name':
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case 'role':
+          comparison = a.role.localeCompare(b.role);
+          break;
+        case 'tasks': {
+          const aTasks = taskCounts.get(a.id) || 0;
+          const bTasks = taskCounts.get(b.id) || 0;
+          comparison = aTasks - bTasks;
+          break;
+        }
+        case 'joined':
+          comparison = new Date(a.joinedDate).getTime() - new Date(b.joinedDate).getTime();
+          break;
+      }
+      
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return sorted;
+  }, [employees, searchQuery, filterDepartment, filterStatus, filterTeamLead, activeTab, sortBy, sortOrder, taskCounts]);
 
   const stats = useMemo(() => {
     const total = employees.length;
@@ -135,9 +165,27 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
     const inactive = employees.filter(e => e.status === 'inactive').length;
     const teamLeads = employees.filter(e => e.teamLead === true).length;
     const withTasks = Array.from(taskCounts.values()).filter(count => count > 0).length;
+    const totalTasks = Array.from(taskCounts.values()).reduce((sum, count) => sum + count, 0);
+    const avgTasksPerUser = total > 0 ? (totalTasks / total).toFixed(1) : '0';
     
-    return { total, active, inactive, teamLeads, withTasks };
+    const recentlyJoined = employees.filter(e => {
+      const joinedDate = new Date(e.joinedDate);
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      return joinedDate >= thirtyDaysAgo;
+    }).length;
+    
+    return { total, active, inactive, teamLeads, withTasks, totalTasks, avgTasksPerUser, recentlyJoined };
   }, [employees, taskCounts]);
+
+  const toggleSort = (newSortBy: typeof sortBy) => {
+    if (sortBy === newSortBy) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(newSortBy);
+      setSortOrder('asc');
+    }
+  };
 
   const resetForm = () => {
     setFormData({
@@ -570,19 +618,19 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
           </DialogHeader>
 
           <div className="space-y-4 flex-1 overflow-y-auto">
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-              <Card className="p-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <Card className="p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-primary/10">
                     <UserCircle className="w-5 h-5 text-primary" weight="bold" />
                   </div>
                   <div>
                     <div className="text-2xl font-semibold">{stats.total}</div>
-                    <div className="text-xs text-muted-foreground">Total Users</div>
+                    <div className="text-xs text-muted-foreground">Total</div>
                   </div>
                 </div>
               </Card>
-              <Card className="p-4">
+              <Card className="p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-green-500/10">
                     <CheckCircle className="w-5 h-5 text-green-600" weight="bold" />
@@ -593,87 +641,181 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
                   </div>
                 </div>
               </Card>
-              <Card className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-muted">
-                    <XCircle className="w-5 h-5 text-muted-foreground" weight="bold" />
-                  </div>
-                  <div>
-                    <div className="text-2xl font-semibold">{stats.inactive}</div>
-                    <div className="text-xs text-muted-foreground">Inactive</div>
-                  </div>
-                </div>
-              </Card>
-              <Card className="p-4">
+              <Card className="p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-amber-500/10">
                     <Star className="w-5 h-5 text-amber-600" weight="fill" />
                   </div>
                   <div>
                     <div className="text-2xl font-semibold">{stats.teamLeads}</div>
-                    <div className="text-xs text-muted-foreground">Team Leads</div>
+                    <div className="text-xs text-muted-foreground">Leads</div>
                   </div>
                 </div>
               </Card>
-              <Card className="p-4">
+              <Card className="p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-accent/50">
-                    <Briefcase className="w-5 h-5 text-accent-foreground" weight="bold" />
+                  <div className="p-2 rounded-lg bg-blue-500/10">
+                    <Briefcase className="w-5 h-5 text-blue-600" weight="bold" />
                   </div>
                   <div>
-                    <div className="text-2xl font-semibold">{stats.withTasks}</div>
-                    <div className="text-xs text-muted-foreground">With Tasks</div>
+                    <div className="text-2xl font-semibold">{stats.totalTasks}</div>
+                    <div className="text-xs text-muted-foreground">Tasks</div>
+                  </div>
+                </div>
+              </Card>
+              <Card className="p-4 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-purple-500/10">
+                    <TrendUp className="w-5 h-5 text-purple-600" weight="bold" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-semibold">{stats.avgTasksPerUser}</div>
+                    <div className="text-xs text-muted-foreground">Avg/User</div>
+                  </div>
+                </div>
+              </Card>
+              <Card className="p-4 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-cyan-500/10">
+                    <Calendar className="w-5 h-5 text-cyan-600" weight="bold" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-semibold">{stats.recentlyJoined}</div>
+                    <div className="text-xs text-muted-foreground">New 30d</div>
                   </div>
                 </div>
               </Card>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="relative flex-1">
-                <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" weight="bold" />
-                <Input
-                  placeholder="Search by name, role, email, skills..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" weight="bold" />
+                  <Input
+                    placeholder="Search by name, role, email, department, skills..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <Button 
+                  variant="outline" 
+                  onClick={handleExportUsers} 
+                  disabled={filteredEmployees.length === 0}
+                  className="w-full sm:w-auto"
+                >
+                  <Download className="mr-2 h-4 w-4" weight="bold" />
+                  Export
+                </Button>
+                <Button 
+                  variant={bulkMode ? "secondary" : "outline"} 
+                  onClick={() => {
+                    setBulkMode(!bulkMode);
+                    setSelectedUsers(new Set());
+                  }}
+                  className="w-full sm:w-auto"
+                >
+                  <CheckSquare className="mr-2 h-4 w-4" weight={bulkMode ? "fill" : "regular"} />
+                  Bulk
+                </Button>
+                <Button 
+                  onClick={() => setAddDialogOpen(true)}
+                  className="w-full sm:w-auto"
+                >
+                  <UserPlus className="mr-2 h-4 w-4" weight="bold" />
+                  Add User
+                </Button>
               </div>
-              <Select value={filterDepartment} onValueChange={setFilterDepartment}>
-                <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="Department" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Departments</SelectItem>
-                  {departments.map(dept => (
-                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={filterTeamLead} onValueChange={(value) => setFilterTeamLead(value as typeof filterTeamLead)}>
-                <SelectTrigger className="w-full sm:w-[150px]">
-                  <SelectValue placeholder="Team Lead" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Members</SelectItem>
-                  <SelectItem value="yes">Team Leads</SelectItem>
-                  <SelectItem value="no">Team Members</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button variant="outline" onClick={handleExportUsers} disabled={filteredEmployees.length === 0}>
-                <Download className="mr-2 h-4 w-4" weight="bold" />
-                Export
-              </Button>
-              <Button variant={bulkMode ? "secondary" : "outline"} onClick={() => {
-                setBulkMode(!bulkMode);
-                setSelectedUsers(new Set());
-              }}>
-                <CheckSquare className="mr-2 h-4 w-4" weight={bulkMode ? "fill" : "regular"} />
-                Bulk
-              </Button>
-              <Button onClick={() => setAddDialogOpen(true)}>
-                <UserPlus className="mr-2 h-4 w-4" weight="bold" />
-                Add User
-              </Button>
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Select value={filterDepartment} onValueChange={setFilterDepartment}>
+                  <SelectTrigger className="w-full sm:w-[180px]">
+                    <Buildings className="mr-2 h-4 w-4" weight="bold" />
+                    <SelectValue placeholder="Department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Departments</SelectItem>
+                    {departments.map(dept => (
+                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={filterTeamLead} onValueChange={(value) => setFilterTeamLead(value as typeof filterTeamLead)}>
+                  <SelectTrigger className="w-full sm:w-[150px]">
+                    <Star className="mr-2 h-4 w-4" weight="bold" />
+                    <SelectValue placeholder="Role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Members</SelectItem>
+                    <SelectItem value="yes">Team Leads</SelectItem>
+                    <SelectItem value="no">Team Members</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-2 flex-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toggleSort('name')}
+                    className={sortBy === 'name' ? 'bg-accent' : ''}
+                  >
+                    Name
+                    {sortBy === 'name' && (
+                      sortOrder === 'asc' ? <CaretUp className="ml-1 h-3 w-3" weight="bold" /> : <CaretDown className="ml-1 h-3 w-3" weight="bold" />
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toggleSort('role')}
+                    className={sortBy === 'role' ? 'bg-accent' : ''}
+                  >
+                    Role
+                    {sortBy === 'role' && (
+                      sortOrder === 'asc' ? <CaretUp className="ml-1 h-3 w-3" weight="bold" /> : <CaretDown className="ml-1 h-3 w-3" weight="bold" />
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toggleSort('tasks')}
+                    className={sortBy === 'tasks' ? 'bg-accent' : ''}
+                  >
+                    Tasks
+                    {sortBy === 'tasks' && (
+                      sortOrder === 'asc' ? <CaretUp className="ml-1 h-3 w-3" weight="bold" /> : <CaretDown className="ml-1 h-3 w-3" weight="bold" />
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toggleSort('joined')}
+                    className={sortBy === 'joined' ? 'bg-accent' : ''}
+                  >
+                    Joined
+                    {sortBy === 'joined' && (
+                      sortOrder === 'asc' ? <CaretUp className="ml-1 h-3 w-3" weight="bold" /> : <CaretDown className="ml-1 h-3 w-3" weight="bold" />
+                    )}
+                  </Button>
+                </div>
+                <div className="flex border rounded-lg ml-auto">
+                  <Button
+                    variant={viewMode === 'list' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setViewMode('list')}
+                    className="rounded-r-none"
+                  >
+                    <ListBullets className="h-4 w-4" weight={viewMode === 'list' ? 'fill' : 'regular'} />
+                  </Button>
+                  <Button
+                    variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setViewMode('grid')}
+                    className="rounded-l-none"
+                  >
+                    <SquaresFour className="h-4 w-4" weight={viewMode === 'grid' ? 'fill' : 'regular'} />
+                  </Button>
+                </div>
+              </div>
             </div>
 
             <AnimatePresence>
@@ -771,9 +913,12 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
                     )}
                   </div>
                 ) : (
-                  <div className="grid gap-3">
+                  <motion.div 
+                    layout
+                    className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 gap-3' : 'grid gap-3'}
+                  >
                     {filteredEmployees.map(renderEmployeeCard)}
-                  </div>
+                  </motion.div>
                 )}
               </TabsContent>
             </Tabs>
