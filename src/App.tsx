@@ -1076,6 +1076,11 @@ function App() {
                     onNavigateToTasks={() => setViewMode('tasks')}
                     onNavigateToUsers={() => {}}
                     onNavigateToAnnouncements={() => {}}
+                    onCreateTask={() => setCreateDialogOpen(true)}
+                    onCreateAnnouncement={() => {}}
+                    onManageDepartments={() => {}}
+                    onOpenAIAssistant={() => setAiAssistantOpen(true)}
+                    onAutoAssignTasks={() => {}}
                   />
                 ) : currentEmployee.userRole === 'manager' ? (
                   <DepartmentAdminDashboard
@@ -1083,6 +1088,10 @@ function App() {
                     employees={employees || []}
                     currentEmployee={currentEmployee}
                     onNavigateToTasks={() => setViewMode('tasks')}
+                    onCreateTask={() => setCreateDialogOpen(true)}
+                    onViewTasks={() => setViewMode('tasks')}
+                    onCreateAnnouncement={() => {}}
+                    onOpenAIAssistant={() => setAiAssistantOpen(true)}
                   />
                 ) : (
                   <UserDashboard
@@ -1091,6 +1100,7 @@ function App() {
                     currentEmployee={currentEmployee}
                     onNavigateToTasks={() => setViewMode('tasks')}
                     onViewTaskDetails={handleViewDetails}
+                    onViewAllTasks={() => setViewMode('tasks')}
                   />
                 )}
               </>

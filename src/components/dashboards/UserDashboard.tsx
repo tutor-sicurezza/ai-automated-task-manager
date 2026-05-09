@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Task, Employee } from '@/lib/types';
-import { ListChecks, CheckCircle, Clock, Warning, CalendarBlank, TrendUp } from '@phosphor-icons/react';
+import { ListChecks, CheckCircle, Clock, Warning, CalendarBlank, TrendUp, Eye, ClockCounterClockwise, ArrowRight } from '@phosphor-icons/react';
 import { Progress } from '@/components/ui/progress';
 
 interface UserDashboardProps {
@@ -11,6 +11,8 @@ interface UserDashboardProps {
   currentEmployee: Employee;
   onNavigateToTasks: () => void;
   onViewTaskDetails: (taskId: string) => void;
+  onStartTask?: (taskId: string) => void;
+  onViewAllTasks?: () => void;
 }
 
 export function UserDashboard({
@@ -19,6 +21,8 @@ export function UserDashboard({
   currentEmployee,
   onNavigateToTasks,
   onViewTaskDetails,
+  onStartTask,
+  onViewAllTasks,
 }: UserDashboardProps) {
   const myTasks = useMemo(() => {
     return tasks.filter(task => task.assigneeId === currentEmployee.id);
@@ -118,6 +122,45 @@ export function UserDashboard({
           Welcome back, {currentEmployee.name}!
         </p>
       </div>
+
+      <Card className="p-6 bg-gradient-to-r from-primary/5 via-accent/5 to-primary/5 border-primary/20">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <ArrowRight className="w-5 h-5 text-primary" weight="bold" />
+          Quick Actions
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {onViewAllTasks && (
+            <Button 
+              onClick={onViewAllTasks} 
+              className="h-auto flex-col gap-2 py-4"
+              variant="outline"
+            >
+              <Eye className="w-6 h-6" weight="bold" />
+              <span className="text-sm font-medium">View My Tasks</span>
+            </Button>
+          )}
+          {taskStats.overdue > 0 && (
+            <Button 
+              onClick={onNavigateToTasks} 
+              className="h-auto flex-col gap-2 py-4 bg-red-50 border-red-200 hover:bg-red-100"
+              variant="outline"
+            >
+              <Warning className="w-6 h-6 text-destructive" weight="bold" />
+              <span className="text-sm font-medium text-destructive">{taskStats.overdue} Overdue</span>
+            </Button>
+          )}
+          {taskStats.inProgress > 0 && (
+            <Button 
+              onClick={onNavigateToTasks} 
+              className="h-auto flex-col gap-2 py-4"
+              variant="outline"
+            >
+              <ClockCounterClockwise className="w-6 h-6" weight="bold" />
+              <span className="text-sm font-medium">{taskStats.inProgress} In Progress</span>
+            </Button>
+          )}
+        </div>
+      </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="p-6 bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200">

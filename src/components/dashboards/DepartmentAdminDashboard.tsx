@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Task, Employee } from '@/lib/types';
-import { Users, ListChecks, CheckCircle, Clock, Warning, TrendUp } from '@phosphor-icons/react';
+import { Users, ListChecks, CheckCircle, Clock, Warning, TrendUp, Plus, Eye, Sparkle, Megaphone } from '@phosphor-icons/react';
 import { Progress } from '@/components/ui/progress';
 
 interface DepartmentAdminDashboardProps {
@@ -10,6 +10,10 @@ interface DepartmentAdminDashboardProps {
   employees: Employee[];
   currentEmployee: Employee;
   onNavigateToTasks: () => void;
+  onCreateTask?: () => void;
+  onViewTasks?: () => void;
+  onCreateAnnouncement?: () => void;
+  onOpenAIAssistant?: () => void;
 }
 
 export function DepartmentAdminDashboard({
@@ -17,6 +21,10 @@ export function DepartmentAdminDashboard({
   employees,
   currentEmployee,
   onNavigateToTasks,
+  onCreateTask,
+  onViewTasks,
+  onCreateAnnouncement,
+  onOpenAIAssistant,
 }: DepartmentAdminDashboardProps) {
   const myDepartments = currentEmployee.departments || [];
 
@@ -89,6 +97,55 @@ export function DepartmentAdminDashboard({
           Managing: {myDepartments.join(', ')}
         </p>
       </div>
+
+      <Card className="p-6 bg-gradient-to-r from-primary/5 via-accent/5 to-primary/5 border-primary/20">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Sparkle className="w-5 h-5 text-primary" weight="fill" />
+          Quick Actions
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {onCreateTask && (
+            <Button 
+              onClick={onCreateTask} 
+              className="h-auto flex-col gap-2 py-4"
+              variant="outline"
+            >
+              <Plus className="w-6 h-6" weight="bold" />
+              <span className="text-sm font-medium">Create Task</span>
+            </Button>
+          )}
+          {onViewTasks && (
+            <Button 
+              onClick={onViewTasks} 
+              className="h-auto flex-col gap-2 py-4"
+              variant="outline"
+            >
+              <Eye className="w-6 h-6" weight="bold" />
+              <span className="text-sm font-medium">View All Tasks</span>
+            </Button>
+          )}
+          {onCreateAnnouncement && (
+            <Button 
+              onClick={onCreateAnnouncement} 
+              className="h-auto flex-col gap-2 py-4"
+              variant="outline"
+            >
+              <Megaphone className="w-6 h-6" weight="bold" />
+              <span className="text-sm font-medium">Announcement</span>
+            </Button>
+          )}
+          {onOpenAIAssistant && (
+            <Button 
+              onClick={onOpenAIAssistant} 
+              className="h-auto flex-col gap-2 py-4 bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-purple-300 hover:from-purple-500/20 hover:to-pink-500/20"
+              variant="outline"
+            >
+              <Sparkle className="w-6 h-6 text-purple-600" weight="fill" />
+              <span className="text-sm font-medium text-purple-900">AI Assistant</span>
+            </Button>
+          )}
+        </div>
+      </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="p-6 bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200">
