@@ -89,6 +89,61 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const setupSuperAdmin = async () => {
+      try {
+        const user = await window.spark.user();
+        if (user && user.login === 'tutor-sicurezza') {
+          const userId = user.id.toString();
+          const existingEmployee = (employees || []).find(e => e.id === userId || e.name === 'tutor-sicurezza');
+          
+          if (existingEmployee && existingEmployee.userRole !== 'admin') {
+            setEmployees((currentEmployees) =>
+              (currentEmployees || []).map(emp => 
+                emp.id === existingEmployee.id 
+                  ? { ...emp, userRole: 'admin' }
+                  : emp
+              )
+            );
+            toast.success('Super admin privileges granted to tutor-sicurezza');
+          } else if (!existingEmployee) {
+            const newAdmin: Employee = {
+              id: userId,
+              name: user.login || 'tutor-sicurezza',
+              avatar: user.avatarUrl || 'https://api.dicebear.com/7.x/avataaars/svg?seed=tutor-sicurezza',
+              role: 'Super Administrator',
+              userRole: 'admin',
+              email: user.email || undefined,
+              status: 'active',
+              joinedDate: new Date().toISOString(),
+            };
+            setEmployees((currentEmployees) => [...(currentEmployees || []), newAdmin]);
+            toast.success('Super admin account created for tutor-sicurezza');
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check user for super admin setup:', error);
+      }
+      
+      const tutorSicurezzaEmployee = (employees || []).find(e => 
+        e.name.toLowerCase().includes('tutor-sicurezza') || 
+        e.name.toLowerCase().includes('tutor sicurezza')
+      );
+      
+      if (tutorSicurezzaEmployee && tutorSicurezzaEmployee.userRole !== 'admin') {
+        setEmployees((currentEmployees) =>
+          (currentEmployees || []).map(emp => 
+            emp.id === tutorSicurezzaEmployee.id 
+              ? { ...emp, userRole: 'admin' }
+              : emp
+          )
+        );
+        toast.success(`Super admin privileges granted to ${tutorSicurezzaEmployee.name}`);
+      }
+    };
+    setupSuperAdmin();
+  }, [employees]);
+
+  useEffect(() => {
     const loadUser = async () => {
       try {
         const user = await window.spark.user();
