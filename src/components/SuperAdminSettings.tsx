@@ -12,9 +12,12 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Gear, FloppyDisk, Warning, CheckCircle, ShieldCheck, Robot, Bell, Users, FolderOpen, Globe, Plugs, ClockCounterClockwise } from '@phosphor-icons/react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
+import { Gear, FloppyDisk, Warning, CheckCircle, ShieldCheck, Robot, Bell, Users, FolderOpen, Globe, Plugs, ClockCounterClockwise, CloudArrowDown, CloudArrowUp, ChartBar, Palette, Envelope, Wrench, Database, WarningCircle, Info } from '@phosphor-icons/react';
 import { SystemSettings, UserRole, AuditLogEntry } from '@/lib/types';
 import { toast } from 'sonner';
+import confetti from 'canvas-confetti';
 
 const DEFAULT_SETTINGS: SystemSettings = {
   general: {
@@ -87,8 +90,11 @@ export function SuperAdminSettings({ currentUserId, currentUserName }: SuperAdmi
   const [open, setOpen] = useState(false);
   const [settings, setSettings] = useKV<SystemSettings>('system-settings', DEFAULT_SETTINGS);
   const [auditLog, setAuditLog] = useKV<AuditLogEntry[]>('audit-log', []);
+  const [maintenanceMode, setMaintenanceMode] = useKV<boolean>('maintenance-mode', false);
   const [hasChanges, setHasChanges] = useState(false);
   const [localSettings, setLocalSettings] = useState<SystemSettings>(settings || DEFAULT_SETTINGS);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
 
   useEffect(() => {
     if (settings) {
@@ -184,6 +190,99 @@ export function SuperAdminSettings({ currentUserId, currentUserName }: SuperAdmi
     toast.success('IP address removed');
   };
 
+  const handleExportData = async () => {
+    setIsExporting(true);
+    try {
+      const keys = await window.spark.kv.keys();
+      const exportData: Record<string, any> = {};
+      
+      for (const key of keys) {
+        const value = await window.spark.kv.get(key);
+        exportData[key] = value;
+      }
+      
+      const dataStr = JSON.stringify(exportData, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `taskflow-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      logAuditEntry('Data Export', 'Super admin exported system data', 'system');
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
+      toast.success('Data exported successfully!');
+    } catch (error) {
+      toast.error('Failed to export data');
+      console.error('Export error:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleImportData = async () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json';
+    
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      
+      if (!confirm('WARNING: This will overwrite all existing data. Are you sure you want to continue?')) {
+        return;
+      }
+      
+      setIsImporting(true);
+      try {
+        const text = await file.text();
+        const importData = JSON.parse(text);
+        
+        for (const [key, value] of Object.entries(importData)) {
+          await window.spark.kv.set(key, value);
+        }
+        
+        logAuditEntry('Data Import', 'Super admin imported system data', 'system');
+        toast.success('Data imported successfully! Refreshing page...');
+        
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } catch (error) {
+        toast.error('Failed to import data. Please check the file format.');
+        console.error('Import error:', error);
+        setIsImporting(false);
+      }
+    };
+    
+    input.click();
+  };
+
+  const handleToggleMaintenanceMode = () => {
+    const newMode = !maintenanceMode;
+    setMaintenanceMode(newMode);
+    logAuditEntry(
+      newMode ? 'Maintenance Mode Enabled' : 'Maintenance Mode Disabled',
+      `Super admin ${newMode ? 'enabled' : 'disabled'} maintenance mode`,
+      'system'
+    );
+    toast.success(newMode ? 'Maintenance mode enabled' : 'Maintenance mode disabled');
+  };
+
+  const handleClearAuditLog = () => {
+    if (confirm('Are you sure you want to clear all audit log entries? This cannot be undone.')) {
+      setAuditLog([]);
+      toast.success('Audit log cleared');
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -215,8 +314,16 @@ export function SuperAdminSettings({ currentUserId, currentUserName }: SuperAdmi
 
         <ScrollArea className="h-[calc(85vh-180px)]">
           <div className="px-6 pb-6">
-            <Tabs defaultValue="general" className="w-full">
-              <TabsList className="grid grid-cols-4 lg:grid-cols-8 mb-6">
+            <Tabs defaultValue="overview" className="w-full">
+              <TabsList className="grid grid-cols-5 lg:grid-cols-10 mb-6">
+                <TabsTrigger value="overview">
+                  <ChartBar className="h-4 w-4 mr-1" />
+                  Overview
+                </TabsTrigger>
+                <TabsTrigger value="data">
+                  <Database className="h-4 w-4 mr-1" />
+                  Data
+                </TabsTrigger>
                 <TabsTrigger value="general">
                   <Globe className="h-4 w-4 mr-1" />
                   General
@@ -250,6 +357,251 @@ export function SuperAdminSettings({ currentUserId, currentUserName }: SuperAdmi
                   Integrations
                 </TabsTrigger>
               </TabsList>
+
+              <TabsContent value="overview" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <ChartBar className="h-5 w-5" weight="fill" />
+                      System Overview
+                    </CardTitle>
+                    <CardDescription>Current system status and statistics</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {maintenanceMode && (
+                      <Alert className="border-destructive">
+                        <WarningCircle className="h-4 w-4 text-destructive" weight="fill" />
+                        <AlertDescription className="text-destructive font-medium">
+                          System is currently in maintenance mode
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <Card className="bg-gradient-to-br from-primary/10 to-primary/5">
+                        <CardContent className="p-4">
+                          <div className="text-sm text-muted-foreground mb-1">Settings Version</div>
+                          <div className="text-2xl font-bold">v1.0.0</div>
+                        </CardContent>
+                      </Card>
+                      <Card className="bg-gradient-to-br from-accent/10 to-accent/5">
+                        <CardContent className="p-4">
+                          <div className="text-sm text-muted-foreground mb-1">Audit Entries</div>
+                          <div className="text-2xl font-bold">{(auditLog || []).length}</div>
+                        </CardContent>
+                      </Card>
+                      <Card className="bg-gradient-to-br from-secondary/20 to-secondary/10">
+                        <CardContent className="p-4">
+                          <div className="text-sm text-muted-foreground mb-1">AI Features</div>
+                          <div className="text-2xl font-bold">{localSettings.ai.enableAIFeatures ? 'Enabled' : 'Disabled'}</div>
+                        </CardContent>
+                      </Card>
+                      <Card className="bg-gradient-to-br from-green-500/10 to-green-500/5">
+                        <CardContent className="p-4">
+                          <div className="text-sm text-muted-foreground mb-1">Security Status</div>
+                          <div className="text-2xl font-bold flex items-center gap-1">
+                            <CheckCircle className="h-5 w-5 text-green-600" weight="fill" />
+                            Active
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    <Separator />
+
+                    <div>
+                      <h3 className="text-lg font-semibold mb-3">Active Settings Summary</h3>
+                      <div className="grid gap-2">
+                        <div className="flex items-center justify-between p-2 rounded bg-muted/50">
+                          <span className="text-sm">Application Name</span>
+                          <Badge variant="secondary">{localSettings.general.applicationName}</Badge>
+                        </div>
+                        <div className="flex items-center justify-between p-2 rounded bg-muted/50">
+                          <span className="text-sm">Default User Role</span>
+                          <Badge variant="secondary" className="capitalize">{localSettings.users.defaultUserRole}</Badge>
+                        </div>
+                        <div className="flex items-center justify-between p-2 rounded bg-muted/50">
+                          <span className="text-sm">AI Model</span>
+                          <Badge variant="secondary">{localSettings.ai.aiModel}</Badge>
+                        </div>
+                        <div className="flex items-center justify-between p-2 rounded bg-muted/50">
+                          <span className="text-sm">System Notifications</span>
+                          <Badge variant={localSettings.notifications.enableSystemNotifications ? "default" : "outline"}>
+                            {localSettings.notifications.enableSystemNotifications ? 'Enabled' : 'Disabled'}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center justify-between p-2 rounded bg-muted/50">
+                          <span className="text-sm">Audit Logging</span>
+                          <Badge variant={localSettings.security.enableAuditLog ? "default" : "outline"}>
+                            {localSettings.security.enableAuditLog ? 'Enabled' : 'Disabled'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    <div>
+                      <h3 className="text-lg font-semibold mb-3">Quick Info</h3>
+                      <div className="space-y-2">
+                        <Alert>
+                          <Info className="h-4 w-4" />
+                          <AlertDescription>
+                            <span className="font-medium">Timezone:</span> {localSettings.general.timezone} • 
+                            <span className="font-medium ml-2">Date Format:</span> {localSettings.general.dateFormat} • 
+                            <span className="font-medium ml-2">Week Start:</span> {localSettings.general.weekStartDay}
+                          </AlertDescription>
+                        </Alert>
+                        <Alert>
+                          <Info className="h-4 w-4" />
+                          <AlertDescription>
+                            <span className="font-medium">Max Attachment Size:</span> {localSettings.tasks.maxAttachmentSize}MB • 
+                            <span className="font-medium ml-2">Data Retention:</span> {localSettings.security.dataRetentionDays} days
+                          </AlertDescription>
+                        </Alert>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="data" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Database className="h-5 w-5" weight="fill" />
+                      Data Management
+                    </CardTitle>
+                    <CardDescription>Backup, restore, and manage system data</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="space-y-4">
+                      <div className="p-4 rounded-lg border bg-card">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <CloudArrowDown className="h-5 w-5 text-primary" weight="fill" />
+                              <h3 className="font-semibold">Export Data</h3>
+                            </div>
+                            <p className="text-sm text-muted-foreground mb-4">
+                              Download a complete backup of all system data including tasks, users, settings, and audit logs.
+                            </p>
+                            <Button onClick={handleExportData} disabled={isExporting} className="w-full sm:w-auto">
+                              <CloudArrowDown className="mr-2 h-4 w-4" weight="fill" />
+                              {isExporting ? 'Exporting...' : 'Export All Data'}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-4 rounded-lg border bg-card">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <CloudArrowUp className="h-5 w-5 text-accent" weight="fill" />
+                              <h3 className="font-semibold">Import Data</h3>
+                            </div>
+                            <p className="text-sm text-muted-foreground mb-2">
+                              Restore system data from a previously exported backup file.
+                            </p>
+                            <Alert className="mb-4">
+                              <WarningCircle className="h-4 w-4" />
+                              <AlertDescription className="text-xs">
+                                <strong>Warning:</strong> This will overwrite all existing data. Make sure to export current data first.
+                              </AlertDescription>
+                            </Alert>
+                            <Button onClick={handleImportData} disabled={isImporting} variant="secondary" className="w-full sm:w-auto">
+                              <CloudArrowUp className="mr-2 h-4 w-4" weight="fill" />
+                              {isImporting ? 'Importing...' : 'Import Data'}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      <div className="p-4 rounded-lg border bg-card">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Wrench className="h-5 w-5 text-orange-600" weight="fill" />
+                              <h3 className="font-semibold">Maintenance Mode</h3>
+                            </div>
+                            <p className="text-sm text-muted-foreground mb-4">
+                              {maintenanceMode 
+                                ? 'Maintenance mode is currently enabled. Users may experience limited functionality.' 
+                                : 'Enable maintenance mode to perform system updates or maintenance tasks.'}
+                            </p>
+                            <Button 
+                              onClick={handleToggleMaintenanceMode}
+                              variant={maintenanceMode ? 'destructive' : 'outline'}
+                              className="w-full sm:w-auto"
+                            >
+                              <Wrench className="mr-2 h-4 w-4" weight="fill" />
+                              {maintenanceMode ? 'Disable Maintenance Mode' : 'Enable Maintenance Mode'}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-4 rounded-lg border bg-card">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <ClockCounterClockwise className="h-5 w-5 text-destructive" weight="fill" />
+                              <h3 className="font-semibold">Clear Audit Log</h3>
+                            </div>
+                            <p className="text-sm text-muted-foreground mb-4">
+                              Permanently delete all audit log entries. This action cannot be undone.
+                            </p>
+                            <Button 
+                              onClick={handleClearAuditLog}
+                              variant="destructive"
+                              className="w-full sm:w-auto"
+                              disabled={!auditLog || auditLog.length === 0}
+                            >
+                              <ClockCounterClockwise className="mr-2 h-4 w-4" weight="fill" />
+                              Clear Audit Log ({(auditLog || []).length} entries)
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Storage Information</CardTitle>
+                    <CardDescription>Current data usage across all collections</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm">System Settings</span>
+                          <span className="text-sm font-medium">1 item</span>
+                        </div>
+                        <Progress value={100} className="h-2" />
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm">Audit Log</span>
+                          <span className="text-sm font-medium">{(auditLog || []).length} entries</span>
+                        </div>
+                        <Progress value={Math.min((auditLog || []).length / 100 * 100, 100)} className="h-2" />
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm">Maintenance Mode</span>
+                          <span className="text-sm font-medium">{maintenanceMode ? 'Active' : 'Inactive'}</span>
+                        </div>
+                        <Progress value={maintenanceMode ? 100 : 0} className="h-2" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
               <TabsContent value="general" className="space-y-4">
                 <Card>
