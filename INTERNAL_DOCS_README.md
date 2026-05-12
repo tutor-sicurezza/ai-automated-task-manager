@@ -29,6 +29,49 @@ This directory contains sensitive system documentation. **DO NOT share publicly 
 
 ---
 
+### 📧 SMTP_SETUP_GUIDE.md
+**Comprehensive SMTP email service integration guide**
+
+**What's inside:**
+- Choosing the right SMTP provider (Gmail, SendGrid, AWS SES, etc.)
+- Step-by-step configuration for each major provider
+- DNS records setup (SPF, DKIM, DMARC)
+- Email template implementation
+- Testing and troubleshooting email delivery
+- Security best practices for email services
+- Compliance guidelines (CAN-SPAM, GDPR, CASL)
+
+**When to use:**
+- Setting up email notifications for the first time
+- Switching email service providers
+- Troubleshooting email delivery issues
+- Improving email deliverability rates
+- Understanding email authentication
+
+---
+
+### 💾 DATABASE_SETUP_GUIDE.md
+**Data persistence and optional external database integration**
+
+**What's inside:**
+- Current Spark KV Store architecture and usage
+- Backup and export strategies
+- External database options (Supabase, Firebase, PlanetScale)
+- Data migration procedures
+- Security best practices for data storage
+- Monitoring and performance optimization
+- Disaster recovery procedures
+
+**When to use:**
+- Understanding how TaskFlow stores data
+- Setting up automated backups
+- Migrating to an external database
+- Scaling beyond KV store limits
+- Planning disaster recovery
+- Implementing data retention policies
+
+---
+
 ### 🔒 SECURITY_CHECKLIST.md
 **Pre-deployment and ongoing security audit checklist**
 
@@ -248,6 +291,8 @@ console.log(`Removed ${notifications.length - recent.length} old notifications`)
 
 ```
 /workspaces/spark-template/
+├── SMTP_SETUP_GUIDE.md          ← Email service integration guide
+├── DATABASE_SETUP_GUIDE.md      ← Data persistence & database guide
 ├── WEBMASTER_GUIDE.md          ← Main technical guide
 ├── SECURITY_CHECKLIST.md        ← Security audit checklist
 ├── INTERNAL_DOCS_README.md      ← This file
