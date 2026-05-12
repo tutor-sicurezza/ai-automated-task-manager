@@ -1,53 +1,53 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useKV } from '@github/spark/hooks';
+import { Button } from '@/components/ui/butt
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/sep
+import { Card, CardContent, CardDescription, CardHeader, 
+import { EnvelopeSimple, Package, CalendarBlank, Clock
+import { Employee, Task, TaskNotification, NotificationPreferences } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { EnvelopeSimple, Package, CalendarBlank, Clock, Eye, CheckCircle, PaperPlaneTilt } from '@phosphor-icons/react';
-import { toast } from 'sonner';
+
 import { format } from 'date-fns';
 import { Employee, Task, TaskNotification, NotificationPreferences } from '@/lib/types';
 
 interface EmailDigestSystemProps {
-  employees: Employee[];
-  tasks: Task[];
-}
-
-interface DigestSchedule {
-  id: string;
-  userId: string;
-  userName: string;
-  userEmail?: string;
-  frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly';
   deliveryTime: string;
-  deliveryDays: number[];
-  lastSent?: string;
-  nextScheduled: string;
-  isActive: boolean;
-  notificationCount: number;
-}
+  tasks: Task[];
+ 
 
-interface DigestLog {
-  id: string;
-  userId: string;
-  userName: string;
-  sentAt: string;
-  notificationCount: number;
-  status: 'sent' | 'failed' | 'pending';
-  error?: string;
 }
-
-function getNextScheduledDate(
-  frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly',
-  deliveryTime: string,
-  deliveryDays: number[],
+}
+function getNextS
+  deliveryTime: str
   lastSent?: string
-): Date {
+  const now = new Date();
+  
+  nextDate.setHours(hours
+  if (lastSent) {
+    
+      case 'daily':
+        break;
+}
+
+            nextDate.
+        } els
+        }
+      case 'biweekl
+        break;
+        nextDate.setMonth(la
+    }
+  
+}
+
+}
+function generateDigestHTML(
+  userName: string,
+  tasks: Task[]
+  const notificatio
+    task_
   const now = new Date();
   const [hours, minutes] = deliveryTime.split(':').map(Number);
   
@@ -58,74 +58,74 @@ function getNextScheduledDate(
     const lastSentDate = new Date(lastSent);
     
     switch (frequency) {
-      case 'daily':
-        nextDate.setTime(lastSentDate.getTime() + 24 * 60 * 60 * 1000);
-        break;
-      case 'weekly':
-        if (deliveryDays.length > 0) {
-          nextDate.setTime(lastSentDate.getTime());
-          nextDate.setDate(nextDate.getDate() + 1);
-          while (!deliveryDays.includes(nextDate.getDay())) {
-            nextDate.setDate(nextDate.getDate() + 1);
-          }
-        } else {
-          nextDate.setTime(lastSentDate.getTime() + 7 * 24 * 60 * 60 * 1000);
-        }
-        break;
-      case 'biweekly':
-        nextDate.setTime(lastSentDate.getTime() + 14 * 24 * 60 * 60 * 1000);
-        break;
-      case 'monthly':
-        nextDate.setMonth(lastSentDate.getMonth() + 1);
-        break;
-    }
-  }
-  
+      }
+      return acc;
+
+      const task = t
+      
+        <div style="border: 1px solid #e5e7eb; bord
+          ${taskNotifs.map(notif => `
+              <div style="font-size: 14px; color: #6b7280; ma
+              </div>
+           
+              </
+          `).join('')}
+      `;
+  } else {
+      notificationsHTM
+          <div style="font-size: 14px; color: #6b7280; margin-bottom: 4px;">
+          </di
+            ${notif.t
+          <div style="font-size: 14px; color: #374151; 
+            ${
+     
+   
+
   if (nextDate <= now) {
     nextDate.setDate(nextDate.getDate() + 1);
   }
   
-  return nextDate;
-}
+          <h2 styl
+ 
 
-function generateDigestHTML(
-  notifications: TaskNotification[],
-  userName: string,
-  groupByTask: boolean,
-  tasks: Task[]
-): string {
-  const notificationTypeLabels: Record<string, string> = {
-    task_assigned: '📋 Task Assigned',
-    task_reassigned: '🔄 Task Reassigned',
-    task_updated: '📝 Task Updated',
-    task_comment: '💬 Comment Added',
-    task_due_soon: '⏰ Due Soon',
-    task_overdue: '⚠️ Overdue',
-    task_completed: '✅ Completed',
-    task_status_changed: '🔄 Status Changed',
-    task_priority_changed: '🔔 Priority Changed',
-    mention: '👤 Mentioned',
-  };
-
-  const greeting = `
-    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 32px; text-align: center; border-radius: 12px 12px 0 0;">
-      <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 600;">TaskFlow Digest</h1>
-      <p style="color: rgba(255, 255, 255, 0.9); margin: 8px 0 0 0; font-size: 14px;">
-        Hello ${userName}, here's your notification summary
-      </p>
-    </div>
+      <div style="padding: 2
+          This is an automated diges
+      </div>
   `;
 
-  let notificationsHTML = '';
+  const [op
+  const [digestLogs, setDigestLogs] = useKV<DigestLog[]>('
+  const [previewUser, setPreviewUser] 
+
+    const schedules: DigestSchedule[
+    employees.forEach(async (employee
+      
+        const prefsKey = `notif
+        
+          const lastSentKey = `digest-last-se
+          
+            preferences.emai
+    
+
+          const noti
+          const userNotifications = (allNotifications || []).filter(n => n.userId === employee.id);
+          schedules.push({
+            userId: employee.id,
+            userEmail: employee.email,
+          
+          
+    
+
+      } catch (error) {
   
-  if (groupByTask) {
-    const groupedByTask = notifications.reduce((acc, notif) => {
-      if (!acc[notif.taskId]) {
-        acc[notif.taskId] = [];
-      }
-      acc[notif.taskId].push(notif);
-      return acc;
-    }, {} as Record<string, TaskNotification[]>);
+    
+  }, [employees]);
+  useEffect(() => {
+      const now = new Date();
+      f
+        
+          const p
+          
 
     Object.entries(groupedByTask).forEach(([taskId, taskNotifs]) => {
       const task = tasks.find(t => t.id === taskId);
@@ -138,7 +138,7 @@ function generateDigestHTML(
             <div style="padding: 8px 0; border-top: 1px solid #f3f4f6;">
               <div style="font-size: 14px; color: #6b7280; margin-bottom: 4px;">
                 ${notificationTypeLabels[notif.type] || notif.type}
-              </div>
+      ).slice(0, pre
               <div style="font-size: 14px; color: #374151;">${notif.message}</div>
               <div style="font-size: 12px; color: #9ca3af; margin-top: 4px;">
                 ${format(new Date(notif.createdAt), 'MMM d, yyyy h:mm a')}
@@ -200,11 +200,11 @@ export function EmailDigestSystem({ employees, tasks }: EmailDigestSystemProps) 
     
     employees.forEach(async (employee) => {
       if (!employee.email) return;
-      
+  };
       try {
         const prefsKey = `notification-preferences-${employee.id}`;
         const preferences = await window.spark.kv.get<NotificationPreferences>(prefsKey);
-        
+    cons
         if (preferences && preferences.emailSchedule?.digestEnabled) {
           const lastSentKey = `digest-last-sent-${employee.id}`;
           const lastSent = await window.spark.kv.get<string>(lastSentKey);
@@ -232,251 +232,251 @@ export function EmailDigestSystem({ employees, tasks }: EmailDigestSystemProps) 
             nextScheduled: nextScheduled.toISOString(),
             isActive: true,
             notificationCount: userNotifications.length,
-          });
+             
         }
-      } catch (error) {
-        console.error(`Failed to load digest schedule for ${employee.name}:`, error);
-      }
-    });
+                       
+                          </div>
+       
+       
     
-    return schedules;
-  }, [employees]);
+                    <
+                )}
 
-  useEffect(() => {
-    const checkAndSendDigests = async () => {
-      const now = new Date();
-      
-      for (const employee of employees) {
-        if (!employee.email) continue;
-        
-        try {
-          const prefsKey = `notification-preferences-${employee.id}`;
-          const preferences = await window.spark.kv.get<NotificationPreferences>(prefsKey);
-          
-          if (!preferences || !preferences.emailSchedule?.digestEnabled) continue;
-          
-          const lastSentKey = `digest-last-sent-${employee.id}`;
-          const lastSent = await window.spark.kv.get<string>(lastSentKey);
-          
-          const nextScheduled = getNextScheduledDate(
-            preferences.emailSchedule.digestFrequency,
-            preferences.emailSchedule.digestTime,
-            preferences.emailSchedule.digestDays,
-            lastSent
-          );
-          
-          if (now >= nextScheduled) {
-            await sendDigest(employee.id, employee.name, employee.email, preferences);
-          }
-        } catch (error) {
-          console.error(`Failed to check digest schedule for ${employee.name}:`, error);
-        }
-      }
-      
-      setLastCheckTime(now.toISOString());
-    };
-    
-    const interval = setInterval(checkAndSendDigests, 60 * 1000);
-    checkAndSendDigests();
-    
-    return () => clearInterval(interval);
-  }, [employees]);
 
-  const sendDigest = async (
-    userId: string,
-    userName: string,
-    userEmail: string,
-    preferences: NotificationPreferences
-  ) => {
-    try {
-      const notifKey = `notifications`;
-      const allNotifications = await window.spark.kv.get<TaskNotification[]>(notifKey);
+            <ScrollArea className="h-[500px] 
+                {(digestLogs 
       
-      const userNotifications = (allNotifications || []).filter(
-        n => n.userId === userId && 
-        (preferences.emailSchedule.includeOnlyUnread ? !n.read : true)
-      ).slice(0, preferences.emailSchedule.maxNotificationsPerDigest);
-      
-      if (userNotifications.length === 0) {
-        const log: DigestLog = {
-          id: `log-${Date.now()}-${userId}`,
-          userId,
-          userName,
-          sentAt: new Date().toISOString(),
-          notificationCount: 0,
-          status: 'sent',
-        };
+                      No delivery logs ye
+                  </Alert>
         
-        setDigestLogs((currentLogs) => [log, ...(currentLogs || [])].slice(0, 100));
-        
-        const lastSentKey = `digest-last-sent-${userId}`;
-        await window.spark.kv.set(lastSentKey, new Date().toISOString());
-        
-        return;
-      }
+             
+                          <div className="flex-1">
+                            <div className="text-sm text-muted-foreground">
+          
+                          <div className="flex items-center gap-3">
+          
+                                {log.status}
+                            </div>
+          
+                          <div className="mt-2 text-x
+                          </div>
+                      </CardContent>
+                  ))
+              </div>
+          </
+          
+              {previewContent ? (
+              ) : (
+           
+                    Selec
+                </Alert>
+         
+       
       
-      const htmlContent = generateDigestHTML(
-        userNotifications,
-        userName,
-        preferences.emailSchedule.groupByTask,
-        tasks
-      );
+        <div className="flex items-center 
       
-      const log: DigestLog = {
-        id: `log-${Date.now()}-${userId}`,
-        userId,
-        userName,
-        sentAt: new Date().toISOString(),
-        notificationCount: userNotifications.length,
-        status: 'sent',
-      };
-      
-      setDigestLogs((currentLogs) => [log, ...(currentLogs || [])].slice(0, 100));
-      
-      const lastSentKey = `digest-last-sent-${userId}`;
-      await window.spark.kv.set(lastSentKey, new Date().toISOString());
-      
-      toast.success(`Digest sent to ${userName} (${userNotifications.length} notifications)`);
-    } catch (error) {
-      const log: DigestLog = {
-        id: `log-${Date.now()}-${userId}`,
-        userId,
-        userName,
-        sentAt: new Date().toISOString(),
-        notificationCount: 0,
-        status: 'failed',
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-      
-      setDigestLogs((currentLogs) => [log, ...(currentLogs || [])].slice(0, 100));
-      
-      toast.error(`Failed to send digest to ${userName}`);
-    }
-  };
+    
+          </Button>
+      </DialogContent>
+  );
 
-  const handleSendTestDigest = async (userId: string) => {
-    const employee = employees.find(e => e.id === userId);
-    if (!employee || !employee.email) {
-      toast.error('Employee email not found');
-      return;
-    }
-    
-    const prefsKey = `notification-preferences-${userId}`;
-    const preferences = await window.spark.kv.get<NotificationPreferences>(prefsKey);
-    
-    if (!preferences) {
-      toast.error('Notification preferences not found');
-      return;
-    }
-    
-    await sendDigest(userId, employee.name, employee.email, preferences);
-  };
 
-  const handlePreviewDigest = async (userId: string) => {
-    setPreviewUser(userId);
-    setActiveTab('preview');
-    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     const employee = employees.find(e => e.id === userId);
     if (!employee) return;
-    
+
     const prefsKey = `notification-preferences-${userId}`;
-    const preferences = await window.spark.kv.get<NotificationPreferences>(prefsKey);
-    
+
+
     if (!preferences) return;
-    
-    const notifKey = `notifications`;
-    const allNotifications = await window.spark.kv.get<TaskNotification[]>(notifKey);
-    
-    const userNotifications = (allNotifications || []).filter(
+
+
+
+
+
       n => n.userId === userId && 
-      (preferences.emailSchedule.includeOnlyUnread ? !n.read : true)
-    ).slice(0, preferences.emailSchedule.maxNotificationsPerDigest);
-    
-    if (userNotifications.length === 0) {
+
+
+
+
       setPreviewContent('<div style="padding: 48px; text-align: center; color: #6b7280;">No notifications to preview</div>');
       return;
-    }
-    
+
+
     const content = generateDigestHTML(
-      userNotifications,
-      employee.name,
-      preferences.emailSchedule.groupByTask,
-      tasks
-    );
+
+
+
+
+
     
     setPreviewContent(content);
   };
 
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" className="bg-gradient-to-r from-teal-500/10 to-cyan-500/10 border-teal-300 hover:from-teal-500/20 hover:to-cyan-500/20">
-          <EnvelopeSimple className="mr-2 h-5 w-5 text-teal-600" weight="fill" />
-          Email Digests
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5 text-teal-600" weight="fill" />
-            Email Digest Delivery System
-          </DialogTitle>
-          <DialogDescription>
-            Manage scheduled email digest deliveries for all users
-          </DialogDescription>
-        </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="flex-1 flex flex-col">
-          <TabsList className="w-full justify-start">
-            <TabsTrigger value="schedules" className="flex items-center gap-2">
-              <CalendarBlank className="h-4 w-4" weight="fill" />
-              Active Schedules
-              <Badge variant="secondary" className="ml-1">
-                {digestSchedules.length}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger value="logs" className="flex items-center gap-2">
-              <Clock className="h-4 w-4" weight="fill" />
-              Delivery Logs
-              <Badge variant="secondary" className="ml-1">
-                {(digestLogs || []).length}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger value="preview" className="flex items-center gap-2">
-              <Eye className="h-4 w-4" weight="fill" />
-              Preview
-            </TabsTrigger>
-          </TabsList>
 
-          <TabsContent value="schedules" className="flex-1 overflow-hidden">
-            <ScrollArea className="h-[500px] pr-4">
-              <div className="space-y-3">
-                {digestSchedules.length === 0 ? (
-                  <Alert>
-                    <Package className="h-4 w-4" />
-                    <AlertDescription>
-                      No active digest schedules. Users can enable email digests in their notification preferences.
-                    </AlertDescription>
-                  </Alert>
-                ) : (
-                  digestSchedules.map((schedule) => (
-                    <Card key={schedule.id} className="border-l-4 border-l-teal-500">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <CardTitle className="text-base flex items-center gap-2">
-                              {schedule.userName}
-                              {schedule.isActive && (
-                                <Badge variant="secondary" className="bg-green-100 text-green-700 border-green-200">
-                                  <CheckCircle className="w-3 h-3 mr-1" weight="fill" />
-                                  Active
-                                </Badge>
-                              )}
-                            </CardTitle>
-                            <CardDescription className="text-xs mt-1">
-                              {schedule.userEmail}
-                            </CardDescription>
-                          </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                           <div className="flex gap-2">
                             <Button size="sm" variant="outline" onClick={() => handlePreviewDigest(schedule.userId)}>
                               <Eye className="w-4 h-4 mr-1" />
@@ -520,7 +520,7 @@ export function EmailDigestSystem({ employees, tasks }: EmailDigestSystemProps) 
                   ))
                 )}
               </div>
-            </ScrollArea>
+
           </TabsContent>
 
           <TabsContent value="logs" className="flex-1 overflow-hidden">
@@ -580,7 +580,7 @@ export function EmailDigestSystem({ employees, tasks }: EmailDigestSystemProps) 
               )}
             </ScrollArea>
           </TabsContent>
-        </Tabs>
+
 
         <Separator className="my-4" />
         
@@ -590,9 +590,9 @@ export function EmailDigestSystem({ employees, tasks }: EmailDigestSystemProps) 
           </div>
           <Button variant="outline" size="sm" onClick={() => setOpen(false)}>
             Close
-          </Button>
+
         </div>
-      </DialogContent>
+
     </Dialog>
-  );
+
 }
