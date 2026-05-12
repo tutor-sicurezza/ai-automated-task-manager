@@ -16,6 +16,7 @@ export function getRequiredEnv() {
     supabaseAnonKey: process.env.SUPABASE_ANON_KEY as string,
     supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY as string,
     resendApiKey: process.env.RESEND_API_KEY,
+    sendgridApiKey: process.env.SENDGRID_API_KEY,
     appUrl: process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : process.env.APP_URL,
   };
 }

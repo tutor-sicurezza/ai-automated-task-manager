@@ -105,36 +105,57 @@ From Name: TaskFlow Notifications
 
 ---
 
-### Option 2: SendGrid SMTP Setup
+### Option 2: SendGrid Setup (RECOMMENDED)
 
 #### Step 1: Create SendGrid Account
 1. Go to [SendGrid](https://sendgrid.com/)
-2. Sign up for a free account
+2. Sign up for a free account (100 emails/day free tier)
 3. Verify your email address
 
 #### Step 2: Create API Key
 1. Navigate to **Settings** → **API Keys**
 2. Click **Create API Key**
-3. Choose **Full Access** or **Restricted Access**
-4. Name it "TaskFlow SMTP"
-5. **Copy the API key** (shown only once)
+3. Choose **Full Access** or **Restricted Access** (minimum: Mail Send)
+4. Name it "TaskFlow"
+5. **Copy the API key** (shown only once - save it securely!)
 
-#### Step 3: Domain Authentication (Recommended)
+#### Step 3: Verify Sender Identity
 1. Go to **Settings** → **Sender Authentication**
-2. Click **Authenticate Your Domain**
-3. Follow the DNS setup instructions
-4. Wait for verification (up to 48 hours)
+2. Choose one of two options:
+   - **Single Sender Verification** (Quick - for testing)
+     - Click **Verify a Single Sender**
+     - Enter your email address
+     - Check your inbox and click verification link
+   - **Domain Authentication** (Recommended - for production)
+     - Click **Authenticate Your Domain**
+     - Follow the DNS setup instructions
+     - Wait for verification (up to 48 hours)
 
-#### Step 4: SMTP Configuration Values
+#### Step 4: Configure in TaskFlow
+1. Log in to TaskFlow as Super Admin
+2. Navigate to **Super Admin Settings** → **Email Configuration**
+3. Select **SendGrid** as the provider
+4. Enter your API key
+5. Set **From Email** to your verified sender email
+6. Set **From Name** (e.g., "TaskFlow Notifications")
+7. Test the connection
+8. Send a test email
+9. Enable the email service
+
+#### Configuration Values Reference
 ```plaintext
-SMTP Host: smtp.sendgrid.net
-SMTP Port: 587 (TLS) or 465 (SSL)
-SMTP Secure: true
-SMTP Username: apikey
-SMTP Password: [Your SendGrid API key]
-From Email: notifications@yourdomain.com
+Provider: SendGrid
+API Key: [Your SendGrid API key from Step 2]
+From Email: notifications@yourdomain.com (must be verified)
 From Name: TaskFlow Notifications
+Reply-To: support@yourdomain.com (optional)
 ```
+
+#### SendGrid API Integration
+TaskFlow uses the SendGrid v3 API (not SMTP) for better deliverability and tracking:
+- API Endpoint: `https://api.sendgrid.com/v3/mail/send`
+- Authentication: Bearer token
+- Features: Custom args, tracking, analytics
 
 ---
 

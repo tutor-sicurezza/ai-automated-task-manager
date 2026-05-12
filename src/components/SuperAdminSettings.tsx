@@ -16,6 +16,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Gear, FloppyDisk, Warning, CheckCircle, ShieldCheck, Robot, Bell, Users, FolderOpen, Globe, Plugs, ClockCounterClockwise, CloudArrowDown, CloudArrowUp, ChartBar, Palette, Envelope, Wrench, Database, WarningCircle, Info } from '@phosphor-icons/react';
 import { SystemSettings, UserRole, AuditLogEntry } from '@/lib/types';
+import { SendGridConfiguration } from '@/components/SendGridConfiguration';
 import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
 
@@ -315,7 +316,7 @@ export function SuperAdminSettings({ currentUserId, currentUserName }: SuperAdmi
         <ScrollArea className="h-[calc(85vh-180px)]">
           <div className="px-6 pb-6">
             <Tabs defaultValue="overview" className="w-full">
-              <TabsList className="grid grid-cols-5 lg:grid-cols-10 mb-6">
+              <TabsList className="grid grid-cols-6 lg:grid-cols-11 mb-6">
                 <TabsTrigger value="overview">
                   <ChartBar className="h-4 w-4 mr-1" />
                   Overview
@@ -323,6 +324,10 @@ export function SuperAdminSettings({ currentUserId, currentUserName }: SuperAdmi
                 <TabsTrigger value="data">
                   <Database className="h-4 w-4 mr-1" />
                   Data
+                </TabsTrigger>
+                <TabsTrigger value="email">
+                  <Envelope className="h-4 w-4 mr-1" />
+                  Email
                 </TabsTrigger>
                 <TabsTrigger value="general">
                   <Globe className="h-4 w-4 mr-1" />
@@ -601,6 +606,10 @@ export function SuperAdminSettings({ currentUserId, currentUserName }: SuperAdmi
                     </div>
                   </CardContent>
                 </Card>
+              </TabsContent>
+
+              <TabsContent value="email" className="space-y-4">
+                <SendGridConfiguration />
               </TabsContent>
 
               <TabsContent value="general" className="space-y-4">

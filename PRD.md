@@ -124,6 +124,13 @@ This is a task management tool with standard CRUD operations, filtering, and ass
 - **Progression**: Open dialog → Select notification type → Edit subject line → Modify HTML/plain text content → Insert variables → Preview changes → Save template
 - **Success criteria**: Templates persist across sessions, variables automatically populate with actual values, reset to default option available, preview accurately represents final output, active/inactive toggle controls template usage
 
+### SendGrid Email Integration
+- **Functionality**: Configure and manage live email delivery via SendGrid or Resend with full SMTP support
+- **Purpose**: Enable real-time email notifications for task assignments, updates, and system alerts with professional email delivery
+- **Trigger**: Navigate to Super Admin Settings → Email tab
+- **Progression**: Select provider (SendGrid/Resend) → Enter API key → Test connection → Configure sender details → Send test email → Enable service → Monitor statistics
+- **Success criteria**: API connection validates successfully, test emails deliver correctly, all task notifications send automatically, delivery statistics track sent/delivered/failed counts, email logs persist for audit trail, configuration persists across sessions
+
 ### User Onboarding & Help
 - **Functionality**: Interactive welcome guide for first-time users and comprehensive in-app documentation
 - **Purpose**: Help new users understand all features and navigate the system effectively
