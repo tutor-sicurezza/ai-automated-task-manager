@@ -25,7 +25,6 @@ import { DepartmentAdminDashboard } from '@/components/dashboards/DepartmentAdmi
 import { UserDashboard } from '@/components/dashboards/UserDashboard';
 import { SuperAdminSettings } from '@/components/SuperAdminSettings';
 import { EmailTemplateCustomization } from '@/components/EmailTemplateCustomization';
-import { EmailDigestSystem } from '@/components/EmailDigestSystem';
 import { EmailDeliveryAnalytics } from '@/components/EmailDeliveryAnalytics';
 import { WelcomeGuide } from '@/components/WelcomeGuide';
 import { DataManagement } from '@/components/DataManagement';
@@ -1137,7 +1136,6 @@ function App() {
               {currentEmployee?.userRole === 'admin' && (
                 <>
                   <EmailDeliveryAnalytics currentUserId={currentUser?.id} employees={employees || []} />
-                  <EmailDigestSystem />
                   <EmailTemplateCustomization
                     currentUserId={currentUser?.id}
                     currentUserName={currentUser?.name}
