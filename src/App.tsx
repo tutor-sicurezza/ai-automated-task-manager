@@ -26,6 +26,7 @@ import { UserDashboard } from '@/components/dashboards/UserDashboard';
 import { SuperAdminSettings } from '@/components/SuperAdminSettings';
 import { EmailTemplateCustomization } from '@/components/EmailTemplateCustomization';
 import { EmailDigestSystem } from '@/components/EmailDigestSystem';
+import { EmailDeliveryAnalytics } from '@/components/EmailDeliveryAnalytics';
 import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment, Announcement, TaskNotification, NotificationPreferences as NotificationPreferencesType, NotificationType } from '@/lib/types';
 import { playNotificationSound } from '@/lib/notificationSounds';
 import { canPerformAction } from '@/lib/permissions';
@@ -1060,6 +1061,7 @@ function App() {
               )}
               {currentEmployee?.userRole === 'admin' && (
                 <>
+                  <EmailDeliveryAnalytics currentUserId={currentUser?.id} employees={employees || []} />
                   <EmailDigestSystem
                     employees={employees || []}
                     tasks={tasks || []}

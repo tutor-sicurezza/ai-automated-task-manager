@@ -292,3 +292,60 @@ export interface EmailTemplateVariable {
   description: string;
   example: string;
 }
+
+export interface EmailDeliveryLog {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail?: string;
+  emailType: NotificationType | 'digest';
+  subject: string;
+  sentAt: string;
+  status: 'sent' | 'failed' | 'pending' | 'bounced';
+  error?: string;
+  openedAt?: string;
+  openCount: number;
+  clicks: EmailClickEvent[];
+  deviceType?: 'desktop' | 'mobile' | 'tablet' | 'unknown';
+  userAgent?: string;
+  ipAddress?: string;
+}
+
+export interface EmailClickEvent {
+  id: string;
+  url: string;
+  clickedAt: string;
+  deviceType?: 'desktop' | 'mobile' | 'tablet' | 'unknown';
+  userAgent?: string;
+}
+
+export interface EmailAnalytics {
+  totalSent: number;
+  totalOpened: number;
+  totalClicked: number;
+  openRate: number;
+  clickRate: number;
+  clickToOpenRate: number;
+  bounceRate: number;
+  byType: {
+    [key: string]: {
+      sent: number;
+      opened: number;
+      clicked: number;
+      openRate: number;
+      clickRate: number;
+    };
+  };
+  byDevice: {
+    desktop: number;
+    mobile: number;
+    tablet: number;
+    unknown: number;
+  };
+  topLinks: Array<{
+    url: string;
+    clicks: number;
+    uniqueClicks: number;
+  }>;
+  recentDeliveries: EmailDeliveryLog[];
+}
