@@ -1137,10 +1137,7 @@ function App() {
               {currentEmployee?.userRole === 'admin' && (
                 <>
                   <EmailDeliveryAnalytics currentUserId={currentUser?.id} employees={employees || []} />
-                  <EmailDigestSystem
-                    employees={employees || []}
-                    tasks={tasks || []}
-                  />
+                  <EmailDigestSystem />
                   <EmailTemplateCustomization
                     currentUserId={currentUser?.id}
                     currentUserName={currentUser?.name}
