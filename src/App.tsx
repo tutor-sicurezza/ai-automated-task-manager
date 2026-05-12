@@ -29,6 +29,8 @@ import { EmailDigestSystem } from '@/components/EmailDigestSystem';
 import { EmailDeliveryAnalytics } from '@/components/EmailDeliveryAnalytics';
 import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment, Announcement, TaskNotification, NotificationPreferences as NotificationPreferencesType, NotificationType } from '@/lib/types';
 import { playNotificationSound } from '@/lib/notificationSounds';
+import { desktopNotificationManager } from '@/lib/desktopNotifications';
+import { DesktopNotificationSettings } from '@/components/DesktopNotificationSettings';
 import { canPerformAction } from '@/lib/permissions';
 import { Toaster, toast } from 'sonner';
 import confetti from 'canvas-confetti';
@@ -302,6 +304,18 @@ function App() {
     
     if (prefs?.soundEnabled) {
       await playNotificationSound(notification.type, prefs.soundVolume || 0.3);
+    }
+
+    if (currentUser && notification.userId === currentUser.id) {
+      const permission = desktopNotificationManager.getPermission();
+      if (permission === 'granted') {
+        await desktopNotificationManager.showTaskNotification(
+          notification.type,
+          notification.taskTitle,
+          notification.message,
+          notification.taskId
+        );
+      }
     }
   };
 
@@ -1009,6 +1023,7 @@ function App() {
                 onDeleteAll={handleDeleteAllNotifications}
                 onNotificationClick={handleNotificationClick}
               />
+              <DesktopNotificationSettings />
               {currentUser && <NotificationPreferences userId={currentUser.id} />}
               <PermissionsOverview employee={currentEmployee} />
               <div className="flex border rounded-lg">
