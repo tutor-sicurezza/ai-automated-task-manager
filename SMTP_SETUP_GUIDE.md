@@ -27,6 +27,7 @@ TaskFlow uses SMTP (Simple Mail Transfer Protocol) to send email notifications f
 - Due date reminders
 - Email digests (scheduled summaries)
 - System announcements
+- **Task attachments (files included in email notifications)**
 
 ---
 
@@ -296,7 +297,26 @@ Use Cloudflare Workers, Vercel Functions, or AWS Lambda to handle SMTP securely.
 ✓ Due Date Reminder Email
 ✓ Daily Digest Email
 ✓ System Announcement Email
+✓ Email with Task Attachments
 ```
+
+### Testing Email Attachments
+
+**Important:** TaskFlow supports including task attachments in email notifications.
+
+1. **Create a test task** with one or more file attachments
+2. **Configure attachment settings** in Super Admin panel:
+   - Set maximum attachment size (recommended: 5 MB per file)
+   - Set total email size limit (recommended: 10 MB)
+   - Enable/disable attachment inclusion
+3. **Send test notification** to yourself
+4. **Verify:**
+   - Attachments are included in email
+   - File names and sizes are displayed
+   - Attachments can be downloaded
+   - Large files are excluded with notification
+
+**Note:** Most email providers limit total email size to 25 MB including attachments.
 
 ---
 
@@ -379,12 +399,17 @@ Use Cloudflare Workers, Vercel Functions, or AWS Lambda to handle SMTP securely.
 - Include unsubscribe mechanism
 - Add email verification tokens for sensitive actions
 - Implement DMARC for email authentication
+- Validate attachment file types and sizes
+- Scan attachments for malware (if possible)
+- Block executable file types (.exe, .bat, .sh)
 
 ❌ **DON'T:**
 - Include sensitive data in plain text
 - Allow arbitrary HTML in user-generated content
 - Send passwords or credentials via email
 - Include clickable links without validation
+- Allow unlimited attachment sizes
+- Send executable files via email
 
 ---
 
@@ -551,8 +576,53 @@ In case of critical email delivery issues:
 - [ ] Test with sample email
 - [ ] Verify spam score
 - [ ] Set up monitoring
+- [ ] **Configure email attachment settings** (Super Admin panel)
+- [ ] **Test email with attachments**
+- [ ] **Set attachment size limits** (recommended: 5 MB per file, 10 MB total)
 - [ ] Document configuration for team
 - [ ] Schedule regular maintenance checks
+
+---
+
+## Email Attachment Configuration
+
+TaskFlow supports sending task attachments via email notifications. For detailed information, see [EMAIL_ATTACHMENTS.md](./EMAIL_ATTACHMENTS.md).
+
+### Quick Configuration
+
+1. **Enable Email Service** (Super Admin Settings)
+2. **Configure Attachment Settings** (Email Attachments button)
+3. **Set Size Limits:**
+   - Maximum single file: 5 MB (recommended)
+   - Maximum total per email: 10 MB (recommended)
+   - Provider absolute limit: 25 MB (SendGrid/Resend)
+
+### Provider Attachment Limits
+
+| Provider | Max Total Size | Max Attachments | Notes |
+|----------|----------------|-----------------|-------|
+| SendGrid | 25 MB | 10 files | Free tier: 100 emails/day |
+| Resend | 25 MB | 20 files | Free tier: 100 emails/day |
+| Gmail | 25 MB | Unlimited | Includes email body + attachments |
+| Outlook | 20 MB | Unlimited | Through SMTP |
+| Amazon SES | 10 MB | Unlimited | Raw email size |
+
+### Best Practices for Attachments
+
+1. **File Size:**
+   - Keep individual files under 5 MB
+   - Total email should stay under 10 MB
+   - Compress large files before attaching
+
+2. **File Types:**
+   - ✅ Safe: Images (JPG, PNG), PDFs, Office docs
+   - ⚠️ Caution: ZIP files (scan for malware)
+   - ❌ Blocked: Executables (.exe, .bat, .sh)
+
+3. **Handling Large Files:**
+   - Use cloud storage links for files > 10 MB
+   - Consider multiple emails for many attachments
+   - Enable "attachment excluded" notifications
 
 ---
 

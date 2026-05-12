@@ -26,6 +26,7 @@ import { UserDashboard } from '@/components/dashboards/UserDashboard';
 import { SuperAdminSettings } from '@/components/SuperAdminSettings';
 import { EmailTemplateCustomization } from '@/components/EmailTemplateCustomization';
 import { EmailDeliveryAnalytics } from '@/components/EmailDeliveryAnalytics';
+import { EmailAttachmentSettings } from '@/components/EmailAttachmentSettings';
 import { WelcomeGuide } from '@/components/WelcomeGuide';
 import { DataManagement } from '@/components/DataManagement';
 import { HelpDocumentation } from '@/components/HelpDocumentation';
@@ -1135,6 +1136,7 @@ function App() {
               )}
               {currentEmployee?.userRole === 'admin' && (
                 <>
+                  <EmailAttachmentSettings />
                   <EmailDeliveryAnalytics currentUserId={currentUser?.id} employees={employees || []} />
                   <EmailTemplateCustomization
                     currentUserId={currentUser?.id}

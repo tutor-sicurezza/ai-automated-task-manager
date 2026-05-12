@@ -125,11 +125,18 @@ This is a task management tool with standard CRUD operations, filtering, and ass
 - **Success criteria**: Templates persist across sessions, variables automatically populate with actual values, reset to default option available, preview accurately represents final output, active/inactive toggle controls template usage
 
 ### SendGrid Email Integration
-- **Functionality**: Configure and manage live email delivery via SendGrid or Resend with full SMTP support
-- **Purpose**: Enable real-time email notifications for task assignments, updates, and system alerts with professional email delivery
+- **Functionality**: Configure and manage live email delivery via SendGrid or Resend with full SMTP support and attachment capabilities
+- **Purpose**: Enable real-time email notifications for task assignments, updates, and system alerts with professional email delivery including task files
 - **Trigger**: Navigate to Super Admin Settings → Email tab
 - **Progression**: Select provider (SendGrid/Resend) → Enter API key → Test connection → Configure sender details → Send test email → Enable service → Monitor statistics
 - **Success criteria**: API connection validates successfully, test emails deliver correctly, all task notifications send automatically, delivery statistics track sent/delivered/failed counts, email logs persist for audit trail, configuration persists across sessions
+
+### Email Attachment Support
+- **Functionality**: Include task file attachments in email notifications with configurable size limits and smart filtering
+- **Purpose**: Ensure recipients receive all relevant task files directly in their email for offline access and convenience
+- **Trigger**: Click "Email Attachments" button in admin toolbar (super admin only)
+- **Progression**: Open settings → Toggle attachment inclusion → Set maximum single file size (1-10 MB) → Set maximum total email size (5-25 MB) → Configure exclusion notifications → Save settings
+- **Success criteria**: Attachments included in emails up to configured limits, large files automatically excluded with notification, file types validated for security, settings persist across sessions, email delivery respects provider limits (25 MB for SendGrid/Resend)
 
 ### User Onboarding & Help
 - **Functionality**: Interactive welcome guide for first-time users and comprehensive in-app documentation
