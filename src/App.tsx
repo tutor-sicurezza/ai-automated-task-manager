@@ -25,6 +25,7 @@ import { DepartmentAdminDashboard } from '@/components/dashboards/DepartmentAdmi
 import { UserDashboard } from '@/components/dashboards/UserDashboard';
 import { SuperAdminSettings } from '@/components/SuperAdminSettings';
 import { EmailTemplateCustomization } from '@/components/EmailTemplateCustomization';
+import { EmailDigestSystem } from '@/components/EmailDigestSystem';
 import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment, Announcement, TaskNotification, NotificationPreferences as NotificationPreferencesType, NotificationType } from '@/lib/types';
 import { playNotificationSound } from '@/lib/notificationSounds';
 import { canPerformAction } from '@/lib/permissions';
@@ -1059,6 +1060,10 @@ function App() {
               )}
               {currentEmployee?.userRole === 'admin' && (
                 <>
+                  <EmailDigestSystem
+                    employees={employees || []}
+                    tasks={tasks || []}
+                  />
                   <EmailTemplateCustomization
                     currentUserId={currentUser?.id}
                     currentUserName={currentUser?.name}
