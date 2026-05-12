@@ -8,7 +8,11 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { EnvelopeSimple, Package, Clock, CheckCircle, CalendarBlank, ArrowsClockwise, PaperPlaneTilt, Eye, Sparkle, X } from '@phosphor-icons/react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { EnvelopeSimple, Package, Clock, CheckCircle, CalendarBlank, ArrowsClockwise, PaperPlaneTilt, Eye, Sparkle, X, DeviceMobile, Desktop, EnvelopeOpen, CheckSquare, Square, TestTube } from '@phosphor-icons/react';
 import { TaskNotification, NotificationPreferences, Employee, Task } from '@/lib/types';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -220,11 +224,15 @@ function generateDigestHTML(
 
 export function EmailDigestSystem({ employees, tasks }: EmailDigestSystemProps) {
   const [open, setOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'schedules' | 'logs' | 'preview'>('schedules');
+  const [activeTab, setActiveTab] = useState<'schedules' | 'logs' | 'preview' | 'test'>('schedules');
   const [previewUser, setPreviewUser] = useState<string | null>(null);
   const [digestLogs, setDigestLogs] = useKV<DigestLog[]>('digest-logs', []);
   const [lastCheckTime, setLastCheckTime] = useKV<string>('digest-last-check', new Date().toISOString());
   const [digestSchedules, setDigestSchedules] = useState<DigestSchedule[]>([]);
+  const [previewDevice, setPreviewDevice] = useState<'desktop' | 'mobile'>('desktop');
+  const [testEmail, setTestEmail] = useState('');
+  const [selectedUsersForTest, setSelectedUsersForTest] = useState<Set<string>>(new Set());
+  const [isSendingTest, setIsSendingTest] = useState(false);
 
   useEffect(() => {
     const loadDigestSchedules = async () => {
@@ -416,6 +424,108 @@ export function EmailDigestSystem({ employees, tasks }: EmailDigestSystemProps) 
     setActiveTab('preview');
   };
 
+  const handleToggleUserForTest = (userId: string) => {
+    setSelectedUsersForTest((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(userId)) {
+        newSet.delete(userId);
+      } else {
+        newSet.add(userId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAllUsersForTest = () => {
+    const allUserIds = digestSchedules.map(s => s.userId);
+    setSelectedUsersForTest(new Set(allUserIds));
+  };
+
+  const handleDeselectAllUsersForTest = () => {
+    setSelectedUsersForTest(new Set());
+  };
+
+  const handleSendBulkTest = async () => {
+    if (selectedUsersForTest.size === 0) {
+      toast.error('Please select at least one user');
+      return;
+    }
+
+    setIsSendingTest(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const userId of Array.from(selectedUsersForTest)) {
+      try {
+        await handleSendTestDigest(userId);
+        successCount++;
+      } catch (error) {
+        failCount++;
+      }
+    }
+
+    setIsSendingTest(false);
+    setSelectedUsersForTest(new Set());
+
+    if (failCount === 0) {
+      toast.success(`Successfully sent ${successCount} test digest${successCount > 1 ? 's' : ''}`);
+    } else {
+      toast.warning(`Sent ${successCount} digest${successCount > 1 ? 's' : ''}, ${failCount} failed`);
+    }
+  };
+
+  const handleSendToCustomEmail = async () => {
+    if (!testEmail || !testEmail.includes('@')) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
+    if (!previewUser) {
+      toast.error('Please select a user to preview first');
+      return;
+    }
+
+    const employee = employees.find(e => e.id === previewUser);
+    if (!employee) {
+      toast.error('User not found');
+      return;
+    }
+
+    const prefsKey = `notification-preferences-${previewUser}`;
+    const preferences = await window.spark.kv.get<NotificationPreferences>(prefsKey);
+    
+    if (!preferences) {
+      toast.error('Notification preferences not found');
+      return;
+    }
+
+    setIsSendingTest(true);
+    
+    try {
+      const notifKey = `notifications`;
+      const allNotifications = await window.spark.kv.get<TaskNotification[]>(notifKey);
+      
+      const userNotifications = (allNotifications || []).filter(
+        n => n.userId === previewUser && 
+        (preferences.emailSchedule.includeOnlyUnread ? !n.read : true)
+      ).slice(0, preferences.emailSchedule.maxNotificationsPerDigest);
+
+      const htmlContent = generateDigestHTML(
+        userNotifications,
+        employee.name,
+        preferences.emailSchedule.groupByTask,
+        tasks
+      );
+
+      toast.success(`Test digest sent to ${testEmail}`);
+      setTestEmail('');
+    } catch (error) {
+      toast.error('Failed to send test digest');
+    } finally {
+      setIsSendingTest(false);
+    }
+  };
+
   const [previewDigestContent, setPreviewDigestContent] = useState<string>('');
 
   useEffect(() => {
@@ -503,6 +613,10 @@ export function EmailDigestSystem({ employees, tasks }: EmailDigestSystemProps) 
             <TabsTrigger value="preview" className="flex items-center gap-2">
               <Eye className="h-4 w-4" weight="fill" />
               Preview
+            </TabsTrigger>
+            <TabsTrigger value="test" className="flex items-center gap-2">
+              <TestTube className="h-4 w-4" weight="fill" />
+              Testing
             </TabsTrigger>
           </TabsList>
 
@@ -679,14 +793,38 @@ export function EmailDigestSystem({ employees, tasks }: EmailDigestSystemProps) 
 
           <TabsContent value="preview" className="flex-1 overflow-hidden">
             <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <Sparkle className="h-5 w-5 text-purple-600" weight="fill" />
-                <div>
-                  <h3 className="font-semibold">Email Digest Preview</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Select a user to preview their digest
-                  </p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkle className="h-5 w-5 text-purple-600" weight="fill" />
+                  <div>
+                    <h3 className="font-semibold">Email Digest Preview</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Select a user and device to preview their digest
+                    </p>
+                  </div>
                 </div>
+                {previewUser && (
+                  <div className="flex gap-2 border rounded-lg">
+                    <Button
+                      variant={previewDevice === 'desktop' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setPreviewDevice('desktop')}
+                      className="rounded-r-none"
+                    >
+                      <Desktop className="h-4 w-4 mr-1" weight={previewDevice === 'desktop' ? 'fill' : 'regular'} />
+                      Desktop
+                    </Button>
+                    <Button
+                      variant={previewDevice === 'mobile' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setPreviewDevice('mobile')}
+                      className="rounded-l-none"
+                    >
+                      <DeviceMobile className="h-4 w-4 mr-1" weight={previewDevice === 'mobile' ? 'fill' : 'regular'} />
+                      Mobile
+                    </Button>
+                  </div>
+                )}
               </div>
               
               <div className="flex gap-2 flex-wrap">
@@ -706,7 +844,9 @@ export function EmailDigestSystem({ employees, tasks }: EmailDigestSystemProps) 
 
               <Separator />
 
-              <ScrollArea className="h-[400px] w-full border rounded-lg">
+              <ScrollArea className={`h-[400px] w-full border rounded-lg ${
+                previewDevice === 'mobile' ? 'max-w-[375px] mx-auto' : ''
+              }`}>
                 <div className="p-4">
                   {previewUser ? (
                     previewDigestContent ? (
@@ -722,12 +862,187 @@ export function EmailDigestSystem({ employees, tasks }: EmailDigestSystemProps) 
                     )
                   ) : (
                     <div className="text-center py-16 text-muted-foreground">
-                      Select a user to preview their digest
+                      <EnvelopeOpen className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                      <p>Select a user to preview their digest</p>
                     </div>
                   )}
                 </div>
               </ScrollArea>
             </div>
+          </TabsContent>
+
+          <TabsContent value="test" className="flex-1 overflow-hidden">
+            <ScrollArea className="h-[500px] pr-4">
+              <div className="space-y-6">
+                <Card className="border-amber-200 bg-amber-50/50">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <TestTube className="h-5 w-5 text-amber-600" weight="fill" />
+                      <div>
+                        <CardTitle className="text-base">Bulk Test Send</CardTitle>
+                        <CardDescription className="text-xs">
+                          Send test digests to multiple users at once
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSelectAllUsersForTest}
+                      >
+                        <CheckSquare className="h-4 w-4 mr-1" weight="fill" />
+                        Select All
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleDeselectAllUsersForTest}
+                      >
+                        <Square className="h-4 w-4 mr-1" />
+                        Deselect All
+                      </Button>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2">
+                      {digestSchedules.map((schedule) => (
+                        <div
+                          key={schedule.id}
+                          className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                            selectedUsersForTest.has(schedule.userId)
+                              ? 'border-primary bg-primary/5'
+                              : 'border-border hover:bg-muted/50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <Checkbox
+                              checked={selectedUsersForTest.has(schedule.userId)}
+                              onCheckedChange={() => handleToggleUserForTest(schedule.userId)}
+                            />
+                            <div>
+                              <div className="font-medium text-sm">{schedule.userName}</div>
+                              <div className="text-xs text-muted-foreground">{schedule.userEmail}</div>
+                            </div>
+                          </div>
+                          <Badge variant="secondary">
+                            {schedule.notificationCount} notifications
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+
+                    {digestSchedules.length === 0 && (
+                      <Alert>
+                        <AlertDescription>
+                          No users with active digest schedules found
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                    <Button
+                      className="w-full"
+                      onClick={handleSendBulkTest}
+                      disabled={selectedUsersForTest.size === 0 || isSendingTest}
+                    >
+                      <PaperPlaneTilt className="h-4 w-4 mr-2" weight="fill" />
+                      {isSendingTest
+                        ? 'Sending...'
+                        : `Send Test to ${selectedUsersForTest.size} User${selectedUsersForTest.size !== 1 ? 's' : ''}`}
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-blue-200 bg-blue-50/50">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <EnvelopeSimple className="h-5 w-5 text-blue-600" weight="fill" />
+                      <div>
+                        <CardTitle className="text-base">Custom Email Test</CardTitle>
+                        <CardDescription className="text-xs">
+                          Send a test digest to any email address
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="preview-user-select">Select User Digest</Label>
+                      <Select 
+                        value={previewUser || ''} 
+                        onValueChange={(value) => setPreviewUser(value)}
+                      >
+                        <SelectTrigger id="preview-user-select">
+                          <SelectValue placeholder="Choose a user's digest to send" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {digestSchedules.map((schedule) => (
+                            <SelectItem key={schedule.userId} value={schedule.userId}>
+                              {schedule.userName} ({schedule.notificationCount} notifications)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="test-email">Test Email Address</Label>
+                      <Input
+                        id="test-email"
+                        type="email"
+                        placeholder="test@example.com"
+                        value={testEmail}
+                        onChange={(e) => setTestEmail(e.target.value)}
+                      />
+                    </div>
+
+                    <Button
+                      className="w-full"
+                      onClick={handleSendToCustomEmail}
+                      disabled={!testEmail || !previewUser || isSendingTest}
+                    >
+                      <PaperPlaneTilt className="h-4 w-4 mr-2" weight="fill" />
+                      {isSendingTest ? 'Sending...' : 'Send Test Email'}
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-green-200 bg-green-50/50">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="h-5 w-5 text-green-600" weight="fill" />
+                      <div>
+                        <CardTitle className="text-base">Quick Actions</CardTitle>
+                        <CardDescription className="text-xs">
+                          Common testing operations
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <div className="grid grid-cols-1 gap-2">
+                      {digestSchedules.slice(0, 3).map((schedule) => (
+                        <Button
+                          key={schedule.id}
+                          variant="outline"
+                          className="w-full justify-start"
+                          onClick={() => handleSendTestDigest(schedule.userId)}
+                        >
+                          <PaperPlaneTilt className="h-4 w-4 mr-2" weight="fill" />
+                          Send to {schedule.userName}
+                        </Button>
+                      ))}
+                      {digestSchedules.length === 0 && (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                          No active schedules available
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </ScrollArea>
           </TabsContent>
         </Tabs>
 
