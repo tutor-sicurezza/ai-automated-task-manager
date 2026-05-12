@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useKV } from '@github/spark/hooks';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -27,6 +27,9 @@ import { SuperAdminSettings } from '@/components/SuperAdminSettings';
 import { EmailTemplateCustomization } from '@/components/EmailTemplateCustomization';
 import { EmailDigestSystem } from '@/components/EmailDigestSystem';
 import { EmailDeliveryAnalytics } from '@/components/EmailDeliveryAnalytics';
+import { WelcomeGuide } from '@/components/WelcomeGuide';
+import { DataManagement } from '@/components/DataManagement';
+import { HelpDocumentation } from '@/components/HelpDocumentation';
 import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment, Announcement, TaskNotification, NotificationPreferences as NotificationPreferencesType, NotificationType } from '@/lib/types';
 import { playNotificationSound } from '@/lib/notificationSounds';
 import { desktopNotificationManager } from '@/lib/desktopNotifications';
@@ -59,6 +62,8 @@ function App() {
   const [viewMode, setViewMode] = useState<'dashboard' | 'tasks' | 'analytics'>('dashboard');
   const [analyticsView, setAnalyticsView] = useState<'team' | 'departments'>('team');
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
+  const [welcomeGuideOpen, setWelcomeGuideOpen] = useState(false);
+  const [hasCompletedWelcome, setHasCompletedWelcome] = useKV<boolean>('has-completed-welcome', false);
 
   useEffect(() => {
     if (employees && employees.length > 0) {
@@ -200,6 +205,61 @@ function App() {
     };
     loadUser();
   }, [employees]);
+
+  useEffect(() => {
+    if (!hasCompletedWelcome && currentUser) {
+      const timer = setTimeout(() => {
+        setWelcomeGuideOpen(true);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [hasCompletedWelcome, currentUser]);
+
+  const handleExportData = useCallback(async () => {
+    const data = {
+      tasks: tasks || [],
+      employees: employees || [],
+      announcements: announcements || [],
+      notifications: notifications || [],
+      exportDate: new Date().toISOString(),
+      version: '1.0'
+    };
+
+    const dataStr = JSON.stringify(data, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `taskflow-backup-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [tasks, employees, announcements, notifications]);
+
+  const handleImportData = useCallback(async (dataStr: string) => {
+    const data = JSON.parse(dataStr);
+    
+    if (data.tasks) {
+      setTasks(data.tasks);
+    }
+    if (data.employees) {
+      setEmployees(data.employees);
+    }
+    if (data.announcements) {
+      setAnnouncements(data.announcements);
+    }
+    if (data.notifications) {
+      setNotifications(data.notifications);
+    }
+  }, [setTasks, setEmployees, setAnnouncements, setNotifications]);
+
+  const handleClearAllData = useCallback(async () => {
+    setTasks([]);
+    setEmployees([]);
+    setAnnouncements([]);
+    setNotifications([]);
+  }, [setTasks, setEmployees, setAnnouncements, setNotifications]);
 
   const shouldSendNotification = async (userId: string, notificationType: NotificationType): Promise<boolean> => {
     try {
@@ -1091,6 +1151,12 @@ function App() {
                   />
                 </>
               )}
+              <HelpDocumentation />
+              <DataManagement
+                onExportData={handleExportData}
+                onImportData={handleImportData}
+                onClearAllData={handleClearAllData}
+              />
               <DepartmentManagement
                 employees={employees || []}
                 onEmployeeUpdate={handleEditEmployee}
@@ -1500,6 +1566,15 @@ function App() {
         tasks={tasks || []}
         employees={employees || []}
         onSuggestionApply={handleAISuggestion}
+      />
+
+      <WelcomeGuide
+        open={welcomeGuideOpen}
+        onOpenChange={setWelcomeGuideOpen}
+        onComplete={() => {
+          setHasCompletedWelcome(true);
+          setWelcomeGuideOpen(false);
+        }}
       />
     </div>
   );

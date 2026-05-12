@@ -124,6 +124,20 @@ This is a task management tool with standard CRUD operations, filtering, and ass
 - **Progression**: Open dialog → Select notification type → Edit subject line → Modify HTML/plain text content → Insert variables → Preview changes → Save template
 - **Success criteria**: Templates persist across sessions, variables automatically populate with actual values, reset to default option available, preview accurately represents final output, active/inactive toggle controls template usage
 
+### User Onboarding & Help
+- **Functionality**: Interactive welcome guide for first-time users and comprehensive in-app documentation
+- **Purpose**: Help new users understand all features and navigate the system effectively
+- **Trigger**: Automatically displays on first visit, accessible via "Help" button
+- **Progression**: Welcome guide shows 5-step tour of key features → Users can skip or complete → Help documentation provides detailed guides organized by feature category
+- **Success criteria**: Guide shows once per user, help documentation covers all features with clear examples, searchable by topic
+
+### Data Backup & Restore
+- **Functionality**: Export all application data as JSON backup, import from previous backups, clear all data
+- **Purpose**: Protect user data and enable migration between systems or recovery from mistakes
+- **Trigger**: Click "Backup & Restore" button in header
+- **Progression**: Open dialog → Choose export (downloads JSON file), import (upload JSON file), or clear data (with double confirmation) → Changes take effect immediately
+- **Success criteria**: Backups include all tasks, employees, announcements, notifications with timestamps, imports validate file format, clear data requires confirmation, export generates timestamped filenames
+
 ## Edge Case Handling
 - **Empty States**: When no tasks exist or filters return no results, show encouraging message with quick action to add first task
 - **Overdue Tasks**: Automatically highlight tasks past due date with visual indicator (red accent)
@@ -145,6 +159,12 @@ This is a task management tool with standard CRUD operations, filtering, and ass
 - **Invalid Email Template Variables**: If template contains variables that don't exist for that notification type, they display as-is without replacement
 - **Missing Subject Line**: Prevent saving template without a subject line
 - **Template Reset Confirmation**: Warn users before resetting to default that all customizations will be lost
+- **First Time User**: Welcome guide automatically shows on first visit, can be skipped
+- **Help Access**: Help documentation always accessible via header button, organized by feature category
+- **Export Filename**: Backup files automatically named with date (e.g., taskflow-backup-2024-01-15.json)
+- **Invalid Import File**: Show clear error if imported file is not valid JSON or missing required fields
+- **Confirm Data Clear**: Require double confirmation before clearing all data to prevent accidents
+- **Large Backup Files**: Handle backups efficiently even with thousands of tasks and employees
 
 ## Design Direction
 Professional yet approachable workspace tool that feels organized without being sterile. Should evoke a sense of control and clarity, like a well-organized desk. Modern corporate aesthetic with warm touches.
