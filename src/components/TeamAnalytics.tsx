@@ -4,8 +4,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Task, Employee, TaskStatus, TaskPriority } from '@/lib/types';
-import { TrendUp, TrendDown, CheckCircle, Clock, Timer, Target, ChartBar, User, Calendar } from '@phosphor-icons/react';
+import { TrendUp, TrendDown, CheckCircle, Clock, Timer, Target, ChartBar, User, Calendar, Download, FileCsv, FilePdf } from '@phosphor-icons/react';
+import { exportTeamAnalyticsToCSV, exportTeamAnalyticsToPDF } from '@/lib/exportUtils';
+import { toast } from 'sonner';
 import {
   BarChart,
   Bar,
@@ -175,8 +179,70 @@ export function TeamAnalytics({ tasks, employees }: TeamAnalyticsProps) {
     };
   }, [tasks, employees]);
 
+  const handleExportCSV = () => {
+    try {
+      exportTeamAnalyticsToCSV({
+        totalTasks: analytics.totalTasks,
+        completedTasks: analytics.completedTasks,
+        inProgressTasks: analytics.inProgressTasks,
+        notStartedTasks: analytics.notStartedTasks,
+        overdueTasks: analytics.overdueTasks,
+        completionRate: analytics.completionRate,
+        avgCompletionTime: analytics.avgCompletionTime,
+        employeeStats: analytics.employeeStats,
+        priorityBreakdown: analytics.priorityBreakdown,
+      });
+      toast.success('CSV report downloaded successfully!');
+    } catch (error) {
+      toast.error('Failed to export CSV report');
+    }
+  };
+
+  const handleExportPDF = () => {
+    try {
+      exportTeamAnalyticsToPDF({
+        totalTasks: analytics.totalTasks,
+        completedTasks: analytics.completedTasks,
+        inProgressTasks: analytics.inProgressTasks,
+        notStartedTasks: analytics.notStartedTasks,
+        overdueTasks: analytics.overdueTasks,
+        completionRate: analytics.completionRate,
+        avgCompletionTime: analytics.avgCompletionTime,
+        employeeStats: analytics.employeeStats,
+        priorityBreakdown: analytics.priorityBreakdown,
+      });
+      toast.success('PDF report will open in print dialog');
+    } catch (error) {
+      toast.error('Failed to export PDF report');
+    }
+  };
+
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold">Team Performance Overview</h3>
+          <p className="text-sm text-muted-foreground">Comprehensive analytics for your team</p>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm">
+              <Download className="mr-2 h-4 w-4" weight="bold" />
+              Export Report
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleExportCSV}>
+              <FileCsv className="mr-2 h-4 w-4" weight="fill" />
+              Export as CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleExportPDF}>
+              <FilePdf className="mr-2 h-4 w-4" weight="fill" />
+              Export as PDF
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">

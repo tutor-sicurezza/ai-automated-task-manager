@@ -3,8 +3,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Task, Employee, TaskStatus } from '@/lib/types';
-import { Buildings, Users, CheckCircle, Clock, ChartBar, TrendUp, ListChecks } from '@phosphor-icons/react';
+import { Buildings, Users, CheckCircle, Clock, ChartBar, TrendUp, ListChecks, Download, FileCsv, FilePdf } from '@phosphor-icons/react';
+import { exportDepartmentAnalyticsToCSV, exportDepartmentAnalyticsToPDF } from '@/lib/exportUtils';
+import { toast } from 'sonner';
 import {
   BarChart,
   Bar,
@@ -201,6 +205,34 @@ export function DepartmentAnalytics({ tasks, employees }: DepartmentAnalyticsPro
     };
   }, [tasks, employees]);
 
+  const handleExportCSV = () => {
+    try {
+      exportDepartmentAnalyticsToCSV({
+        departments: analytics.departments,
+        totalDepartments: analytics.totalDepartments,
+        totalAssignedTasks: analytics.totalAssignedTasks,
+        unassignedTasks: analytics.unassignedTasks,
+      });
+      toast.success('CSV report downloaded successfully!');
+    } catch (error) {
+      toast.error('Failed to export CSV report');
+    }
+  };
+
+  const handleExportPDF = () => {
+    try {
+      exportDepartmentAnalyticsToPDF({
+        departments: analytics.departments,
+        totalDepartments: analytics.totalDepartments,
+        totalAssignedTasks: analytics.totalAssignedTasks,
+        unassignedTasks: analytics.unassignedTasks,
+      });
+      toast.success('PDF report will open in print dialog');
+    } catch (error) {
+      toast.error('Failed to export PDF report');
+    }
+  };
+
   if (analytics.departments.length === 0) {
     return (
       <Card>
@@ -219,6 +251,30 @@ export function DepartmentAnalytics({ tasks, employees }: DepartmentAnalyticsPro
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold">Department Performance Overview</h3>
+          <p className="text-sm text-muted-foreground">Analytics across all departments</p>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm">
+              <Download className="mr-2 h-4 w-4" weight="bold" />
+              Export Report
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleExportCSV}>
+              <FileCsv className="mr-2 h-4 w-4" weight="fill" />
+              Export as CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleExportPDF}>
+              <FilePdf className="mr-2 h-4 w-4" weight="fill" />
+              Export as PDF
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
