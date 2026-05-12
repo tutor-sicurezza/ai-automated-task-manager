@@ -204,11 +204,11 @@ function App() {
       
       if (!prefs) return true;
       
-      if (!prefs.enabledNotifications[notificationType]) {
+      if (prefs.enabledNotifications && !prefs.enabledNotifications[notificationType]) {
         return false;
       }
       
-      if (prefs.quietHours.enabled) {
+      if (prefs.quietHours && prefs.quietHours.enabled) {
         const now = new Date();
         const currentTime = now.getHours() * 60 + now.getMinutes();
         const [startHour, startMin] = prefs.quietHours.startTime.split(':').map(Number);

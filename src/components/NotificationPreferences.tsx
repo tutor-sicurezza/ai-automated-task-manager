@@ -80,7 +80,23 @@ export function NotificationPreferences({ userId }: NotificationPreferencesProps
   );
   const [open, setOpen] = useState(false);
 
-  const currentPreferences = preferences || { ...defaultPreferences, userId };
+  const currentPreferences: NotificationPreferencesType = {
+    ...defaultPreferences,
+    userId,
+    ...preferences,
+    emailSchedule: {
+      ...defaultPreferences.emailSchedule,
+      ...(preferences?.emailSchedule || {})
+    },
+    quietHours: {
+      ...defaultPreferences.quietHours,
+      ...(preferences?.quietHours || {})
+    },
+    enabledNotifications: {
+      ...defaultPreferences.enabledNotifications,
+      ...(preferences?.enabledNotifications || {})
+    }
+  };
   
   const inQuietHours = useMemo(() => {
     if (!currentPreferences.quietHours.enabled) return false;
