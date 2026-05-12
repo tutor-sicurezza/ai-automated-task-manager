@@ -9,7 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { Gear, EnvelopeSimple, Bell, ClockCountdown, User, ArrowsClockwise, FlagBanner, ChatCircle, CheckCircle, WarningCircle, Moon, SpeakerHigh, SpeakerX } from '@phosphor-icons/react';
+import { Gear, EnvelopeSimple, Bell, ClockCountdown, User, ArrowsClockwise, FlagBanner, ChatCircle, CheckCircle, WarningCircle, Moon, SpeakerHigh, SpeakerX, Calendar, Package, ListChecks } from '@phosphor-icons/react';
 import { NotificationPreferences as NotificationPreferencesType, NotificationType } from '@/lib/types';
 import { playNotificationSound, getSoundDescription } from '@/lib/notificationSounds';
 import { toast } from 'sonner';
@@ -33,6 +33,15 @@ const defaultPreferences: Omit<NotificationPreferencesType, 'userId'> = {
     mention: true,
   },
   notificationFrequency: 'instant',
+  emailSchedule: {
+    digestEnabled: false,
+    digestFrequency: 'daily',
+    digestTime: '09:00',
+    digestDays: [1, 2, 3, 4, 5],
+    includeOnlyUnread: true,
+    groupByTask: true,
+    maxNotificationsPerDigest: 50,
+  },
   quietHours: {
     enabled: false,
     startTime: '22:00',
@@ -193,6 +202,85 @@ export function NotificationPreferences({ userId }: NotificationPreferencesProps
   const handleTestSound = async (notificationType: NotificationType) => {
     await playNotificationSound(notificationType, currentPreferences.soundVolume);
     toast.success(`Playing ${getSoundDescription(notificationType)}`);
+  };
+
+  const handleToggleDigest = (checked: boolean) => {
+    setPreferences((current) => ({
+      ...(current || { ...defaultPreferences, userId }),
+      emailSchedule: {
+        ...(current?.emailSchedule || defaultPreferences.emailSchedule),
+        digestEnabled: checked,
+      },
+    }));
+    toast.success(checked ? 'Email digest enabled' : 'Email digest disabled');
+  };
+
+  const handleChangeDigestFrequency = (frequency: NotificationPreferencesType['emailSchedule']['digestFrequency']) => {
+    setPreferences((current) => ({
+      ...(current || { ...defaultPreferences, userId }),
+      emailSchedule: {
+        ...(current?.emailSchedule || defaultPreferences.emailSchedule),
+        digestFrequency: frequency,
+      },
+    }));
+    toast.success(`Digest frequency set to ${frequency}`);
+  };
+
+  const handleChangeDigestTime = (time: string) => {
+    setPreferences((current) => ({
+      ...(current || { ...defaultPreferences, userId }),
+      emailSchedule: {
+        ...(current?.emailSchedule || defaultPreferences.emailSchedule),
+        digestTime: time,
+      },
+    }));
+  };
+
+  const handleToggleDigestDay = (day: number) => {
+    setPreferences((current) => {
+      const currentDays = current?.emailSchedule?.digestDays || defaultPreferences.emailSchedule.digestDays;
+      const newDays = currentDays.includes(day)
+        ? currentDays.filter(d => d !== day)
+        : [...currentDays, day].sort((a, b) => a - b);
+      
+      return {
+        ...(current || { ...defaultPreferences, userId }),
+        emailSchedule: {
+          ...(current?.emailSchedule || defaultPreferences.emailSchedule),
+          digestDays: newDays,
+        },
+      };
+    });
+  };
+
+  const handleToggleIncludeOnlyUnread = (checked: boolean) => {
+    setPreferences((current) => ({
+      ...(current || { ...defaultPreferences, userId }),
+      emailSchedule: {
+        ...(current?.emailSchedule || defaultPreferences.emailSchedule),
+        includeOnlyUnread: checked,
+      },
+    }));
+  };
+
+  const handleToggleGroupByTask = (checked: boolean) => {
+    setPreferences((current) => ({
+      ...(current || { ...defaultPreferences, userId }),
+      emailSchedule: {
+        ...(current?.emailSchedule || defaultPreferences.emailSchedule),
+        groupByTask: checked,
+      },
+    }));
+  };
+
+  const handleChangeMaxNotifications = (value: number[]) => {
+    setPreferences((current) => ({
+      ...(current || { ...defaultPreferences, userId }),
+      emailSchedule: {
+        ...(current?.emailSchedule || defaultPreferences.emailSchedule),
+        maxNotificationsPerDigest: value[0],
+      },
+    }));
   };
 
   const notificationTypes = [
@@ -434,6 +522,230 @@ export function NotificationPreferences({ userId }: NotificationPreferencesProps
                     </SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-teal-600" weight="fill" />
+                  Email Digest Scheduling
+                </h3>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Configure scheduled email summaries of your notifications
+                </p>
+              </div>
+              
+              <div className="space-y-4 rounded-lg border p-4 bg-gradient-to-br from-teal-50/50 to-cyan-50/50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="digest-enabled" className="text-sm font-medium">
+                      Enable Email Digests
+                    </Label>
+                    {currentPreferences.emailSchedule.digestEnabled && (
+                      <Badge variant="secondary" className="bg-teal-100 text-teal-700 border-teal-200 text-xs">
+                        <Package className="w-3 h-3 mr-1" weight="fill" />
+                        Active
+                      </Badge>
+                    )}
+                  </div>
+                  <Switch
+                    id="digest-enabled"
+                    checked={currentPreferences.emailSchedule.digestEnabled}
+                    onCheckedChange={handleToggleDigest}
+                  />
+                </div>
+                
+                {currentPreferences.emailSchedule.digestEnabled && (
+                  <>
+                    <Separator className="bg-teal-200/50" />
+                    
+                    <div className="space-y-3">
+                      <Label htmlFor="digest-frequency" className="text-sm font-medium">
+                        Digest Frequency
+                      </Label>
+                      <Select
+                        value={currentPreferences.emailSchedule.digestFrequency}
+                        onValueChange={handleChangeDigestFrequency}
+                      >
+                        <SelectTrigger id="digest-frequency">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="daily">
+                            <div className="flex flex-col items-start">
+                              <span className="font-medium">Daily</span>
+                              <span className="text-xs text-muted-foreground">
+                                Receive digest every day
+                              </span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="weekly">
+                            <div className="flex flex-col items-start">
+                              <span className="font-medium">Weekly</span>
+                              <span className="text-xs text-muted-foreground">
+                                Once per week on selected days
+                              </span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="biweekly">
+                            <div className="flex flex-col items-start">
+                              <span className="font-medium">Bi-weekly</span>
+                              <span className="text-xs text-muted-foreground">
+                                Every two weeks
+                              </span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="monthly">
+                            <div className="flex flex-col items-start">
+                              <span className="font-medium">Monthly</span>
+                              <span className="text-xs text-muted-foreground">
+                                Once per month
+                              </span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <Separator className="bg-teal-200/50" />
+
+                    <div className="space-y-3">
+                      <Label htmlFor="digest-time" className="text-sm font-medium">
+                        Delivery Time
+                      </Label>
+                      <input
+                        id="digest-time"
+                        type="time"
+                        value={currentPreferences.emailSchedule.digestTime}
+                        onChange={(e) => handleChangeDigestTime(e.target.value)}
+                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Digests will be sent at {currentPreferences.emailSchedule.digestTime}
+                      </p>
+                    </div>
+
+                    {(currentPreferences.emailSchedule.digestFrequency === 'weekly' || 
+                      currentPreferences.emailSchedule.digestFrequency === 'biweekly') && (
+                      <>
+                        <Separator className="bg-teal-200/50" />
+                        
+                        <div className="space-y-3">
+                          <Label className="text-sm font-medium">
+                            Days of Week
+                          </Label>
+                          <div className="flex flex-wrap gap-2">
+                            {[
+                              { day: 0, label: 'Sun' },
+                              { day: 1, label: 'Mon' },
+                              { day: 2, label: 'Tue' },
+                              { day: 3, label: 'Wed' },
+                              { day: 4, label: 'Thu' },
+                              { day: 5, label: 'Fri' },
+                              { day: 6, label: 'Sat' },
+                            ].map(({ day, label }) => (
+                              <Button
+                                key={day}
+                                type="button"
+                                variant={currentPreferences.emailSchedule.digestDays.includes(day) ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => handleToggleDigestDay(day)}
+                                className="w-12"
+                              >
+                                {label}
+                              </Button>
+                            ))}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Select days to receive your digest
+                          </p>
+                        </div>
+                      </>
+                    )}
+
+                    <Separator className="bg-teal-200/50" />
+
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="include-unread" className="text-sm font-medium">
+                            Unread Only
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Include only unread notifications
+                          </p>
+                        </div>
+                        <Switch
+                          id="include-unread"
+                          checked={currentPreferences.emailSchedule.includeOnlyUnread}
+                          onCheckedChange={handleToggleIncludeOnlyUnread}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="group-by-task" className="text-sm font-medium">
+                            Group by Task
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Organize notifications by task
+                          </p>
+                        </div>
+                        <Switch
+                          id="group-by-task"
+                          checked={currentPreferences.emailSchedule.groupByTask}
+                          onCheckedChange={handleToggleGroupByTask}
+                        />
+                      </div>
+                    </div>
+
+                    <Separator className="bg-teal-200/50" />
+
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="max-notifications" className="text-sm font-medium">
+                          Max Notifications per Digest
+                        </Label>
+                        <span className="text-xs text-muted-foreground">
+                          {currentPreferences.emailSchedule.maxNotificationsPerDigest}
+                        </span>
+                      </div>
+                      <Slider
+                        id="max-notifications"
+                        min={10}
+                        max={100}
+                        step={10}
+                        value={[currentPreferences.emailSchedule.maxNotificationsPerDigest]}
+                        onValueChange={handleChangeMaxNotifications}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Limit the number of notifications included in each digest
+                      </p>
+                    </div>
+
+                    <div className="text-xs bg-teal-50 border border-teal-200 rounded p-3 space-y-1">
+                      <div className="font-medium text-teal-900 flex items-center gap-1">
+                        <ListChecks className="w-3 h-3" weight="fill" />
+                        Summary
+                      </div>
+                      <div className="text-teal-700">
+                        You'll receive a {currentPreferences.emailSchedule.digestFrequency} digest at {currentPreferences.emailSchedule.digestTime}
+                        {currentPreferences.emailSchedule.digestFrequency === 'weekly' && 
+                          currentPreferences.emailSchedule.digestDays.length > 0 && (
+                            <> on {currentPreferences.emailSchedule.digestDays.map(d => 
+                              ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d]
+                            ).join(', ')}</>
+                          )}
+                        {currentPreferences.emailSchedule.includeOnlyUnread && ', including only unread notifications'}
+                        .
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 

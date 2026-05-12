@@ -182,6 +182,15 @@ export interface NotificationPreferences {
     mention: boolean;
   };
   notificationFrequency: 'instant' | 'daily' | 'weekly';
+  emailSchedule: {
+    digestEnabled: boolean;
+    digestFrequency: 'daily' | 'weekly' | 'biweekly' | 'monthly';
+    digestTime: string;
+    digestDays: number[];
+    includeOnlyUnread: boolean;
+    groupByTask: boolean;
+    maxNotificationsPerDigest: number;
+  };
   quietHours: {
     enabled: boolean;
     startTime: string;
