@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useKV } from '@github/spark/hooks';
-import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -14,88 +14,88 @@ import { NotificationPreferences as NotificationPreferencesType, NotificationTyp
 import { playNotificationSound, getSoundDescription } from '@/lib/notificationSounds';
 import { toast } from 'sonner';
 
-interface NotificationPreferencesProps {
-  userId: string;
-}
 
-const defaultPreferences: Omit<NotificationPreferencesType, 'userId'> = {
-  emailNotifications: true,
-  enabledNotifications: {
-    task_assigned: true,
-    task_reassigned: true,
-    task_updated: true,
-    task_comment: true,
+  emailNotificati
+ 
+
     task_due_soon: true,
-    task_overdue: true,
     task_completed: true,
-    task_status_changed: true,
-    task_priority_changed: true,
-    mention: true,
+    task_priority_changed
   },
-  notificationFrequency: 'instant',
   emailSchedule: {
-    digestEnabled: false,
-    digestFrequency: 'daily',
-    digestTime: '09:00',
-    digestDays: [1, 2, 3, 4, 5],
-    includeOnlyUnread: true,
+    digestFrequency: 'd
+    digestDays: [1, 2, 
     groupByTask: true,
-    maxNotificationsPerDigest: 50,
   },
-  quietHours: {
     enabled: false,
-    startTime: '22:00',
     endTime: '08:00',
-  },
   soundEnabled: true,
-  soundVolume: 0.3,
 };
+cons
+  { label: 'Early Bird (9 PM - 6 AM
+  { label: 'Workin
 
-const quietHoursPresets = [
-  { label: 'Standard Sleep (10 PM - 7 AM)', start: '22:00', end: '07:00' },
-  { label: 'Early Bird (9 PM - 6 AM)', start: '21:00', end: '06:00' },
-  { label: 'Night Owl (12 AM - 9 AM)', start: '00:00', end: '09:00' },
-  { label: 'Working Hours (6 PM - 9 AM)', start: '18:00', end: '09:00' },
-];
-
-function isInQuietHours(startTime: string, endTime: string): boolean {
   const now = new Date();
-  const currentTime = now.getHours() * 60 + now.getMinutes();
-  const [startHour, startMin] = startTime.split(':').map(Number);
-  const [endHour, endMin] = endTime.split(':').map(Number);
-  const start = startHour * 60 + startMin;
-  const end = endHour * 60 + endMin;
+  const [startHour, star
+  const start = startHour * 60 +
   
-  if (start < end) {
-    return currentTime >= start && currentTime < end;
-  } else {
-    return currentTime >= start || currentTime < end;
-  }
+    return currentTime
+    return currentTime >= start ||
 }
-
-export function NotificationPreferences({ userId }: NotificationPreferencesProps) {
-  const [preferences, setPreferences] = useKV<NotificationPreferencesType>(
-    `notification-preferences-${userId}`,
-    { ...defaultPreferences, userId }
+export function
+    `notification-p
   );
-  const [open, setOpen] = useState(false);
 
-  const currentPreferences: NotificationPreferencesType = {
-    ...defaultPreferences,
-    userId,
+    
     ...preferences,
-    emailSchedule: {
-      ...defaultPreferences.emailSchedule,
-      ...(preferences?.emailSchedule || {})
+      ...defaultPre
+  
+
     },
-    quietHours: {
-      ...defaultPreferences.quietHours,
-      ...(preferences?.quietHours || {})
-    },
-    enabledNotifications: {
       ...defaultPreferences.enabledNotifications,
-      ...(preferences?.enabledNotifications || {})
     }
+  
+    if (!currentPreferences.quietHours.enabled) return false;
+  
+
+      ...(current || { ...defaultPreferences, userId }),
+    }));
+  };
+  const handleToggleNotificationType = (type: keyof NotificationP
+      ...(current || { ...defaultPreferences, userId }),
+        ...(current?.enabledNotifications 
+      },
+  
+  const handleChange
+      ...(current || { ...defaultPreferences, userId 
+    }));
+  };
+  c
+ 
+
+      },
+    toast.success(checked ? 'Quiet hours enabled - notifications paused dur
+
+    setPreferences((current) => ({
+    
+        [field]: value,
+
+
+    setPreferences((curren
+      quiet
+        startTime: 
+      },
+    toast.success(`Quiet hours set: ${pres
+
+    se
+      enabledNoti
+        task_reassigned: true,
+        task_comment: true,
+      
+        task_status_changed
+        mention: true,
+    }));
+  };
   };
   
   const inQuietHours = useMemo(() => {
@@ -510,457 +510,457 @@ export function NotificationPreferences({ userId }: NotificationPreferencesProps
                 >
                   <SelectTrigger id="frequency">
                     <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="instant">
-                      <div className="flex flex-col items-start">
-                        <span className="font-medium">Instant</span>
-                        <span className="text-xs text-muted-foreground">
-                          Get notified immediately
-                        </span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="daily">
-                      <div className="flex flex-col items-start">
-                        <span className="font-medium">Daily Digest</span>
-                        <span className="text-xs text-muted-foreground">
-                          Once per day summary
-                        </span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="weekly">
-                      <div className="flex flex-col items-start">
-                        <span className="font-medium">Weekly Digest</span>
-                        <span className="text-xs text-muted-foreground">
-                          Once per week summary
-                        </span>
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <Separator />
-
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-teal-600" weight="fill" />
-                  Email Digest Scheduling
-                </h3>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Configure scheduled email summaries of your notifications
-                </p>
-              </div>
-              
-              <div className="space-y-4 rounded-lg border p-4 bg-gradient-to-br from-teal-50/50 to-cyan-50/50">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="digest-enabled" className="text-sm font-medium">
-                      Enable Email Digests
-                    </Label>
-                    {currentPreferences.emailSchedule.digestEnabled && (
-                      <Badge variant="secondary" className="bg-teal-100 text-teal-700 border-teal-200 text-xs">
-                        <Package className="w-3 h-3 mr-1" weight="fill" />
-                        Active
-                      </Badge>
-                    )}
-                  </div>
-                  <Switch
-                    id="digest-enabled"
-                    checked={currentPreferences.emailSchedule.digestEnabled}
-                    onCheckedChange={handleToggleDigest}
-                  />
-                </div>
-                
-                {currentPreferences.emailSchedule.digestEnabled && (
-                  <>
-                    <Separator className="bg-teal-200/50" />
-                    
-                    <div className="space-y-3">
-                      <Label htmlFor="digest-frequency" className="text-sm font-medium">
-                        Digest Frequency
-                      </Label>
-                      <Select
-                        value={currentPreferences.emailSchedule.digestFrequency}
-                        onValueChange={handleChangeDigestFrequency}
-                      >
-                        <SelectTrigger id="digest-frequency">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="daily">
-                            <div className="flex flex-col items-start">
-                              <span className="font-medium">Daily</span>
-                              <span className="text-xs text-muted-foreground">
-                                Receive digest every day
-                              </span>
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="weekly">
-                            <div className="flex flex-col items-start">
-                              <span className="font-medium">Weekly</span>
-                              <span className="text-xs text-muted-foreground">
-                                Once per week on selected days
-                              </span>
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="biweekly">
-                            <div className="flex flex-col items-start">
-                              <span className="font-medium">Bi-weekly</span>
-                              <span className="text-xs text-muted-foreground">
-                                Every two weeks
-                              </span>
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="monthly">
-                            <div className="flex flex-col items-start">
-                              <span className="font-medium">Monthly</span>
-                              <span className="text-xs text-muted-foreground">
-                                Once per month
-                              </span>
-                            </div>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <Separator className="bg-teal-200/50" />
-
-                    <div className="space-y-3">
-                      <Label htmlFor="digest-time" className="text-sm font-medium">
-                        Delivery Time
-                      </Label>
-                      <input
-                        id="digest-time"
-                        type="time"
-                        value={currentPreferences.emailSchedule.digestTime}
-                        onChange={(e) => handleChangeDigestTime(e.target.value)}
-                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Digests will be sent at {currentPreferences.emailSchedule.digestTime}
-                      </p>
-                    </div>
-
-                    {(currentPreferences.emailSchedule.digestFrequency === 'weekly' || 
-                      currentPreferences.emailSchedule.digestFrequency === 'biweekly') && (
-                      <>
-                        <Separator className="bg-teal-200/50" />
-                        
-                        <div className="space-y-3">
-                          <Label className="text-sm font-medium">
-                            Days of Week
-                          </Label>
-                          <div className="flex flex-wrap gap-2">
-                            {[
-                              { day: 0, label: 'Sun' },
-                              { day: 1, label: 'Mon' },
-                              { day: 2, label: 'Tue' },
-                              { day: 3, label: 'Wed' },
-                              { day: 4, label: 'Thu' },
-                              { day: 5, label: 'Fri' },
-                              { day: 6, label: 'Sat' },
-                            ].map(({ day, label }) => (
-                              <Button
-                                key={day}
-                                type="button"
-                                variant={currentPreferences.emailSchedule.digestDays.includes(day) ? 'default' : 'outline'}
-                                size="sm"
-                                onClick={() => handleToggleDigestDay(day)}
-                                className="w-12"
-                              >
-                                {label}
-                              </Button>
-                            ))}
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            Select days to receive your digest
-                          </p>
-                        </div>
-                      </>
-                    )}
-
-                    <Separator className="bg-teal-200/50" />
-
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
-                        <div className="space-y-0.5">
-                          <Label htmlFor="include-unread" className="text-sm font-medium">
-                            Unread Only
-                          </Label>
-                          <p className="text-xs text-muted-foreground">
-                            Include only unread notifications
-                          </p>
-                        </div>
-                        <Switch
-                          id="include-unread"
-                          checked={currentPreferences.emailSchedule.includeOnlyUnread}
-                          onCheckedChange={handleToggleIncludeOnlyUnread}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
-                        <div className="space-y-0.5">
-                          <Label htmlFor="group-by-task" className="text-sm font-medium">
-                            Group by Task
-                          </Label>
-                          <p className="text-xs text-muted-foreground">
-                            Organize notifications by task
-                          </p>
-                        </div>
-                        <Switch
-                          id="group-by-task"
-                          checked={currentPreferences.emailSchedule.groupByTask}
-                          onCheckedChange={handleToggleGroupByTask}
-                        />
-                      </div>
-                    </div>
-
-                    <Separator className="bg-teal-200/50" />
-
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="max-notifications" className="text-sm font-medium">
-                          Max Notifications per Digest
-                        </Label>
-                        <span className="text-xs text-muted-foreground">
-                          {currentPreferences.emailSchedule.maxNotificationsPerDigest}
-                        </span>
-                      </div>
-                      <Slider
-                        id="max-notifications"
-                        min={10}
-                        max={100}
-                        step={10}
-                        value={[currentPreferences.emailSchedule.maxNotificationsPerDigest]}
-                        onValueChange={handleChangeMaxNotifications}
-                        className="w-full"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Limit the number of notifications included in each digest
-                      </p>
-                    </div>
-
-                    <div className="text-xs bg-teal-50 border border-teal-200 rounded p-3 space-y-1">
-                      <div className="font-medium text-teal-900 flex items-center gap-1">
-                        <ListChecks className="w-3 h-3" weight="fill" />
-                        Summary
-                      </div>
-                      <div className="text-teal-700">
-                        You'll receive a {currentPreferences.emailSchedule.digestFrequency} digest at {currentPreferences.emailSchedule.digestTime}
-                        {currentPreferences.emailSchedule.digestFrequency === 'weekly' && 
-                          currentPreferences.emailSchedule.digestDays.length > 0 && (
-                            <> on {currentPreferences.emailSchedule.digestDays.map(d => 
-                              ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d]
-                            ).join(', ')}</>
-                          )}
-                        {currentPreferences.emailSchedule.includeOnlyUnread && ', including only unread notifications'}
                         .
-                      </div>
                     </div>
-                  </>
                 )}
-              </div>
             </div>
-
             <Separator />
-
             <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
-                  <SpeakerHigh className="w-4 h-4 text-blue-600" weight="fill" />
-                  Notification Sounds
-                </h3>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Customize audio alerts for different notification types
+                <h3 className="text-sm font-semibo
+                  Notification 
+                <p className
                 </p>
-              </div>
               
-              <div className="space-y-4 rounded-lg border p-4 bg-gradient-to-br from-blue-50/50 to-indigo-50/50">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="sound-enabled" className="text-sm font-medium">
-                      Enable Notification Sounds
+                <div className="flex items-center justify-between
+                    <Label htmlFor="sound-enabled" className="text-sm fon
                     </Label>
-                    {!currentPreferences.soundEnabled && (
-                      <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-gray-200 text-xs">
-                        <SpeakerX className="w-3 h-3 mr-1" weight="fill" />
+                      <Badge variant="secondar
                         Muted
-                      </Badge>
                     )}
-                  </div>
                   <Switch
-                    id="sound-enabled"
-                    checked={currentPreferences.soundEnabled}
-                    onCheckedChange={handleToggleSound}
+                    checked={currentPreferences
                   />
-                </div>
                 
-                {currentPreferences.soundEnabled && (
                   <>
-                    <Separator className="bg-blue-200/50" />
                     
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="volume-slider" className="text-sm font-medium">
-                          Volume
-                        </Label>
-                        <span className="text-xs text-muted-foreground">
-                          {Math.round(currentPreferences.soundVolume * 100)}%
+                      <div clas
+                          Vo
+                        <span cla
                         </span>
-                      </div>
-                      <Slider
-                        id="volume-slider"
-                        min={0}
-                        max={1}
-                        step={0.1}
-                        value={[currentPreferences.soundVolume]}
-                        onValueChange={handleChangeVolume}
-                        className="w-full"
-                      />
-                    </div>
-
-                    <Separator className="bg-blue-200/50" />
+                      <Sl
                     
-                    <div className="space-y-2">
-                      <div className="text-xs font-medium text-muted-foreground mb-2">
-                        Test Notification Sounds
+                  
+
+                      />
+
+                    
+                   
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
                         {notificationTypes.slice(0, 6).map((type) => (
-                          <Button
-                            key={type.key}
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleTestSound(type.key)}
-                            className="h-auto py-2 px-3 text-left justify-start"
-                          >
-                            <div className="flex items-center gap-2 w-full">
-                              {type.icon}
-                              <div className="flex flex-col items-start flex-1">
-                                <span className="text-xs font-medium">{type.label}</span>
-                                <span className="text-[10px] text-muted-foreground">
-                                  {getSoundDescription(type.key)}
-                                </span>
-                              </div>
-                            </div>
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-
-            <Separator />
-
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
-                  <Moon className="w-4 h-4 text-purple-600" weight="fill" />
-                  Quiet Hours
-                </h3>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Pause notifications during specific hours (like sleep times)
-                </p>
-              </div>
+                            key={type.key
+                     
+                            className="h-auto py-2 px-3 text-left 
+                            <div className="flex items-center gap-2 w-full"
+                    
+                    
               
-              <div className="space-y-4 rounded-lg border p-4 bg-gradient-to-br from-purple-50/50 to-blue-50/50">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="quiet-hours" className="text-sm font-medium">
-                      Enable Quiet Hours
-                    </Label>
-                    {inQuietHours && (
-                      <Badge variant="secondary" className="bg-purple-100 text-purple-700 border-purple-200 text-xs">
-                        Active Now
-                      </Badge>
-                    )}
-                  </div>
-                  <Switch
-                    id="quiet-hours"
-                    checked={currentPreferences.quietHours.enabled}
-                    onCheckedChange={handleToggleQuietHours}
-                  />
-                </div>
-                
-                {currentPreferences.quietHours.enabled && (
-                  <>
-                    <div className="pt-2 space-y-3">
-                      <div className="text-xs font-medium text-muted-foreground">
-                        Quick Presets
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {quietHoursPresets.map((preset) => (
-                          <Button
-                            key={preset.label}
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleApplyPreset(preset)}
-                            className="h-auto py-2 px-3 text-left justify-start"
-                          >
-                            <div className="flex flex-col items-start w-full">
-                              <span className="text-xs font-medium">{preset.label.split('(')[0].trim()}</span>
-                              <span className="text-xs text-muted-foreground">{preset.start} - {preset.end}</span>
                             </div>
-                          </Button>
                         ))}
-                      </div>
                     </div>
-
-                    <Separator className="bg-purple-200/50" />
-
-                    <div className="space-y-3">
-                      <div className="text-xs font-medium text-muted-foreground">
-                        Custom Time Range
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-2">
-                          <Label htmlFor="start-time" className="text-xs">
-                            Start Time
-                          </Label>
-                          <input
-                            id="start-time"
-                            type="time"
-                            value={currentPreferences.quietHours.startTime}
-                            onChange={(e) => handleChangeQuietHours('startTime', e.target.value)}
-                            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="end-time" className="text-xs">
-                            End Time
-                          </Label>
-                          <input
-                            id="end-time"
-                            type="time"
-                            value={currentPreferences.quietHours.endTime}
-                            onChange={(e) => handleChangeQuietHours('endTime', e.target.value)}
-                            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                          />
-                        </div>
-                      </div>
-                      <div className="text-xs text-muted-foreground bg-purple-50 border border-purple-200 rounded p-2">
-                        <Moon className="w-3 h-3 inline mr-1" weight="fill" />
-                        Notifications will be paused from {currentPreferences.quietHours.startTime} to {currentPreferences.quietHours.endTime}
-                      </div>
-                    </div>
-                  </>
                 )}
-              </div>
             </div>
-          </div>
+            <Separator />
+            <div className="space-y-4">
+                <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
+                  Quiet Hours
+                <p className="
+                </p>
+              
+                <div cla
+                    <Labe
+                    </Label>
+                      <Badge variant="secondary" className="bg-purple-100 te
+                      </Badge>
+                  </
+                    id
+                
+                </div>
+                {cur
+                    <div className="pt-2 space-y-3">
+                    
+                      <div className="grid grid
+                          <Button
+                            variant="out
+                            on
+                          >
+                              <span className="text-xs font-medium">{preset.labe
+                            </div>
+                       
+                    </div>
+                    <Separator className=
+                    <div className="spac
+                        Custom Time Ran
+                      <div className="grid grid-cols
+                          <Label htmlFor="start-time" className="text-x
+                          </Label>
+                            id="start-time"
+                            value={currentPreferences.qu
+                            className
+                        </div>
+                          <Label htmlFo
+                          </Label>
+                            id="end-time"
+                            value={currentPreferences.quietHours.endTime}
+                            className="flex h-9 w-full rounded-md border borde
+                        </div>
+                      <div className=
+                        Notificati
+                    </div>
+                )}
+            </div>
         </ScrollArea>
-
         <div className="flex justify-end gap-2 pt-4 border-t">
-          <Button variant="outline" onClick={() => setOpen(false)}>
             Close
-          </Button>
         </div>
-      </DialogContent>
     </Dialog>
-  );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
