@@ -37,7 +37,7 @@ import { desktopNotificationManager } from '@/lib/desktopNotifications';
 import { DesktopNotificationSettings } from '@/components/DesktopNotificationSettings';
 import { canPerformAction } from '@/lib/permissions';
 import { Toaster, toast } from 'sonner';
-import confetti from 'canvas-confetti';
+import * as confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
 
 function App() {
