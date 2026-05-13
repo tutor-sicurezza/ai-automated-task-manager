@@ -1,19 +1,19 @@
 import { 
-  Code, 
+  ChartB
   ChartBar, 
   Users, 
-  Megaphone, 
-  Headset, 
-  ShoppingCart, 
-  Briefcase, 
-  ClipboardText,
-  PaintBrush,
+  ClipboardTe
   Flask,
-  Gear,
   Package,
-  Handshake,
   Buildings
-} from '@phosphor-icons/react';
+
+  name: strin
+  bgColo
+  borde
+  descript
+
+  Engineeri
+    color: 'oklch(0.55 0.20 260
 
 export interface DepartmentConfig {
   name: string;
@@ -32,40 +32,40 @@ export const DEPARTMENT_CONFIGS: Record<string, DepartmentConfig> = {
     bgColor: 'oklch(0.55 0.20 260 / 0.1)',
     textColor: 'oklch(0.35 0.15 260)',
     borderColor: 'oklch(0.55 0.20 260 / 0.3)',
-    icon: Code,
-    description: 'Software development and technical infrastructure'
+    textColor: 
+    icon: Users,
   },
-  Marketing: {
-    name: 'Marketing',
-    color: 'oklch(0.65 0.22 340)',
-    bgColor: 'oklch(0.65 0.22 340 / 0.1)',
-    textColor: 'oklch(0.45 0.18 340)',
-    borderColor: 'oklch(0.65 0.22 340 / 0.3)',
-    icon: Megaphone,
-    description: 'Brand promotion and customer engagement'
+    name: 'Fin
+    bgColor: 'oklch(0.
+    borderColor: 'oklch(0.58 0.18 
+    description: 'Financial planning and a
+  Support: {
+    color: 'oklch(0.63 0.16 200)',
+    textColor: 'oklc
+    icon: Headset,
   },
-  Sales: {
-    name: 'Sales',
-    color: 'oklch(0.60 0.20 140)',
-    bgColor: 'oklch(0.60 0.20 140 / 0.1)',
-    textColor: 'oklch(0.40 0.16 140)',
-    borderColor: 'oklch(0.60 0.20 140 / 0.3)',
-    icon: ShoppingCart,
-    description: 'Revenue generation and customer acquisition'
+    name: 
+    bgColor: 'oklc
+    borderColor: 'oklch(0.56 0.16 
+    description: 'Business operations and 
+  Product: {
+    color: 'oklch(0.64 0.20 180)',
+    textColor: 'oklch(0
+    icon: Package,
   },
-  Design: {
-    name: 'Design',
-    color: 'oklch(0.68 0.18 35)',
-    bgColor: 'oklch(0.68 0.18 35 / 0.1)',
-    textColor: 'oklch(0.48 0.15 35)',
-    borderColor: 'oklch(0.68 0.18 35 / 0.3)',
-    icon: PaintBrush,
-    description: 'Visual design and user experience'
+    name: '
+    bgColor: 'oklch
+    borderColor: 'oklch(0.50 0.12
+    description: 'Legal compliance and co
+  Research: {
+    color: 'oklch(0.66 0.18 280)',
+    textColor: 'oklch
+    icon: Flask,
   },
-  'Human Resources': {
-    name: 'Human Resources',
-    color: 'oklch(0.62 0.18 230)',
-    bgColor: 'oklch(0.62 0.18 230 / 0.1)',
+    name: 'Executive',
+    bgColor: 'oklch(0.52 0.1
+    borderColor: 'oklch(0.52 0.14 
+    description: 'Executive leadership and
     textColor: 'oklch(0.42 0.14 230)',
     borderColor: 'oklch(0.62 0.18 230 / 0.3)',
     icon: Users,
@@ -134,38 +134,38 @@ export const DEPARTMENT_CONFIGS: Record<string, DepartmentConfig> = {
     icon: Briefcase,
     description: 'Executive leadership and strategy'
   },
-  Partnerships: {
+
     name: 'Partnerships',
-    color: 'oklch(0.61 0.19 160)',
+
     bgColor: 'oklch(0.61 0.19 160 / 0.1)',
     textColor: 'oklch(0.41 0.15 160)',
     borderColor: 'oklch(0.61 0.19 160 / 0.3)',
-    icon: Handshake,
+
     description: 'Strategic partnerships and alliances'
-  }
+
 };
 
 export const DEFAULT_DEPARTMENT_CONFIG: DepartmentConfig = {
-  name: 'General',
+
   color: 'oklch(0.55 0.08 220)',
   bgColor: 'oklch(0.55 0.08 220 / 0.1)',
   textColor: 'oklch(0.35 0.06 220)',
   borderColor: 'oklch(0.55 0.08 220 / 0.3)',
   icon: Buildings,
-  description: 'General department'
+
 };
 
 export function getDepartmentConfig(departmentName?: string): DepartmentConfig {
   if (!departmentName) return DEFAULT_DEPARTMENT_CONFIG;
   return DEPARTMENT_CONFIGS[departmentName] || {
-    ...DEFAULT_DEPARTMENT_CONFIG,
+
     name: departmentName
-  };
-}
+
+
 
 export function getAllDepartments(): DepartmentConfig[] {
   return Object.values(DEPARTMENT_CONFIGS);
-}
+
 
 export function getDepartmentIcon(departmentName?: string) {
   const config = getDepartmentConfig(departmentName);
@@ -184,8 +184,8 @@ export function getDepartmentBgColor(departmentName?: string): string {
 
 export function getDepartmentTextColor(departmentName?: string): string {
   const config = getDepartmentConfig(departmentName);
-  return config.textColor;
-}
+
+
 
 export function getDepartmentBorderColor(departmentName?: string): string {
   const config = getDepartmentConfig(departmentName);
