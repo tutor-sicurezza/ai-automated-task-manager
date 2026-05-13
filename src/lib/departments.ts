@@ -2,12 +2,14 @@ import {
   ChartBar, 
   ClipboardText,
   Package,
-  Handshake,
-  Gear,
   Users,
+  Gear,
+  Buildings,
   Flask,
+  Handshake,
+  Scales,
   Briefcase,
-  Buildings
+  Question
 } from '@phosphor-icons/react';
 
 export interface DepartmentConfig {
@@ -52,7 +54,7 @@ export const DEPARTMENT_CONFIGS: Record<string, DepartmentConfig> = {
     name: 'HR',
     color: 'oklch(0.62 0.17 40)',
     bgColor: 'oklch(0.62 0.17 40 / 0.1)',
-    textColor: 'oklch(0.42 0.13 40)',
+    textColor: 'oklch(0.42 0.14 40)',
     borderColor: 'oklch(0.62 0.17 40 / 0.3)',
     icon: Users,
     description: 'Human resources and people operations'
@@ -70,9 +72,9 @@ export const DEPARTMENT_CONFIGS: Record<string, DepartmentConfig> = {
     name: 'Operations',
     color: 'oklch(0.56 0.16 300)',
     bgColor: 'oklch(0.56 0.16 300 / 0.1)',
-    textColor: 'oklch(0.36 0.12 300)',
+    textColor: 'oklch(0.36 0.13 300)',
     borderColor: 'oklch(0.56 0.16 300 / 0.3)',
-    icon: Gear,
+    icon: Briefcase,
     description: 'Business operations and processes'
   },
   Product: {
@@ -88,9 +90,9 @@ export const DEPARTMENT_CONFIGS: Record<string, DepartmentConfig> = {
     name: 'Legal',
     color: 'oklch(0.50 0.12 240)',
     bgColor: 'oklch(0.50 0.12 240 / 0.1)',
-    textColor: 'oklch(0.30 0.10 240)',
+    textColor: 'oklch(0.30 0.09 240)',
     borderColor: 'oklch(0.50 0.12 240 / 0.3)',
-    icon: ClipboardText,
+    icon: Scales,
     description: 'Legal compliance and contracts'
   },
   Research: {
@@ -108,40 +110,40 @@ export const DEPARTMENT_CONFIGS: Record<string, DepartmentConfig> = {
     bgColor: 'oklch(0.52 0.14 30 / 0.1)',
     textColor: 'oklch(0.32 0.12 30)',
     borderColor: 'oklch(0.52 0.14 30 / 0.3)',
-    icon: Briefcase,
+    icon: Buildings,
     description: 'Executive leadership and strategy'
   },
   Partnerships: {
     name: 'Partnerships',
     color: 'oklch(0.61 0.19 160)',
     bgColor: 'oklch(0.61 0.19 160 / 0.1)',
-    textColor: 'oklch(0.41 0.15 160)',
+    textColor: 'oklch(0.41 0.16 160)',
     borderColor: 'oklch(0.61 0.19 160 / 0.3)',
     icon: Handshake,
     description: 'Strategic partnerships and alliances'
   }
 };
 
-export const DEFAULT_DEPARTMENT_CONFIG: DepartmentConfig = {
+const DEFAULT_DEPARTMENT_CONFIG: DepartmentConfig = {
   name: 'Other',
-  color: 'oklch(0.55 0.08 220)',
-  bgColor: 'oklch(0.55 0.08 220 / 0.1)',
-  textColor: 'oklch(0.35 0.06 220)',
-  borderColor: 'oklch(0.55 0.08 220 / 0.3)',
-  icon: Buildings,
-  description: 'Other departments'
+  color: 'oklch(0.55 0.10 220)',
+  bgColor: 'oklch(0.55 0.10 220 / 0.1)',
+  textColor: 'oklch(0.35 0.08 220)',
+  borderColor: 'oklch(0.55 0.10 220 / 0.3)',
+  icon: Question,
+  description: 'Other department'
 };
 
 export function getDepartmentConfig(departmentName?: string): DepartmentConfig {
   if (!departmentName) return DEFAULT_DEPARTMENT_CONFIG;
-  return DEPARTMENT_CONFIGS[departmentName] || {
+  
+  const config = DEPARTMENT_CONFIGS[departmentName];
+  if (config) return config;
+  
+  return {
     ...DEFAULT_DEPARTMENT_CONFIG,
     name: departmentName
   };
-}
-
-export function getAllDepartments(): DepartmentConfig[] {
-  return Object.values(DEPARTMENT_CONFIGS);
 }
 
 export function getDepartmentIcon(departmentName?: string) {
@@ -149,22 +151,16 @@ export function getDepartmentIcon(departmentName?: string) {
   return config.icon;
 }
 
-export function getDepartmentColor(departmentName?: string): string {
-  const config = getDepartmentConfig(departmentName);
-  return config.color;
-}
-
-export function getDepartmentBgColor(departmentName?: string): string {
-  const config = getDepartmentConfig(departmentName);
-  return config.bgColor;
-}
-
-export function getDepartmentTextColor(departmentName?: string): string {
-  const config = getDepartmentConfig(departmentName);
-  return config.textColor;
-}
-
-export function getDepartmentBorderColor(departmentName?: string): string {
-  const config = getDepartmentConfig(departmentName);
-  return config.borderColor;
-}
+export const COMMON_DEPARTMENTS = [
+  'Engineering',
+  'Marketing',
+  'Sales',
+  'HR',
+  'Support',
+  'Operations',
+  'Product',
+  'Legal',
+  'Research',
+  'Executive',
+  'Partnerships'
+];
