@@ -164,3 +164,15 @@ export const COMMON_DEPARTMENTS = [
   'Executive',
   'Partnerships'
 ];
+
+export function getAllDepartments() {
+  return COMMON_DEPARTMENTS.map(name => ({
+    name,
+    ...DEPARTMENT_CONFIGS[name]
+  }));
+}
+
+export function getDepartmentColor(departmentName?: string): string {
+  const config = getDepartmentConfig(departmentName);
+  return config.color;
+}
