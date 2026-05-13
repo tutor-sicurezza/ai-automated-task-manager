@@ -966,17 +966,24 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
                 <div className="flex gap-2">
                   <Input
                     id="add-departments"
-                    placeholder="Enter department name"
+                    placeholder="Enter department name or select existing"
                     value={newDepartmentInput}
                     onChange={(e) => setNewDepartmentInput(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && newDepartmentInput.trim()) {
                         e.preventDefault();
-                        const dept = newDepartmentInput.trim();
-                        if (!formData.departments.includes(dept)) {
-                          setFormData({ ...formData, departments: [...formData.departments, dept] });
+                        const inputDept = newDepartmentInput.trim();
+                        const existingDept = departments.find(
+                          d => d.toLowerCase() === inputDept.toLowerCase()
+                        );
+                        const deptToAdd = existingDept || inputDept;
+                        
+                        if (!formData.departments.some(d => d.toLowerCase() === deptToAdd.toLowerCase())) {
+                          setFormData({ ...formData, departments: [...formData.departments, deptToAdd] });
+                          setNewDepartmentInput('');
+                        } else {
+                          toast.error('Department already added');
                         }
-                        setNewDepartmentInput('');
                       }
                     }}
                     list="add-departments-list"
@@ -985,10 +992,19 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
                     type="button"
                     variant="outline"
                     onClick={() => {
-                      const dept = newDepartmentInput.trim();
-                      if (dept && !formData.departments.includes(dept)) {
-                        setFormData({ ...formData, departments: [...formData.departments, dept] });
+                      const inputDept = newDepartmentInput.trim();
+                      if (!inputDept) return;
+                      
+                      const existingDept = departments.find(
+                        d => d.toLowerCase() === inputDept.toLowerCase()
+                      );
+                      const deptToAdd = existingDept || inputDept;
+                      
+                      if (!formData.departments.some(d => d.toLowerCase() === deptToAdd.toLowerCase())) {
+                        setFormData({ ...formData, departments: [...formData.departments, deptToAdd] });
                         setNewDepartmentInput('');
+                      } else {
+                        toast.error('Department already added');
                       }
                     }}
                   >
@@ -996,11 +1012,16 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
                   </Button>
                 </div>
                 {departments.length > 0 && (
-                  <datalist id="add-departments-list">
-                    {departments.map(dept => (
-                      <option key={dept} value={dept} />
-                    ))}
-                  </datalist>
+                  <>
+                    <datalist id="add-departments-list">
+                      {departments.map(dept => (
+                        <option key={dept} value={dept} />
+                      ))}
+                    </datalist>
+                    <div className="text-xs text-muted-foreground">
+                      Existing departments: {departments.join(', ')}
+                    </div>
+                  </>
                 )}
                 {formData.departments.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
@@ -1158,17 +1179,24 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
                 <div className="flex gap-2">
                   <Input
                     id="edit-departments"
-                    placeholder="Enter department name"
+                    placeholder="Enter department name or select existing"
                     value={newDepartmentInput}
                     onChange={(e) => setNewDepartmentInput(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && newDepartmentInput.trim()) {
                         e.preventDefault();
-                        const dept = newDepartmentInput.trim();
-                        if (!formData.departments.includes(dept)) {
-                          setFormData({ ...formData, departments: [...formData.departments, dept] });
+                        const inputDept = newDepartmentInput.trim();
+                        const existingDept = departments.find(
+                          d => d.toLowerCase() === inputDept.toLowerCase()
+                        );
+                        const deptToAdd = existingDept || inputDept;
+                        
+                        if (!formData.departments.some(d => d.toLowerCase() === deptToAdd.toLowerCase())) {
+                          setFormData({ ...formData, departments: [...formData.departments, deptToAdd] });
+                          setNewDepartmentInput('');
+                        } else {
+                          toast.error('Department already added');
                         }
-                        setNewDepartmentInput('');
                       }
                     }}
                     list="edit-departments-list"
@@ -1177,10 +1205,19 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
                     type="button"
                     variant="outline"
                     onClick={() => {
-                      const dept = newDepartmentInput.trim();
-                      if (dept && !formData.departments.includes(dept)) {
-                        setFormData({ ...formData, departments: [...formData.departments, dept] });
+                      const inputDept = newDepartmentInput.trim();
+                      if (!inputDept) return;
+                      
+                      const existingDept = departments.find(
+                        d => d.toLowerCase() === inputDept.toLowerCase()
+                      );
+                      const deptToAdd = existingDept || inputDept;
+                      
+                      if (!formData.departments.some(d => d.toLowerCase() === deptToAdd.toLowerCase())) {
+                        setFormData({ ...formData, departments: [...formData.departments, deptToAdd] });
                         setNewDepartmentInput('');
+                      } else {
+                        toast.error('Department already added');
                       }
                     }}
                   >
@@ -1188,11 +1225,16 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
                   </Button>
                 </div>
                 {departments.length > 0 && (
-                  <datalist id="edit-departments-list">
-                    {departments.map(dept => (
-                      <option key={dept} value={dept} />
-                    ))}
-                  </datalist>
+                  <>
+                    <datalist id="edit-departments-list">
+                      {departments.map(dept => (
+                        <option key={dept} value={dept} />
+                      ))}
+                    </datalist>
+                    <div className="text-xs text-muted-foreground">
+                      Existing departments: {departments.join(', ')}
+                    </div>
+                  </>
                 )}
                 {formData.departments.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
@@ -1395,17 +1437,24 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
               <Label>Departments</Label>
               <div className="flex gap-2">
                 <Input
-                  placeholder="Enter department name"
+                  placeholder="Enter department name or select existing"
                   value={bulkDepartmentInput}
                   onChange={(e) => setBulkDepartmentInput(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && bulkDepartmentInput.trim()) {
                       e.preventDefault();
-                      const dept = bulkDepartmentInput.trim();
-                      if (!bulkDepartments.includes(dept)) {
-                        setBulkDepartments([...bulkDepartments, dept]);
+                      const inputDept = bulkDepartmentInput.trim();
+                      const existingDept = departments.find(
+                        d => d.toLowerCase() === inputDept.toLowerCase()
+                      );
+                      const deptToAdd = existingDept || inputDept;
+                      
+                      if (!bulkDepartments.some(d => d.toLowerCase() === deptToAdd.toLowerCase())) {
+                        setBulkDepartments([...bulkDepartments, deptToAdd]);
+                        setBulkDepartmentInput('');
+                      } else {
+                        toast.error('Department already added');
                       }
-                      setBulkDepartmentInput('');
                     }
                   }}
                   list="bulk-departments-list"
@@ -1414,10 +1463,19 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
                   type="button"
                   variant="outline"
                   onClick={() => {
-                    const dept = bulkDepartmentInput.trim();
-                    if (dept && !bulkDepartments.includes(dept)) {
-                      setBulkDepartments([...bulkDepartments, dept]);
+                    const inputDept = bulkDepartmentInput.trim();
+                    if (!inputDept) return;
+                    
+                    const existingDept = departments.find(
+                      d => d.toLowerCase() === inputDept.toLowerCase()
+                    );
+                    const deptToAdd = existingDept || inputDept;
+                    
+                    if (!bulkDepartments.some(d => d.toLowerCase() === deptToAdd.toLowerCase())) {
+                      setBulkDepartments([...bulkDepartments, deptToAdd]);
                       setBulkDepartmentInput('');
+                    } else {
+                      toast.error('Department already added');
                     }
                   }}
                 >
@@ -1425,11 +1483,16 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
                 </Button>
               </div>
               {departments.length > 0 && (
-                <datalist id="bulk-departments-list">
-                  {departments.map(dept => (
-                    <option key={dept} value={dept} />
-                  ))}
-                </datalist>
+                <>
+                  <datalist id="bulk-departments-list">
+                    {departments.map(dept => (
+                      <option key={dept} value={dept} />
+                    ))}
+                  </datalist>
+                  <div className="text-xs text-muted-foreground">
+                    Existing departments: {departments.join(', ')}
+                  </div>
+                </>
               )}
               {bulkDepartments.length > 0 ? (
                 <div className="flex flex-wrap gap-2 mt-3 p-3 bg-muted rounded-lg">
