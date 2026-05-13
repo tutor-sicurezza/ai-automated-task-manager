@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Buildings, Plus, PencilSimple, Trash, Users, ListChecks, TrendUp, ChartBar, X as XIcon, UserCircle, MapPin, CheckCircle, Warning, Star } from '@phosphor-icons/react';
+import { DepartmentBadge } from '@/components/DepartmentBadge';
+import { getAllDepartments } from '@/lib/departments';
 import { Employee } from '@/lib/types';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';

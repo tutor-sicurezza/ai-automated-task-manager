@@ -20,6 +20,7 @@ import { TaskNotifications } from '@/components/TaskNotifications';
 import { NotificationPreferences } from '@/components/NotificationPreferences';
 import { PermissionsOverview } from '@/components/PermissionsOverview';
 import { DepartmentManagement } from '@/components/DepartmentManagement';
+import { DepartmentColorLegend } from '@/components/DepartmentColorLegend';
 import { SuperAdminDashboard } from '@/components/dashboards/SuperAdminDashboard';
 import { DepartmentAdminDashboard } from '@/components/dashboards/DepartmentAdminDashboard';
 import { UserDashboard } from '@/components/dashboards/UserDashboard';
@@ -1149,6 +1150,7 @@ function App() {
                 </>
               )}
               <HelpDocumentation />
+              <DepartmentColorLegend />
               <DataManagement
                 onExportData={handleExportData}
                 onImportData={handleImportData}

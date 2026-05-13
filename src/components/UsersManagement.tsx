@@ -16,6 +16,7 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { PencilSimple, Trash, UserPlus, Users, MagnifyingGlass, Briefcase, Buildings, EnvelopeSimple, Phone, CheckCircle, XCircle, UserCircle, MapPin, Star, CheckSquare, Download, Upload, X as XIcon, ArrowsDownUp, Eye, SquaresFour, ListBullets, Funnel, CaretDown, CaretUp, TrendUp, Calendar, ShieldCheck, Plus } from '@phosphor-icons/react';
 import { RoleManagementDialog } from '@/components/RoleManagementDialog';
+import { DepartmentBadge } from '@/components/DepartmentBadge';
 import { Employee, UserRole } from '@/lib/types';
 import { DEFAULT_ROLES } from '@/lib/permissions';
 import { toast } from 'sonner';
@@ -515,16 +516,22 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
                   <span className="truncate">{employee.role}</span>
                 </div>
                 {((employee.departments && employee.departments.length > 0) || employee.department) && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1 flex-wrap">
-                    <Buildings className="w-4 h-4 flex-shrink-0" weight="bold" />
+                  <div className="flex items-center gap-2 text-sm mb-1 flex-wrap">
                     {employee.departments && employee.departments.length > 0 ? (
                       employee.departments.map((dept, idx) => (
-                        <Badge key={idx} variant="secondary" className="text-xs">
-                          {dept}
-                        </Badge>
+                        <DepartmentBadge 
+                          key={idx} 
+                          departmentName={dept}
+                          size="sm"
+                          variant="default"
+                        />
                       ))
                     ) : (
-                      <span className="truncate">{employee.department}</span>
+                      <DepartmentBadge 
+                        departmentName={employee.department}
+                        size="sm"
+                        variant="default"
+                      />
                     )}
                   </div>
                 )}

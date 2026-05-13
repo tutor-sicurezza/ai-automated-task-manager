@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Task, Employee, TaskStatus } from '@/lib/types';
 import { Buildings, Users, CheckCircle, Clock, ChartBar, TrendUp, ListChecks, Download, FileCsv, FilePdf } from '@phosphor-icons/react';
+import { DepartmentBadge } from '@/components/DepartmentBadge';
+import { getDepartmentColor } from '@/lib/departments';
 import { exportDepartmentAnalyticsToCSV, exportDepartmentAnalyticsToPDF } from '@/lib/exportUtils';
 import { toast } from 'sonner';
 import {
@@ -146,10 +148,10 @@ export function DepartmentAnalytics({ tasks, employees }: DepartmentAnalyticsPro
       total: dept.totalTasks,
     }));
 
-    const taskDistributionByDept = departments.map((dept, idx) => ({
+    const taskDistributionByDept = departments.map((dept) => ({
       name: dept.name,
       value: dept.totalTasks,
-      color: COLORS[idx % COLORS.length],
+      color: getDepartmentColor(dept.name),
     }));
 
     const completionRateByDept = departments.map(dept => ({
@@ -157,10 +159,10 @@ export function DepartmentAnalytics({ tasks, employees }: DepartmentAnalyticsPro
       rate: dept.completionRate,
     }));
 
-    const employeeCountByDept = departments.map((dept, idx) => ({
+    const employeeCountByDept = departments.map((dept) => ({
       name: dept.name,
       employees: dept.totalEmployees,
-      color: COLORS[idx % COLORS.length],
+      color: getDepartmentColor(dept.name),
     }));
 
     const radarData = departments.map(dept => ({
@@ -460,7 +462,12 @@ export function DepartmentAnalytics({ tasks, employees }: DepartmentAnalyticsPro
                       #{idx + 1}
                     </div>
                     <div className="flex-1">
-                      <div className="font-medium">{dept.name}</div>
+                      <DepartmentBadge 
+                        departmentName={dept.name}
+                        size="sm"
+                        variant="default"
+                        className="mb-1"
+                      />
                       <div className="text-sm text-muted-foreground">
                         {dept.completedTasks}/{dept.totalTasks} tasks
                       </div>
@@ -498,7 +505,12 @@ export function DepartmentAnalytics({ tasks, employees }: DepartmentAnalyticsPro
                       #{idx + 1}
                     </div>
                     <div className="flex-1">
-                      <div className="font-medium">{dept.name}</div>
+                      <DepartmentBadge 
+                        departmentName={dept.name}
+                        size="sm"
+                        variant="default"
+                        className="mb-1"
+                      />
                       <div className="text-sm text-muted-foreground">
                         {dept.totalEmployees} employee{dept.totalEmployees !== 1 ? 's' : ''}
                       </div>
@@ -533,9 +545,13 @@ export function DepartmentAnalytics({ tasks, employees }: DepartmentAnalyticsPro
               {analytics.needsAttentionDepartments.length > 0 ? (
                 analytics.needsAttentionDepartments.map((dept) => (
                   <div key={dept.name} className="flex items-start gap-3 p-3 rounded-lg bg-destructive/5 border border-destructive/20">
-                    <Buildings className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate">{dept.name}</div>
+                      <DepartmentBadge 
+                        departmentName={dept.name}
+                        size="sm"
+                        variant="default"
+                        className="mb-1.5"
+                      />
                       <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                         {dept.overdueTasks > 0 && (
                           <Badge variant="destructive" className="text-xs">
@@ -572,11 +588,13 @@ export function DepartmentAnalytics({ tasks, employees }: DepartmentAnalyticsPro
               <div key={dept.name} className="border rounded-lg p-5">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Buildings className="h-6 w-6 text-primary" weight="duotone" />
-                    </div>
                     <div>
-                      <div className="font-bold text-xl">{dept.name}</div>
+                      <DepartmentBadge 
+                        departmentName={dept.name}
+                        size="lg"
+                        variant="default"
+                        className="mb-2"
+                      />
                       <div className="text-sm text-muted-foreground">
                         {dept.totalEmployees} team member{dept.totalEmployees !== 1 ? 's' : ''} · {dept.totalTasks} task{dept.totalTasks !== 1 ? 's' : ''}
                       </div>

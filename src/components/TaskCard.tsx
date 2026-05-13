@@ -8,6 +8,7 @@ import { Trash, Clock, Circle, CircleHalf, CheckCircle, PencilSimple, ChatCircle
 import { Task, Employee, TaskStatus, TaskPriority } from '@/lib/types';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { DepartmentBadge } from '@/components/DepartmentBadge';
 
 interface TaskCardProps {
   task: Task;
@@ -72,11 +73,18 @@ export function TaskCard({ task, employees, onStatusChange, onAssigneeChange, on
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
               <h3 className="font-medium text-base truncate">{task.title}</h3>
               <Badge variant="secondary" className={cn('text-xs', priorityColors[task.priority])}>
                 {task.priority.toUpperCase()}
               </Badge>
+              {assignee?.department && (
+                <DepartmentBadge 
+                  departmentName={assignee.department} 
+                  size="sm"
+                  variant="default"
+                />
+              )}
             </div>
             
             <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{task.description}</p>
@@ -143,9 +151,22 @@ export function TaskCard({ task, employees, onStatusChange, onAssigneeChange, on
                           <AvatarImage src={employee.avatar} alt={employee.name} />
                           <AvatarFallback className="text-xs">{employee.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
                         </Avatar>
-                        <div className="flex flex-col items-start">
+                        <div className="flex flex-col items-start gap-0.5">
                           <span>{employee.name}</span>
-                          <span className="text-[10px] text-muted-foreground">{employee.role}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-muted-foreground">{employee.role}</span>
+                            {employee.department && (
+                              <>
+                                <span className="text-[10px] text-muted-foreground">•</span>
+                                <DepartmentBadge 
+                                  departmentName={employee.department} 
+                                  size="sm"
+                                  showLabel={false}
+                                  className="scale-75"
+                                />
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </SelectItem>
