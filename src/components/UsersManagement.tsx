@@ -14,7 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { PencilSimple, Trash, UserPlus, Users, MagnifyingGlass, Briefcase, Buildings, EnvelopeSimple, Phone, CheckCircle, XCircle, UserCircle, MapPin, Star, CheckSquare, Download, Upload, X as XIcon, ArrowsDownUp, Eye, SquaresFour, ListBullets, Funnel, CaretDown, CaretUp, TrendUp, Calendar, ShieldCheck } from '@phosphor-icons/react';
+import { PencilSimple, Trash, UserPlus, Users, MagnifyingGlass, Briefcase, Buildings, EnvelopeSimple, Phone, CheckCircle, XCircle, UserCircle, MapPin, Star, CheckSquare, Download, Upload, X as XIcon, ArrowsDownUp, Eye, SquaresFour, ListBullets, Funnel, CaretDown, CaretUp, TrendUp, Calendar, ShieldCheck, Plus } from '@phosphor-icons/react';
 import { RoleManagementDialog } from '@/components/RoleManagementDialog';
 import { Employee, UserRole } from '@/lib/types';
 import { DEFAULT_ROLES } from '@/lib/permissions';
@@ -1011,6 +1011,33 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
                     Add
                   </Button>
                 </div>
+                <div className="space-y-2">
+                  <div className="text-xs text-muted-foreground font-medium">
+                    Common departments:
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {['Engineering', 'Sales', 'Marketing', 'HR', 'Finance', 'Operations', 'Product', 'Design', 'Customer Support'].map(dept => (
+                      <Button
+                        key={dept}
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          if (!formData.departments.some(d => d.toLowerCase() === dept.toLowerCase())) {
+                            setFormData({ ...formData, departments: [...formData.departments, dept] });
+                          } else {
+                            toast.error('Department already added');
+                          }
+                        }}
+                        disabled={formData.departments.some(d => d.toLowerCase() === dept.toLowerCase())}
+                        className="text-xs h-7"
+                      >
+                        <Buildings className="w-3 h-3 mr-1" weight="bold" />
+                        {dept}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
                 {departments.length > 0 && (
                   <>
                     <datalist id="add-departments-list">
@@ -1247,6 +1274,33 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
                   >
                     Add
                   </Button>
+                </div>
+                <div className="space-y-2">
+                  <div className="text-xs text-muted-foreground font-medium">
+                    Common departments:
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {['Engineering', 'Sales', 'Marketing', 'HR', 'Finance', 'Operations', 'Product', 'Design', 'Customer Support'].map(dept => (
+                      <Button
+                        key={dept}
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          if (!formData.departments.some(d => d.toLowerCase() === dept.toLowerCase())) {
+                            setFormData({ ...formData, departments: [...formData.departments, dept] });
+                          } else {
+                            toast.error('Department already added');
+                          }
+                        }}
+                        disabled={formData.departments.some(d => d.toLowerCase() === dept.toLowerCase())}
+                        className="text-xs h-7"
+                      >
+                        <Buildings className="w-3 h-3 mr-1" weight="bold" />
+                        {dept}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
                 {departments.length > 0 && (
                   <>
