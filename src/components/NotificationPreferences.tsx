@@ -83,9 +83,9 @@ export function NotificationPreferences({ userId }: { userId: string }) {
       enabledNotifications: {
         ...defaultPreferences.enabledNotifications,
         ...(preferences?.enabledNotifications || {}),
-      },
       emailSchedule: {
-        ...defaultPreferences.emailSchedule,
+      emailSchedule: {
+        ...defaultPreferences.emailSchedule,),
         ...(preferences?.emailSchedule || {}),
       },
       quietHours: {
@@ -94,10 +94,7 @@ export function NotificationPreferences({ userId }: { userId: string }) {
       },
     };
   }, [preferences, userId]);
-
-  const inQuietHours = useMemo(() => {
-    if (!currentPreferences.quietHours.enabled) return false;
-    return isInQuietHours(currentPreferences.quietHours.startTime, currentPreferences.quietHours.endTime);
+nst inQuietHours = useMemo(() => {
   }, [currentPreferences.quietHours]);
 
   const handleToggleEmailNotifications = (checked: boolean) => {
@@ -220,85 +217,6 @@ export function NotificationPreferences({ userId }: { userId: string }) {
   const notificationTypes = [
     {
       key: 'task_assigned' as const,
-      label: 'Task Assigned',
-      description: 'When a task is assigned to you',
-      icon: <User className="w-4 h-4 text-blue-500" weight="fill" />,
-    },
-    {
-      key: 'task_reassigned' as const,
-      label: 'Task Reassigned',
-      description: 'When a task is reassigned to you',
-      icon: <User className="w-4 h-4 text-blue-500" weight="fill" />,
-    },
-    {
-      key: 'task_updated' as const,
-      label: 'Task Updated',
-      description: 'When a task you\'re involved with is updated',
-      icon: <Bell className="w-4 h-4 text-indigo-500" weight="fill" />,
-    },
-    {
-      key: 'task_comment' as const,
-      label: 'Task Comment',
-      description: 'When someone comments on your task',
-      icon: <ChatCircle className="w-4 h-4 text-teal-500" weight="fill" />,
-    },
-    {
-      key: 'task_due_soon' as const,
-      label: 'Task Due Soon',
-      description: 'When a task is due within 24 hours',
-      icon: <ClockCountdown className="w-4 h-4 text-amber-500" weight="fill" />,
-    },
-    {
-      key: 'task_overdue' as const,
-      label: 'Task Overdue',
-      description: 'When a task passes its due date',
-      icon: <WarningCircle className="w-4 h-4 text-destructive" weight="fill" />,
-    },
-    {
-      key: 'task_completed' as const,
-      label: 'Task Completed',
-      description: 'When your task is marked as complete',
-      icon: <CheckCircle className="w-4 h-4 text-green-500" weight="fill" />,
-    },
-    {
-      key: 'task_status_changed' as const,
-      label: 'Status Changed',
-      description: 'When a task status changes',
-      icon: <ArrowsClockwise className="w-4 h-4 text-purple-500" weight="fill" />,
-    },
-    {
-      key: 'task_priority_changed' as const,
-      label: 'Priority Changed',
-      description: 'When a task priority is modified',
-      icon: <FlagBanner className="w-4 h-4 text-orange-500" weight="fill" />,
-    },
-    {
-      key: 'mention' as const,
-      label: 'Mentions',
-      description: 'When you\'re mentioned in a comment',
-      icon: <ChatCircle className="w-4 h-4 text-pink-500" weight="fill" />,
-    },
-  ];
-
-  const allEnabled = Object.values(currentPreferences.enabledNotifications).every(v => v === true);
-  const allDisabled = Object.values(currentPreferences.enabledNotifications).every(v => v === false);
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="icon" className="relative">
-          {inQuietHours && (
-            <div className="absolute -top-1 -right-1">
-              <Moon className="h-3 w-3 text-purple-600" weight="fill" />
-            </div>
-          )}
-          <Gear className="h-5 w-5" weight="fill" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Gear className="h-5 w-5" weight="fill" />
             Notification Preferences
             {inQuietHours && (
               <Badge variant="secondary" className="ml-2 bg-purple-100 text-purple-700 border-purple-200">
@@ -510,115 +428,104 @@ export function NotificationPreferences({ userId }: { userId: string }) {
                             </div>
                           </Button>
                         ))}
-                      </div>
-                    </div>
-                  </>
-                )}
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="realtime">Real-time</SelectItem>
+                    <SelectItem value="batched">Batched (every 15 min)</SelectItem>
+                    <SelectItem value="hourly">Hourly</SelectItem>
+                    <SelectItem value="daily">Daily digest</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            </div>
-
+            </div>>
+<div>
             <Separator />
 
             <div className="space-y-4">
               <div>
                 <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
-                  <Moon className="w-4 h-4" weight="fill" />
-                  Quiet Hours
+                  <SpeakerHigh className="w-4 h-4" weight="fill" />
+                  Notification Sounds
                 </h3>
                 <p className="text-xs text-muted-foreground mb-3">
-                  Pause notifications during specific times
-                </p>
-              </div>
+                  Play sounds when notifications arriveed-lg border p-4 bg-muted/50">
+                </p>y-0.5">
+              </div>t-hours" className="text-sm font-medium flex items-center gap-2">
               <div className="space-y-4">
                 <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/50">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="quiet-hours" className="text-sm font-medium flex items-center gap-2">
-                      Enable Quiet Hours
-                      {currentPreferences.quietHours.enabled && (
-                        <Badge variant="secondary" className="bg-purple-100 text-purple-700 border-purple-200">
-                          Active
-                        </Badge>
-                      )}
-                    </Label>
+                  <div className="space-y-0.5">-purple-700 border-purple-200">
+                    <Label htmlFor="sound-enabled" className="text-sm font-medium flex items-center gap-2">
+                      Enable Sounds
+                      {!currentPreferences.soundEnabled && (
+                        <Badge variant="secondary" className="bg-muted">
+                          <SpeakerX className="w-3 h-3 mr-1" />
+                          Muted
+                        </Badge>urs"
+                      )}ces.quietHours.enabled}
+                    </Label>leQuietHours}
                   </div>
                   <Switch
-                    id="quiet-hours"
-                    checked={currentPreferences.quietHours.enabled}
-                    onCheckedChange={handleToggleQuietHours}
+                    id="sound-enabled"
+                    checked={currentPreferences.soundEnabled}
+                    onCheckedChange={handleToggleSound}
                   />
                 </div>
-                {currentPreferences.quietHours.enabled && (
-                  <>
-                    <div className="pt-2 space-y-3">
-                      <Label className="text-xs font-medium text-muted-foreground">
-                        Quick Presets
+                {currentPreferences.soundEnabled && (
+                  <>me="grid grid-cols-2 gap-2">
+                    <div className="rounded-lg border p-4 bg-muted/50 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-medium">
+                          Volume
+                        </Label>
+                        <span className="text-xs text-muted-foreground">
+                          {Math.round(currentPreferences.soundVolume * 100)}%
+                        </span>
+                      </div> gap-1">
+                      <Slider-medium">{preset.label}</span>
+                        value={[currentPreferences.soundVolume]}
+                        onValueChange={handleChangeVolume}
+                        min={0}
+                        max={1}
+                        step={0.1}
+                        className="w-full"
+                      />
+                    </div>
+eparator className="my-2" />
+                    <div className="rounded-lg border p-4 bg-muted/50">
+                      <Label className="text-sm font-medium mb-3 block">
+                        Test Sounds
                       </Label>
                       <div className="grid grid-cols-2 gap-2">
-                        {quietHoursPresets.map((preset) => (
-                          <Button
-                            key={preset.label}
+                        {notificationTypes.slice(0, 6).map((type) => (
+                          <Label htmlFor="start-time" className="text-xs">
+                            key={type.key}
                             variant="outline"
                             size="sm"
-                            onClick={() => handleApplyPreset(preset)}
-                            className="h-auto py-3 flex flex-col items-start"
-                          >
-                            <div className="flex flex-col gap-1">
-                              <span className="text-xs font-medium">{preset.label}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {preset.start} - {preset.end}
-                              </span>
+                            className="h-auto py-2 px-3 text-left justify-start"
+                            onClick={() => handleTestSound(type.key)}
+                          >ces.quietHours.startTime}
+                            <div className="flex items-center gap-2 w-full">
+                              {type.icon}put bg-background px-3 py-1 text-sm"
+                              <span className="text-xs truncate">{type.label}</span>
                             </div>
                           </Button>
                         ))}
                       </div>
-                    </div>
-                    <Separator className="my-2" />
-                    <div className="space-y-3">
-                      <Label className="text-xs font-medium text-muted-foreground">
-                        Custom Time Range
-                      </Label>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-2">
-                          <Label htmlFor="start-time" className="text-xs">
-                            Start Time
-                          </Label>
-                          <input
-                            type="time"
-                            id="start-time"
-                            value={currentPreferences.quietHours.startTime}
-                            onChange={(e) => handleChangeQuietHours('startTime', e.target.value)}
-                            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="end-time" className="text-xs">
-                            End Time
-                          </Label>
-                          <input
-                            type="time"
-                            id="end-time"
-                            value={currentPreferences.quietHours.endTime}
-                            onChange={(e) => handleChangeQuietHours('endTime', e.target.value)}
-                            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-                          />
-                        </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Notifications will be paused between these times
                       </p>
-                    </div>
                   </>
-                )}
+                  </>
               </div>
-            </div>
-          </div>
-        </ScrollArea>
-        <div className="flex justify-end gap-2 pt-4 border-t">
-          <Button onClick={() => setOpen(false)}>
-            Close
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
+              </div>
+
+            <Separator />
+rea>
+            <div className="space-y-4">order-t">
+              <div> setOpen(false)}>
+                <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
+                  <Moon className="w-4 h-4" weight="fill" />
+                  Quiet Hours
+                </h3>>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Pause notifications during specific times
+                </p>
+              </div>              <div className="space-y-4">                <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/50">                  <div className="space-y-0.5">                    <Label htmlFor="quiet-hours" className="text-sm font-medium flex items-center gap-2">                      Enable Quiet Hours                      {currentPreferences.quietHours.enabled && (                        <Badge variant="secondary" className="bg-purple-100 text-purple-700 border-purple-200">                          Active                        </Badge>                      )}                    </Label>                  </div>                  <Switch                    id="quiet-hours"                    checked={currentPreferences.quietHours.enabled}                    onCheckedChange={handleToggleQuietHours}                  />                </div>                {currentPreferences.quietHours.enabled && (                  <>                    <div className="pt-2 space-y-3">                      <Label className="text-xs font-medium text-muted-foreground">                        Quick Presets                      </Label>                      <div className="grid grid-cols-2 gap-2">                        {quietHoursPresets.map((preset) => (                          <Button                            key={preset.label}                            variant="outline"                            size="sm"                            onClick={() => handleApplyPreset(preset)}                            className="h-auto py-3 flex flex-col items-start"                          >                            <div className="flex flex-col gap-1">                              <span className="text-xs font-medium">{preset.label}</span>                              <span className="text-xs text-muted-foreground">                                {preset.start} - {preset.end}                              </span>                            </div>                          </Button>                        ))}                      </div>                    </div>                    <Separator className="my-2" />                    <div className="space-y-3">                      <Label className="text-xs font-medium text-muted-foreground">                        Custom Time Range                      </Label>                      <div className="grid grid-cols-2 gap-3">                        <div className="space-y-2">                          <Label htmlFor="start-time" className="text-xs">                            Start Time                          </Label>                          <input                            type="time"                            id="start-time"                            value={currentPreferences.quietHours.startTime}                            onChange={(e) => handleChangeQuietHours('startTime', e.target.value)}                            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"                          />                        </div>                        <div className="space-y-2">                          <Label htmlFor="end-time" className="text-xs">                            End Time                          </Label>                          <input                            type="time"                            id="end-time"                            value={currentPreferences.quietHours.endTime}                            onChange={(e) => handleChangeQuietHours('endTime', e.target.value)}                            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"                          />                        </div>                      </div>                      <p className="text-xs text-muted-foreground">                        Notifications will be paused between these times                      </p>                    </div>                  </>                )}              </div>            </div>          </div>        </ScrollArea>        <div className="flex justify-end gap-2 pt-4 border-t">          <Button onClick={() => setOpen(false)}>            Close          </Button>        </div>      </DialogContent>    </Dialog>  );}
