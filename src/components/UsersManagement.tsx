@@ -1018,8 +1018,32 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
                         <option key={dept} value={dept} />
                       ))}
                     </datalist>
-                    <div className="text-xs text-muted-foreground">
-                      Existing departments: {departments.join(', ')}
+                    <div className="space-y-2">
+                      <div className="text-xs text-muted-foreground font-medium">
+                        Quick select existing departments:
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {departments.map(dept => (
+                          <Button
+                            key={dept}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              if (!formData.departments.some(d => d.toLowerCase() === dept.toLowerCase())) {
+                                setFormData({ ...formData, departments: [...formData.departments, dept] });
+                              } else {
+                                toast.error('Department already added');
+                              }
+                            }}
+                            disabled={formData.departments.some(d => d.toLowerCase() === dept.toLowerCase())}
+                            className="text-xs h-7"
+                          >
+                            <Plus className="w-3 h-3 mr-1" weight="bold" />
+                            {dept}
+                          </Button>
+                        ))}
+                      </div>
                     </div>
                   </>
                 )}
@@ -1231,8 +1255,32 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
                         <option key={dept} value={dept} />
                       ))}
                     </datalist>
-                    <div className="text-xs text-muted-foreground">
-                      Existing departments: {departments.join(', ')}
+                    <div className="space-y-2">
+                      <div className="text-xs text-muted-foreground font-medium">
+                        Quick select existing departments:
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {departments.map(dept => (
+                          <Button
+                            key={dept}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              if (!formData.departments.some(d => d.toLowerCase() === dept.toLowerCase())) {
+                                setFormData({ ...formData, departments: [...formData.departments, dept] });
+                              } else {
+                                toast.error('Department already added');
+                              }
+                            }}
+                            disabled={formData.departments.some(d => d.toLowerCase() === dept.toLowerCase())}
+                            className="text-xs h-7"
+                          >
+                            <Plus className="w-3 h-3 mr-1" weight="bold" />
+                            {dept}
+                          </Button>
+                        ))}
+                      </div>
                     </div>
                   </>
                 )}
