@@ -239,7 +239,7 @@ export function DepartmentManagement({ employees, onEmployeeUpdate }: Department
     setFormData({
       name: '',
       description: '',
-      color: 'auto',
+      color: DEPARTMENT_COLORS[0].value,
       leadId: '',
       location: '',
       budget: '',
