@@ -349,3 +349,17 @@ export interface EmailAnalytics {
   }>;
   recentDeliveries: EmailDeliveryLog[];
 }
+
+export interface FeedbackItem {
+  id: string;
+  userId: string;
+  userName: string;
+  userAvatar: string;
+  category: 'feature' | 'bug' | 'improvement' | 'praise' | 'other';
+  rating: number;
+  title: string;
+  description: string;
+  createdAt: string;
+  status: 'new' | 'reviewing' | 'planned' | 'completed' | 'declined';
+  upvotes: string[];
+}

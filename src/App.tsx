@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Plus, FunnelSimple, ArrowsDownUp, CheckCircle, CheckSquare, Square, Trash, X, PlayCircle, Circle, ChartBar, ListChecks, Sparkle, Users, Buildings, House, Rocket } from '@phosphor-icons/react';
 import { TaskCard } from '@/components/TaskCard';
 import { CreateTaskDialog } from '@/components/CreateTaskDialog';
@@ -32,7 +33,10 @@ import { WelcomeGuide } from '@/components/WelcomeGuide';
 import { DataManagement } from '@/components/DataManagement';
 import { HelpDocumentation } from '@/components/HelpDocumentation';
 import { LaunchCelebration } from '@/components/LaunchCelebration';
-import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment, Announcement, TaskNotification, NotificationPreferences as NotificationPreferencesType, NotificationType } from '@/lib/types';
+import { FeedbackDialog } from '@/components/FeedbackDialog';
+import { FeedbackBoard } from '@/components/FeedbackBoard';
+import { LaunchAnnouncement } from '@/components/LaunchAnnouncement';
+import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment, Announcement, TaskNotification, NotificationPreferences as NotificationPreferencesType, NotificationType, FeedbackItem } from '@/lib/types';
 import { playNotificationSound } from '@/lib/notificationSounds';
 import { desktopNotificationManager } from '@/lib/desktopNotifications';
 import { DesktopNotificationSettings } from '@/components/DesktopNotificationSettings';
@@ -40,6 +44,7 @@ import { canPerformAction } from '@/lib/permissions';
 import { Toaster, toast } from 'sonner';
 import * as confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
+import { PaperPlaneTilt, Megaphone } from '@phosphor-icons/react';
 
 function App() {
   const [tasks, setTasks] = useKV<Task[]>('tasks', []);
@@ -67,6 +72,11 @@ function App() {
   const [welcomeGuideOpen, setWelcomeGuideOpen] = useState(false);
   const [hasCompletedWelcome, setHasCompletedWelcome] = useKV<boolean>('has-completed-welcome', false);
   const [launchCelebrationOpen, setLaunchCelebrationOpen] = useState(false);
+  const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
+  const [feedbackBoardOpen, setFeedbackBoardOpen] = useState(false);
+  const [launchAnnouncementOpen, setLaunchAnnouncementOpen] = useState(false);
+  const [hasSeenLaunchAnnouncement, setHasSeenLaunchAnnouncement] = useKV<boolean>('has-seen-launch-announcement', false);
+  const [feedback, setFeedback] = useKV<FeedbackItem[]>('feedback', []);
 
   useEffect(() => {
     if (employees && employees.length > 0) {
@@ -217,6 +227,16 @@ function App() {
       return () => clearTimeout(timer);
     }
   }, [hasCompletedWelcome, currentUser]);
+
+  useEffect(() => {
+    if (!hasSeenLaunchAnnouncement && currentUser && hasCompletedWelcome) {
+      const timer = setTimeout(() => {
+        setLaunchAnnouncementOpen(true);
+        setHasSeenLaunchAnnouncement(true);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [hasSeenLaunchAnnouncement, currentUser, hasCompletedWelcome]);
 
   const handleExportData = useCallback(async () => {
     const data = {
@@ -1107,6 +1127,49 @@ function App() {
     handleViewDetails(notification.taskId);
   };
 
+  const handleSubmitFeedback = (feedbackData: Omit<FeedbackItem, 'id' | 'createdAt' | 'status' | 'upvotes'>) => {
+    const newFeedback: FeedbackItem = {
+      ...feedbackData,
+      id: `feedback-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      status: 'new',
+      upvotes: [],
+    };
+    setFeedback((currentFeedback) => [...(currentFeedback || []), newFeedback]);
+  };
+
+  const handleUpvoteFeedback = (feedbackId: string) => {
+    if (!currentUser) return;
+    
+    setFeedback((currentFeedback) =>
+      (currentFeedback || []).map((item) => {
+        if (item.id === feedbackId) {
+          const hasUpvoted = item.upvotes.includes(currentUser.id);
+          return {
+            ...item,
+            upvotes: hasUpvoted
+              ? item.upvotes.filter(id => id !== currentUser.id)
+              : [...item.upvotes, currentUser.id],
+          };
+        }
+        return item;
+      })
+    );
+  };
+
+  const handleChangeFeedbackStatus = (feedbackId: string, status: FeedbackItem['status']) => {
+    setFeedback((currentFeedback) =>
+      (currentFeedback || []).map((item) =>
+        item.id === feedbackId ? { ...item, status } : item
+      )
+    );
+    toast.success('Feedback status updated');
+  };
+
+  const unreadFeedbackCount = useMemo(() => {
+    return (feedback || []).filter(f => f.status === 'new').length;
+  }, [feedback]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-secondary via-background to-muted/30">
       <Toaster position="top-right" />
@@ -1134,6 +1197,29 @@ function App() {
               <DesktopNotificationSettings />
               {currentUser && <NotificationPreferences userId={currentUser.id} />}
               <PermissionsOverview employee={currentEmployee} />
+              <Button
+                variant="outline"
+                onClick={() => setFeedbackDialogOpen(true)}
+                className="bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border-blue-300 hover:from-blue-500/20 hover:to-cyan-500/20"
+              >
+                <PaperPlaneTilt className="mr-2 h-5 w-5 text-blue-600" weight="fill" />
+                Give Feedback
+              </Button>
+              {currentEmployee?.userRole === 'admin' && (
+                <Button
+                  variant="outline"
+                  onClick={() => setFeedbackBoardOpen(true)}
+                  className="relative"
+                >
+                  <Megaphone className="mr-2 h-5 w-5" weight="fill" />
+                  Feedback Board
+                  {unreadFeedbackCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                      {unreadFeedbackCount}
+                    </span>
+                  )}
+                </Button>
+              )}
               <div className="flex border rounded-lg">
                 <Button
                   variant={viewMode === 'dashboard' ? 'default' : 'ghost'}
@@ -1637,6 +1723,40 @@ function App() {
         open={launchCelebrationOpen}
         onOpenChange={setLaunchCelebrationOpen}
       />
+
+      <LaunchAnnouncement
+        open={launchAnnouncementOpen}
+        onOpenChange={setLaunchAnnouncementOpen}
+        onGiveFeedback={() => setFeedbackDialogOpen(true)}
+      />
+
+      <FeedbackDialog
+        open={feedbackDialogOpen}
+        onOpenChange={setFeedbackDialogOpen}
+        currentUser={currentUser}
+        onSubmitFeedback={handleSubmitFeedback}
+      />
+
+      <Dialog open={feedbackBoardOpen} onOpenChange={setFeedbackBoardOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl flex items-center gap-2">
+              <Megaphone className="h-6 w-6 text-primary" weight="fill" />
+              Team Feedback Board
+            </DialogTitle>
+            <DialogDescription>
+              Review and manage feedback from your team members
+            </DialogDescription>
+          </DialogHeader>
+          <FeedbackBoard
+            feedback={feedback || []}
+            currentUserId={currentUser?.id}
+            isAdmin={currentEmployee?.userRole === 'admin'}
+            onUpvote={handleUpvoteFeedback}
+            onStatusChange={handleChangeFeedbackStatus}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
