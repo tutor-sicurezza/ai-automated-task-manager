@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { Employee, Task, TaskPriority } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { AITaskEstimator } from '@/components/AITaskEstimator';
+import { Sanitizer } from '@/lib/sanitization';
 
 interface CreateTaskDialogProps {
   open: boolean;
@@ -38,9 +39,16 @@ export function CreateTaskDialog({ open, onOpenChange, employees, tasks = [], on
   const handleSubmit = () => {
     if (!title || !dueDate) return;
     
+    const sanitizedTitle = Sanitizer.taskTitle(title);
+    const sanitizedDescription = Sanitizer.taskDescription(description);
+    
+    if (!sanitizedTitle) {
+      return;
+    }
+    
     onCreateTask({
-      title,
-      description,
+      title: sanitizedTitle,
+      description: sanitizedDescription,
       assigneeId,
       priority,
       dueDate: dueDate.toISOString(),

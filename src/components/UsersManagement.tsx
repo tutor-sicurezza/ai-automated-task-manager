@@ -21,6 +21,7 @@ import { Employee, UserRole } from '@/lib/types';
 import { DEFAULT_ROLES } from '@/lib/permissions';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Sanitizer } from '@/lib/sanitization';
 
 interface UsersManagementProps {
   employees: Employee[];
@@ -221,24 +222,41 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
       return;
     }
 
-    const avatarUrl = formData.avatar.trim() || `https://api.dicebear.com/7.x/avataaars/svg?seed=${formData.name}`;
+    const sanitizedName = Sanitizer.userName(formData.name.trim());
+    const sanitizedRole = Sanitizer.role(formData.role.trim());
+    const sanitizedEmail = formData.email.trim() ? Sanitizer.email(formData.email.trim()) : undefined;
+    const sanitizedPhone = formData.phone.trim() ? Sanitizer.text(formData.phone.trim()) : undefined;
+    const sanitizedLocation = formData.location.trim() ? Sanitizer.text(formData.location.trim()) : undefined;
+    const sanitizedBio = formData.bio.trim() ? Sanitizer.text(formData.bio.trim()) : undefined;
+    
+    if (!sanitizedName || !sanitizedRole) {
+      toast.error('Invalid name or role');
+      return;
+    }
+
+    const avatarUrl = formData.avatar.trim() 
+      ? Sanitizer.url(formData.avatar.trim()) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${sanitizedName}`
+      : `https://api.dicebear.com/7.x/avataaars/svg?seed=${sanitizedName}`;
+    
     const skillsArray = formData.skills.trim() 
-      ? formData.skills.split(',').map(s => s.trim()).filter(s => s)
+      ? Sanitizer.array(formData.skills.split(',').map(s => s.trim()).filter(s => s))
       : undefined;
 
-    const departmentsArray = formData.departments.length > 0 ? formData.departments : undefined;
+    const departmentsArray = formData.departments.length > 0 
+      ? Sanitizer.array(formData.departments)
+      : undefined;
     const primaryDept = departmentsArray && departmentsArray.length > 0 ? departmentsArray[0] : undefined;
 
     onAddEmployee({
-      name: formData.name.trim(),
-      role: formData.role.trim(),
+      name: sanitizedName,
+      role: sanitizedRole,
       avatar: avatarUrl,
-      email: formData.email.trim() || undefined,
+      email: sanitizedEmail,
       department: primaryDept,
       departments: departmentsArray,
-      phone: formData.phone.trim() || undefined,
-      location: formData.location.trim() || undefined,
-      bio: formData.bio.trim() || undefined,
+      phone: sanitizedPhone,
+      location: sanitizedLocation,
+      bio: sanitizedBio,
       skills: skillsArray,
       status: formData.status,
       teamLead: formData.teamLead,
@@ -262,22 +280,39 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
       return;
     }
 
-    const avatarUrl = formData.avatar.trim() || `https://api.dicebear.com/7.x/avataaars/svg?seed=${formData.name}`;
+    const sanitizedName = Sanitizer.userName(formData.name.trim());
+    const sanitizedRole = Sanitizer.role(formData.role.trim());
+    const sanitizedEmail = formData.email.trim() ? Sanitizer.email(formData.email.trim()) : undefined;
+    const sanitizedPhone = formData.phone.trim() ? Sanitizer.text(formData.phone.trim()) : undefined;
+    const sanitizedLocation = formData.location.trim() ? Sanitizer.text(formData.location.trim()) : undefined;
+    const sanitizedBio = formData.bio.trim() ? Sanitizer.text(formData.bio.trim()) : undefined;
+    
+    if (!sanitizedName || !sanitizedRole) {
+      toast.error('Invalid name or role');
+      return;
+    }
+
+    const avatarUrl = formData.avatar.trim() 
+      ? Sanitizer.url(formData.avatar.trim()) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${sanitizedName}`
+      : `https://api.dicebear.com/7.x/avataaars/svg?seed=${sanitizedName}`;
+    
     const skillsArray = formData.skills.trim() 
-      ? formData.skills.split(',').map(s => s.trim()).filter(s => s)
+      ? Sanitizer.array(formData.skills.split(',').map(s => s.trim()).filter(s => s))
       : undefined;
 
-    const departmentsArray = formData.departments.length > 0 ? formData.departments : undefined;
+    const departmentsArray = formData.departments.length > 0 
+      ? Sanitizer.array(formData.departments)
+      : undefined;
     const primaryDept = departmentsArray && departmentsArray.length > 0 ? departmentsArray[0] : undefined;
 
     onEditEmployee(editingEmployee.id, {
-      name: formData.name.trim(),
-      role: formData.role.trim(),
+      name: sanitizedName,
+      role: sanitizedRole,
       avatar: avatarUrl,
-      email: formData.email.trim() || undefined,
+      email: sanitizedEmail,
       department: primaryDept,
       departments: departmentsArray,
-      phone: formData.phone.trim() || undefined,
+      phone: sanitizedPhone,
       location: formData.location.trim() || undefined,
       bio: formData.bio.trim() || undefined,
       skills: skillsArray,

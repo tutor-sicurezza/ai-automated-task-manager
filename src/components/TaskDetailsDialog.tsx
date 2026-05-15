@@ -10,6 +10,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Task, Employee, TaskActivity, TaskAttachment } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
+import { Sanitizer } from '@/lib/sanitization';
 
 interface TaskDetailsDialogProps {
   open: boolean;
@@ -47,7 +48,9 @@ export function TaskDetailsDialog({
 
   const handleAddComment = () => {
     if (!commentText.trim()) return;
-    onAddComment(task.id, commentText);
+    const sanitizedComment = Sanitizer.comment(commentText);
+    if (!sanitizedComment) return;
+    onAddComment(task.id, sanitizedComment);
     setCommentText('');
   };
 

@@ -15,6 +15,7 @@ import { Announcement, AnnouncementPriority, Employee } from '@/lib/types';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Sanitizer } from '@/lib/sanitization';
 
 interface AnnouncementsDialogProps {
   announcements: Announcement[];
@@ -115,9 +116,17 @@ export function AnnouncementsDialog({
       return;
     }
 
+    const sanitizedTitle = Sanitizer.text(title.trim());
+    const sanitizedMessage = Sanitizer.announcementContent(message.trim());
+    
+    if (!sanitizedTitle || !sanitizedMessage) {
+      toast.error('Invalid title or message');
+      return;
+    }
+
     onCreateAnnouncement({
-      title,
-      message,
+      title: sanitizedTitle,
+      message: sanitizedMessage,
       departments: selectedDepartments,
       priority,
       createdBy: currentUser.id,
