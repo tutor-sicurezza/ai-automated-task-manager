@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, FunnelSimple, ArrowsDownUp, CheckCircle, CheckSquare, Square, Trash, X, PlayCircle, Circle, ChartBar, ListChecks, Sparkle, Users, Buildings, House } from '@phosphor-icons/react';
+import { Plus, FunnelSimple, ArrowsDownUp, CheckCircle, CheckSquare, Square, Trash, X, PlayCircle, Circle, ChartBar, ListChecks, Sparkle, Users, Buildings, House, Rocket } from '@phosphor-icons/react';
 import { TaskCard } from '@/components/TaskCard';
 import { CreateTaskDialog } from '@/components/CreateTaskDialog';
 import { EditTaskDialog } from '@/components/EditTaskDialog';
@@ -31,6 +31,7 @@ import { EmailAttachmentSettings } from '@/components/EmailAttachmentSettings';
 import { WelcomeGuide } from '@/components/WelcomeGuide';
 import { DataManagement } from '@/components/DataManagement';
 import { HelpDocumentation } from '@/components/HelpDocumentation';
+import { LaunchCelebration } from '@/components/LaunchCelebration';
 import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment, Announcement, TaskNotification, NotificationPreferences as NotificationPreferencesType, NotificationType } from '@/lib/types';
 import { playNotificationSound } from '@/lib/notificationSounds';
 import { desktopNotificationManager } from '@/lib/desktopNotifications';
@@ -65,6 +66,7 @@ function App() {
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
   const [welcomeGuideOpen, setWelcomeGuideOpen] = useState(false);
   const [hasCompletedWelcome, setHasCompletedWelcome] = useKV<boolean>('has-completed-welcome', false);
+  const [launchCelebrationOpen, setLaunchCelebrationOpen] = useState(false);
 
   useEffect(() => {
     if (employees && employees.length > 0) {
@@ -1195,6 +1197,13 @@ function App() {
                   />
                 </>
               )}
+              <Button
+                onClick={() => setLaunchCelebrationOpen(true)}
+                className="bg-gradient-to-r from-accent to-accent/80 hover:from-accent/90 hover:to-accent/70 text-accent-foreground"
+              >
+                <Rocket className="mr-2 h-5 w-5" weight="fill" />
+                Launch Info
+              </Button>
               <HelpDocumentation />
               <DepartmentColorLegend />
               <DataManagement
@@ -1622,6 +1631,11 @@ function App() {
           setHasCompletedWelcome(true);
           setWelcomeGuideOpen(false);
         }}
+      />
+
+      <LaunchCelebration
+        open={launchCelebrationOpen}
+        onOpenChange={setLaunchCelebrationOpen}
       />
     </div>
   );
