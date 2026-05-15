@@ -11,7 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Buildings, Plus, PencilSimple, Trash, Users, ListChecks, TrendUp, ChartBar, X as XIcon, UserCircle, MapPin, CheckCircle, Warning, Star } from '@phosphor-icons/react';
+import { Buildings, Plus, PencilSimple, Trash, Users, ListChecks, TrendUp, ChartBar, X as XIcon, UserCircle, MapPin, CheckCircle, Warning, Star, Code, Briefcase, PaintBrush, Sparkle } from '@phosphor-icons/react';
 import { DepartmentBadge } from '@/components/DepartmentBadge';
 import { getAllDepartments, generateColorFromName } from '@/lib/departments';
 import { Employee } from '@/lib/types';
@@ -48,12 +48,148 @@ const DEPARTMENT_COLORS = [
   { name: 'Cyan', value: 'oklch(0.60 0.14 210)' },
 ];
 
+interface DepartmentTemplate {
+  id: string;
+  category: 'tech' | 'business' | 'creative';
+  categoryLabel: string;
+  icon: typeof Code;
+  departments: Array<{
+    name: string;
+    description: string;
+    suggestedColor: string;
+  }>;
+}
+
+const DEPARTMENT_TEMPLATES: DepartmentTemplate[] = [
+  {
+    id: 'tech',
+    category: 'tech',
+    categoryLabel: 'Technology',
+    icon: Code,
+    departments: [
+      {
+        name: 'Engineering',
+        description: 'Software development and technical implementation',
+        suggestedColor: 'oklch(0.55 0.18 240)',
+      },
+      {
+        name: 'DevOps',
+        description: 'Infrastructure, deployment, and system operations',
+        suggestedColor: 'oklch(0.50 0.18 265)',
+      },
+      {
+        name: 'QA & Testing',
+        description: 'Quality assurance and software testing',
+        suggestedColor: 'oklch(0.58 0.14 195)',
+      },
+      {
+        name: 'IT Support',
+        description: 'Technical support and system maintenance',
+        suggestedColor: 'oklch(0.60 0.14 210)',
+      },
+      {
+        name: 'Data Science',
+        description: 'Data analysis, machine learning, and analytics',
+        suggestedColor: 'oklch(0.55 0.18 280)',
+      },
+      {
+        name: 'Security',
+        description: 'Information security and cybersecurity operations',
+        suggestedColor: 'oklch(0.60 0.20 25)',
+      },
+    ],
+  },
+  {
+    id: 'business',
+    category: 'business',
+    categoryLabel: 'Business',
+    icon: Briefcase,
+    departments: [
+      {
+        name: 'Sales',
+        description: 'Client acquisition and revenue generation',
+        suggestedColor: 'oklch(0.60 0.16 145)',
+      },
+      {
+        name: 'Marketing',
+        description: 'Brand strategy, campaigns, and growth marketing',
+        suggestedColor: 'oklch(0.65 0.18 45)',
+      },
+      {
+        name: 'Customer Success',
+        description: 'Client relationships and support services',
+        suggestedColor: 'oklch(0.58 0.14 195)',
+      },
+      {
+        name: 'Finance',
+        description: 'Financial planning, accounting, and reporting',
+        suggestedColor: 'oklch(0.50 0.18 265)',
+      },
+      {
+        name: 'Human Resources',
+        description: 'Talent management and employee relations',
+        suggestedColor: 'oklch(0.65 0.18 350)',
+      },
+      {
+        name: 'Operations',
+        description: 'Business operations and process management',
+        suggestedColor: 'oklch(0.55 0.18 280)',
+      },
+      {
+        name: 'Legal',
+        description: 'Legal compliance and contract management',
+        suggestedColor: 'oklch(0.55 0.18 240)',
+      },
+    ],
+  },
+  {
+    id: 'creative',
+    category: 'creative',
+    categoryLabel: 'Creative',
+    icon: PaintBrush,
+    departments: [
+      {
+        name: 'Design',
+        description: 'UI/UX design and visual design work',
+        suggestedColor: 'oklch(0.65 0.18 350)',
+      },
+      {
+        name: 'Content',
+        description: 'Content creation, writing, and editorial',
+        suggestedColor: 'oklch(0.65 0.18 45)',
+      },
+      {
+        name: 'Video Production',
+        description: 'Video creation, editing, and multimedia',
+        suggestedColor: 'oklch(0.60 0.20 25)',
+      },
+      {
+        name: 'Brand & Creative',
+        description: 'Brand identity and creative direction',
+        suggestedColor: 'oklch(0.55 0.18 280)',
+      },
+      {
+        name: 'Social Media',
+        description: 'Social media management and community engagement',
+        suggestedColor: 'oklch(0.60 0.14 210)',
+      },
+      {
+        name: 'Product Design',
+        description: 'Product strategy and user experience design',
+        suggestedColor: 'oklch(0.55 0.18 240)',
+      },
+    ],
+  },
+];
+
 export function DepartmentManagement({ employees, onEmployeeUpdate }: DepartmentManagementProps) {
   const [departments, setDepartments] = useKV<Department[]>('departments', []);
   const [open, setOpen] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [templatesDialogOpen, setTemplatesDialogOpen] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
   const [deletingDepartment, setDeletingDepartment] = useState<Department | null>(null);
   const [viewDetailsOpen, setViewDetailsOpen] = useState(false);
@@ -302,6 +438,66 @@ export function DepartmentManagement({ employees, onEmployeeUpdate }: Department
     setViewDetailsOpen(true);
   };
 
+  const handleApplyTemplate = (templateDept: { name: string; description: string; suggestedColor: string }) => {
+    const existingDept = (departments || []).find(
+      d => d.name.toLowerCase() === templateDept.name.toLowerCase() && d.status === 'active'
+    );
+
+    if (existingDept) {
+      toast.error(`Department "${templateDept.name}" already exists`);
+      return;
+    }
+
+    setFormData({
+      name: templateDept.name,
+      description: templateDept.description,
+      color: templateDept.suggestedColor,
+      leadId: '',
+      location: '',
+      budget: '',
+    });
+
+    setTemplatesDialogOpen(false);
+    setAddDialogOpen(true);
+    toast.success(`Template applied! Review and create "${templateDept.name}"`);
+  };
+
+  const handleBulkCreateFromTemplate = (templateId: string) => {
+    const template = DEPARTMENT_TEMPLATES.find(t => t.id === templateId);
+    if (!template) return;
+
+    let createdCount = 0;
+    const existingColors = (departments || []).map(d => d.color);
+
+    template.departments.forEach((templateDept) => {
+      const existingDept = (departments || []).find(
+        d => d.name.toLowerCase() === templateDept.name.toLowerCase() && d.status === 'active'
+      );
+
+      if (!existingDept) {
+        const newDepartment: Department = {
+          id: `${Date.now()}-${Math.random()}`,
+          name: templateDept.name,
+          description: templateDept.description,
+          color: templateDept.suggestedColor,
+          createdAt: new Date().toISOString(),
+          status: 'active',
+        };
+
+        setDepartments((currentDepartments) => [...(currentDepartments || []), newDepartment]);
+        createdCount++;
+      }
+    });
+
+    if (createdCount > 0) {
+      toast.success(`Created ${createdCount} ${template.categoryLabel.toLowerCase()} department${createdCount > 1 ? 's' : ''}!`);
+      setTemplatesDialogOpen(false);
+      setSelectedTemplate(null);
+    } else {
+      toast.info(`All ${template.categoryLabel.toLowerCase()} departments already exist`);
+    }
+  };
+
   const getDepartmentEmployees = (deptName: string) => {
     return (employees || []).filter(emp => {
       const empDepts = emp.departments && emp.departments.length > 0 
@@ -353,10 +549,16 @@ export function DepartmentManagement({ employees, onEmployeeUpdate }: Department
                   <div className="text-sm text-muted-foreground">With Leads</div>
                 </div>
               </div>
-              <Button onClick={() => setAddDialogOpen(true)} className="ml-4">
-                <Plus className="mr-2 h-5 w-5" weight="bold" />
-                Add Department
-              </Button>
+              <div className="flex gap-2 ml-4">
+                <Button variant="outline" onClick={() => setTemplatesDialogOpen(true)}>
+                  <Sparkle className="mr-2 h-5 w-5" weight="fill" />
+                  Templates
+                </Button>
+                <Button onClick={() => setAddDialogOpen(true)}>
+                  <Plus className="mr-2 h-5 w-5" weight="bold" />
+                  Add Department
+                </Button>
+              </div>
             </div>
 
             <Separator />
@@ -887,6 +1089,130 @@ export function DepartmentManagement({ employees, onEmployeeUpdate }: Department
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={templatesDialogOpen} onOpenChange={setTemplatesDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-2xl">
+              <Sparkle className="h-6 w-6 text-purple-600" weight="fill" />
+              Department Templates
+            </DialogTitle>
+            <DialogDescription>
+              Quick-start templates for common department types. Choose individual departments or create entire categories at once.
+            </DialogDescription>
+          </DialogHeader>
+
+          <ScrollArea className="h-[600px] pr-4">
+            <div className="space-y-6">
+              {DEPARTMENT_TEMPLATES.map((template) => {
+                const Icon = template.icon;
+                const existingDepts = template.departments.filter(td =>
+                  (departments || []).some(d => 
+                    d.name.toLowerCase() === td.name.toLowerCase() && d.status === 'active'
+                  )
+                );
+                const availableDepts = template.departments.length - existingDepts.length;
+
+                return (
+                  <motion.div
+                    key={template.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                  >
+                    <Card className="p-5 border-2 hover:shadow-lg transition-all">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="p-3 rounded-lg bg-primary/10">
+                            <Icon className="h-6 w-6 text-primary" weight="fill" />
+                          </div>
+                          <div>
+                            <h3 className="text-xl font-semibold">{template.categoryLabel}</h3>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {template.departments.length} departments available
+                              {existingDepts.length > 0 && (
+                                <span className="text-primary ml-2">
+                                  · {existingDepts.length} already created
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                        {availableDepts > 0 && (
+                          <Button
+                            size="sm"
+                            onClick={() => handleBulkCreateFromTemplate(template.id)}
+                            className="shrink-0"
+                          >
+                            <Plus className="mr-1 h-4 w-4" weight="bold" />
+                            Create All ({availableDepts})
+                          </Button>
+                        )}
+                      </div>
+
+                      <div className="grid gap-3">
+                        {template.departments.map((dept) => {
+                          const exists = (departments || []).some(
+                            d => d.name.toLowerCase() === dept.name.toLowerCase() && d.status === 'active'
+                          );
+
+                          return (
+                            <div
+                              key={dept.name}
+                              className={`flex items-start justify-between p-3 rounded-lg border ${
+                                exists ? 'bg-muted/50 opacity-60' : 'bg-background hover:bg-muted/30'
+                              } transition-colors`}
+                            >
+                              <div className="flex items-start gap-3 flex-1">
+                                <div
+                                  className="w-3 h-3 rounded-full mt-1 shrink-0"
+                                  style={{ backgroundColor: dept.suggestedColor }}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="font-medium">{dept.name}</h4>
+                                    {exists && (
+                                      <Badge variant="outline" className="text-xs">
+                                        <CheckCircle className="mr-1 h-3 w-3" weight="fill" />
+                                        Already exists
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-sm text-muted-foreground mt-1">
+                                    {dept.description}
+                                  </p>
+                                </div>
+                              </div>
+                              {!exists && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleApplyTemplate(dept)}
+                                  className="shrink-0 ml-2"
+                                >
+                                  Use Template
+                                </Button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </Card>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </ScrollArea>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setTemplatesDialogOpen(false);
+              setSelectedTemplate(null);
+            }}>
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
