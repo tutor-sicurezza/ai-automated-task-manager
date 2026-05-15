@@ -148,6 +148,11 @@ export function getDepartmentIcon(departmentName?: string) {
   return config.icon;
 }
 
+export function getDepartmentColor(departmentName?: string): string {
+  const config = getDepartmentConfig(departmentName);
+  return config.color;
+}
+
 export function getAllDepartments(): string[] {
   return Object.keys(DEPARTMENT_CONFIGS);
 }
