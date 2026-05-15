@@ -131,15 +131,108 @@ const DEFAULT_DEPARTMENT_CONFIG: DepartmentConfig = {
   description: 'Other department'
 };
 
-export function getDepartmentConfig(departmentName?: string): DepartmentConfig {
+export const COLOR_POOL = [
+  { hue: 260, name: 'Blue' },
+  { hue: 340, name: 'Pink' },
+  { hue: 120, name: 'Green' },
+  { hue: 280, name: 'Purple' },
+  { hue: 200, name: 'Cyan' },
+  { hue: 30, name: 'Orange' },
+  { hue: 180, name: 'Teal' },
+  { hue: 240, name: 'Indigo' },
+  { hue: 160, name: 'Emerald' },
+  { hue: 350, name: 'Rose' },
+  { hue: 45, name: 'Amber' },
+  { hue: 290, name: 'Violet' },
+  { hue: 140, name: 'Lime' },
+  { hue: 220, name: 'Sky' },
+  { hue: 15, name: 'Red' },
+  { hue: 60, name: 'Yellow' },
+  { hue: 300, name: 'Fuchsia' },
+  { hue: 190, name: 'Aqua' },
+];
+
+function stringToHash(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash);
+}
+
+export function generateColorFromName(name: string, existingColors: string[]): string {
+  const hash = stringToHash(name);
+  const colorIndex = hash % COLOR_POOL.length;
+  const baseHue = COLOR_POOL[colorIndex].hue;
+  
+  const lightness = 0.55 + ((hash % 15) / 100);
+  const chroma = 0.15 + ((hash % 8) / 100);
+  const hueVariation = (hash % 20) - 10;
+  const finalHue = baseHue + hueVariation;
+  
+  const generatedColor = `oklch(${lightness.toFixed(2)} ${chroma.toFixed(2)} ${finalHue})`;
+  
+  if (existingColors.includes(generatedColor)) {
+    const alternateIndex = (colorIndex + Math.floor(hash / COLOR_POOL.length)) % COLOR_POOL.length;
+    const alternateHue = COLOR_POOL[alternateIndex].hue;
+    return `oklch(${lightness.toFixed(2)} ${chroma.toFixed(2)} ${alternateHue})`;
+  }
+  
+  return generatedColor;
+}
+
+export function createColorVariants(baseColor: string) {
+  const match = baseColor.match(/oklch\(([\d.]+)\s+([\d.]+)\s+([\d.]+)\)/);
+  if (!match) {
+    return {
+      color: baseColor,
+      bgColor: baseColor,
+      textColor: baseColor,
+      borderColor: baseColor
+    };
+  }
+  
+  const [, l, c, h] = match;
+  const lightness = parseFloat(l);
+  const chroma = parseFloat(c);
+  const hue = parseFloat(h);
+  
+  return {
+    color: baseColor,
+    bgColor: `oklch(${lightness} ${chroma} ${hue} / 0.1)`,
+    textColor: `oklch(${Math.max(0.30, lightness - 0.20)} ${Math.max(0.10, chroma - 0.05)} ${hue})`,
+    borderColor: `oklch(${lightness} ${chroma} ${hue} / 0.3)`
+  };
+}
+
+export function getDepartmentConfig(departmentName?: string, customDepartments?: Array<{ name: string; color: string }>): DepartmentConfig {
   if (!departmentName) return DEFAULT_DEPARTMENT_CONFIG;
 
   const config = DEPARTMENT_CONFIGS[departmentName];
   if (config) return config;
   
+  const customDept = customDepartments?.find(d => d.name.toLowerCase() === departmentName.toLowerCase());
+  if (customDept) {
+    const variants = createColorVariants(customDept.color);
+    return {
+      name: departmentName,
+      ...variants,
+      icon: Buildings,
+      description: `${departmentName} department`
+    };
+  }
+  
+  const existingColors = customDepartments?.map(d => d.color) || [];
+  const generatedColor = generateColorFromName(departmentName, existingColors);
+  const variants = createColorVariants(generatedColor);
+  
   return {
-    ...DEFAULT_DEPARTMENT_CONFIG,
-    name: departmentName
+    name: departmentName,
+    ...variants,
+    icon: Buildings,
+    description: `${departmentName} department`
   };
 }
 
@@ -148,8 +241,8 @@ export function getDepartmentIcon(departmentName?: string) {
   return config.icon;
 }
 
-export function getDepartmentColor(departmentName?: string): string {
-  const config = getDepartmentConfig(departmentName);
+export function getDepartmentColor(departmentName?: string, customDepartments?: Array<{ name: string; color: string }>): string {
+  const config = getDepartmentConfig(departmentName, customDepartments);
   return config.color;
 }
 

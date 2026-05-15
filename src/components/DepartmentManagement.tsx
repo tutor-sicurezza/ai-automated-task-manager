@@ -13,7 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Buildings, Plus, PencilSimple, Trash, Users, ListChecks, TrendUp, ChartBar, X as XIcon, UserCircle, MapPin, CheckCircle, Warning, Star } from '@phosphor-icons/react';
 import { DepartmentBadge } from '@/components/DepartmentBadge';
-import { getAllDepartments } from '@/lib/departments';
+import { getAllDepartments, generateColorFromName } from '@/lib/departments';
 import { Employee } from '@/lib/types';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -103,7 +103,7 @@ export function DepartmentManagement({ employees, onEmployeeUpdate }: Department
     setFormData({
       name: '',
       description: '',
-      color: DEPARTMENT_COLORS[0].value,
+      color: 'auto',
       leadId: '',
       location: '',
       budget: '',
@@ -125,11 +125,16 @@ export function DepartmentManagement({ employees, onEmployeeUpdate }: Department
       return;
     }
 
+    const existingColors = (departments || []).map(d => d.color);
+    const autoColor = formData.color === 'auto' 
+      ? generateColorFromName(formData.name.trim(), existingColors)
+      : formData.color;
+
     const newDepartment: Department = {
       id: Date.now().toString(),
       name: formData.name.trim(),
       description: formData.description.trim(),
-      color: formData.color,
+      color: autoColor,
       leadId: formData.leadId || undefined,
       location: formData.location.trim() || undefined,
       budget: formData.budget ? parseFloat(formData.budget) : undefined,
@@ -550,11 +555,27 @@ export function DepartmentManagement({ employees, onEmployeeUpdate }: Department
               <Select value={formData.color} onValueChange={(value) => setFormData({ ...formData, color: value })}>
                 <SelectTrigger id="dept-color">
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded-full" style={{ backgroundColor: formData.color }} />
-                    <SelectValue />
+                    {formData.color === 'auto' ? (
+                      <>
+                        <div className="w-4 h-4 rounded-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500" />
+                        <span>Auto-assign color</span>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-4 h-4 rounded-full" style={{ backgroundColor: formData.color }} />
+                        <SelectValue />
+                      </>
+                    )}
                   </div>
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="auto">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500" />
+                      Auto-assign color
+                    </div>
+                  </SelectItem>
+                  <Separator className="my-1" />
                   {DEPARTMENT_COLORS.map((color) => (
                     <SelectItem key={color.value} value={color.value}>
                       <div className="flex items-center gap-2">
@@ -565,6 +586,15 @@ export function DepartmentManagement({ employees, onEmployeeUpdate }: Department
                   ))}
                 </SelectContent>
               </Select>
+              {formData.color === 'auto' && formData.name.trim() && (
+                <div className="mt-2 p-2 bg-muted rounded-md flex items-center gap-2 text-sm">
+                  <div 
+                    className="w-4 h-4 rounded-full flex-shrink-0" 
+                    style={{ backgroundColor: generateColorFromName(formData.name.trim(), (departments || []).map(d => d.color)) }}
+                  />
+                  <span className="text-muted-foreground">Preview: This color will be auto-assigned based on the department name</span>
+                </div>
+              )}
             </div>
             <div>
               <Label htmlFor="dept-lead">Department Lead</Label>

@@ -8,6 +8,7 @@ interface DepartmentBadgeProps {
   size?: 'sm' | 'md' | 'lg';
   variant?: 'default' | 'outline' | 'solid';
   className?: string;
+  customDepartments?: Array<{ name: string; color: string }>;
 }
 
 export function DepartmentBadge({
@@ -16,9 +17,10 @@ export function DepartmentBadge({
   showLabel = true,
   size = 'md',
   variant = 'default',
-  className
+  className,
+  customDepartments
 }: DepartmentBadgeProps) {
-  const config = getDepartmentConfig(departmentName);
+  const config = getDepartmentConfig(departmentName, customDepartments);
   const Icon = config.icon;
 
   const sizeClasses = {
