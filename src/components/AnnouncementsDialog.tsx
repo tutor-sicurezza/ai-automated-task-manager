@@ -10,7 +10,7 @@ import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Megaphone, Plus, Trash, PushPin, Check, Info, Warning, SealWarning, X, Calendar } from '@phosphor-icons/react';
+import { Megaphone, Plus, Trash, PushPin, Check, Info, Warning, SealWarning, X, Calendar, PencilSimple } from '@phosphor-icons/react';
 import { Announcement, AnnouncementPriority, Employee } from '@/lib/types';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
 import { toast } from 'sonner';
@@ -22,6 +22,7 @@ interface AnnouncementsDialogProps {
   employees: Employee[];
   currentUser: { id: string; name: string; avatar: string } | null;
   onCreateAnnouncement: (announcement: Omit<Announcement, 'id' | 'createdAt' | 'readBy'>) => void;
+  onEditAnnouncement?: (id: string, updates: Omit<Announcement, 'id' | 'createdAt' | 'readBy' | 'createdBy' | 'createdByName' | 'createdByAvatar'>) => void;
   onDeleteAnnouncement: (id: string) => void;
   onPinAnnouncement: (id: string) => void;
   onMarkAsRead: (id: string) => void;
@@ -32,12 +33,14 @@ export function AnnouncementsDialog({
   employees,
   currentUser,
   onCreateAnnouncement,
+  onEditAnnouncement,
   onDeleteAnnouncement,
   onPinAnnouncement,
   onMarkAsRead,
 }: AnnouncementsDialogProps) {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'view' | 'create'>('view');
+  const [editingAnnouncementId, setEditingAnnouncementId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [priority, setPriority] = useState<AnnouncementPriority>('info');
@@ -124,26 +127,59 @@ export function AnnouncementsDialog({
       return;
     }
 
-    onCreateAnnouncement({
-      title: sanitizedTitle,
-      message: sanitizedMessage,
-      departments: selectedDepartments,
-      priority,
-      createdBy: currentUser.id,
-      createdByName: currentUser.name,
-      createdByAvatar: currentUser.avatar,
-      expiresAt: hasExpiry ? expiryDate : undefined,
-      isPinned: false,
-    });
+    if (editingAnnouncementId && onEditAnnouncement) {
+      onEditAnnouncement(editingAnnouncementId, {
+        title: sanitizedTitle,
+        message: sanitizedMessage,
+        departments: selectedDepartments,
+        priority,
+        expiresAt: hasExpiry ? expiryDate : undefined,
+        isPinned: false,
+      });
+      toast.success('Announcement updated!');
+    } else {
+      onCreateAnnouncement({
+        title: sanitizedTitle,
+        message: sanitizedMessage,
+        departments: selectedDepartments,
+        priority,
+        createdBy: currentUser.id,
+        createdByName: currentUser.name,
+        createdByAvatar: currentUser.avatar,
+        expiresAt: hasExpiry ? expiryDate : undefined,
+        isPinned: false,
+      });
+      toast.success('Announcement posted!');
+    }
 
+    resetForm();
+    setActiveTab('view');
+  };
+
+  const resetForm = () => {
     setTitle('');
     setMessage('');
     setPriority('info');
     setSelectedDepartments([]);
     setHasExpiry(false);
     setExpiryDate('');
+    setEditingAnnouncementId(null);
+  };
+
+  const handleEditAnnouncement = (announcement: Announcement) => {
+    setTitle(announcement.title);
+    setMessage(announcement.message);
+    setPriority(announcement.priority);
+    setSelectedDepartments(announcement.departments);
+    setHasExpiry(!!announcement.expiresAt);
+    setExpiryDate(announcement.expiresAt || '');
+    setEditingAnnouncementId(announcement.id);
+    setActiveTab('create');
+  };
+
+  const handleCancelEdit = () => {
+    resetForm();
     setActiveTab('view');
-    toast.success('Announcement posted!');
   };
 
   const handleMarkAsRead = (id: string) => {
@@ -265,6 +301,16 @@ export function AnnouncementsDialog({
                                     )}
                                     {isCreator && (
                                       <>
+                                        {onEditAnnouncement && (
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => handleEditAnnouncement(announcement)}
+                                            title="Edit announcement"
+                                          >
+                                            <PencilSimple className="h-4 w-4" weight="bold" />
+                                          </Button>
+                                        )}
                                         <Button
                                           size="sm"
                                           variant="ghost"
@@ -333,6 +379,22 @@ export function AnnouncementsDialog({
           <TabsContent value="create" className="mt-4">
             <ScrollArea className="h-[500px] pr-4">
               <div className="space-y-4">
+                {editingAnnouncementId && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <PencilSimple className="h-4 w-4 text-blue-600" weight="bold" />
+                      <span className="text-sm font-medium text-blue-900">Editing announcement</span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCancelEdit}
+                    >
+                      <X className="h-4 w-4" weight="bold" />
+                      Cancel
+                    </Button>
+                  </div>
+                )}
                 <div>
                   <Label htmlFor="announcement-title">Title</Label>
                   <Input
@@ -448,8 +510,17 @@ export function AnnouncementsDialog({
 
                 <div className="flex gap-2 pt-4">
                   <Button onClick={handleCreate} className="flex-1">
-                    <Megaphone className="mr-2 h-4 w-4" weight="bold" />
-                    Post Announcement
+                    {editingAnnouncementId ? (
+                      <>
+                        <PencilSimple className="mr-2 h-4 w-4" weight="bold" />
+                        Update Announcement
+                      </>
+                    ) : (
+                      <>
+                        <Megaphone className="mr-2 h-4 w-4" weight="bold" />
+                        Post Announcement
+                      </>
+                    )}
                   </Button>
                   <Button
                     variant="outline"

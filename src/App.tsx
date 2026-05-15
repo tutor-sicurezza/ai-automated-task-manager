@@ -630,6 +630,42 @@ function App() {
     toast.success('Comment added!');
   };
 
+  const handleEditComment = (taskId: string, commentId: string, newContent: string) => {
+    if (!currentUser) return;
+
+    setTasks((currentTasks) =>
+      (currentTasks || []).map(task => {
+        if (task.id === taskId) {
+          const comments = (task.comments || []).map(comment =>
+            comment.id === commentId
+              ? { ...comment, content: newContent }
+              : comment
+          );
+          return { ...task, comments };
+        }
+        return task;
+      })
+    );
+
+    toast.success('Comment updated!');
+  };
+
+  const handleDeleteComment = (taskId: string, commentId: string) => {
+    if (!currentUser) return;
+
+    setTasks((currentTasks) =>
+      (currentTasks || []).map(task => {
+        if (task.id === taskId) {
+          const comments = (task.comments || []).filter(comment => comment.id !== commentId);
+          return { ...task, comments };
+        }
+        return task;
+      })
+    );
+
+    toast.success('Comment deleted');
+  };
+
   const handleAddAttachment = async (taskId: string, file: File) => {
     if (!currentUser) return;
 
@@ -906,6 +942,15 @@ function App() {
     setAnnouncements((currentAnnouncements) => [...(currentAnnouncements || []), newAnnouncement]);
   };
 
+  const handleEditAnnouncement = (id: string, updates: Omit<Announcement, 'id' | 'createdAt' | 'readBy' | 'createdBy' | 'createdByName' | 'createdByAvatar'>) => {
+    setAnnouncements((currentAnnouncements) =>
+      (currentAnnouncements || []).map(announcement =>
+        announcement.id === id ? { ...announcement, ...updates } : announcement
+      )
+    );
+    toast.success('Announcement updated successfully!');
+  };
+
   const handleDeleteAnnouncement = (id: string) => {
     setAnnouncements((currentAnnouncements) =>
       (currentAnnouncements || []).filter(announcement => announcement.id !== id)
@@ -1121,6 +1166,7 @@ function App() {
                 employees={employees || []}
                 currentUser={currentUser}
                 onCreateAnnouncement={handleCreateAnnouncement}
+                onEditAnnouncement={handleEditAnnouncement}
                 onDeleteAnnouncement={handleDeleteAnnouncement}
                 onPinAnnouncement={handlePinAnnouncement}
                 onMarkAsRead={handleMarkAnnouncementAsRead}
@@ -1538,6 +1584,8 @@ function App() {
         employees={employees || []}
         currentUser={currentUser}
         onAddComment={handleAddComment}
+        onEditComment={handleEditComment}
+        onDeleteComment={handleDeleteComment}
         onAddAttachment={handleAddAttachment}
         onDeleteAttachment={handleDeleteAttachment}
       />

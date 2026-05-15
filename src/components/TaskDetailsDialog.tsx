@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useState, useEffect, useRef } from 'react';
-import { Clock, Circle, CircleHalf, CheckCircle, ChatCircle, ClockCounterClockwise, User, Calendar, Flag, FileText, ArrowsLeftRight, PaperPlaneTilt, File, FilePdf, FileImage, FileDoc, UploadSimple, DownloadSimple, Trash, Paperclip } from '@phosphor-icons/react';
+import { Clock, Circle, CircleHalf, CheckCircle, ChatCircle, ClockCounterClockwise, User, Calendar, Flag, FileText, ArrowsLeftRight, PaperPlaneTilt, File, FilePdf, FileImage, FileDoc, UploadSimple, DownloadSimple, Trash, Paperclip, PencilSimple, X } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -19,6 +19,8 @@ interface TaskDetailsDialogProps {
   employees: Employee[];
   currentUser: { id: string; name: string; avatar: string } | null;
   onAddComment: (taskId: string, content: string) => void;
+  onEditComment?: (taskId: string, commentId: string, content: string) => void;
+  onDeleteComment?: (taskId: string, commentId: string) => void;
   onAddAttachment: (taskId: string, file: File) => void;
   onDeleteAttachment: (taskId: string, attachmentId: string) => void;
 }
@@ -30,17 +32,23 @@ export function TaskDetailsDialog({
   employees, 
   currentUser, 
   onAddComment,
+  onEditComment,
+  onDeleteComment,
   onAddAttachment,
   onDeleteAttachment 
 }: TaskDetailsDialogProps) {
   const [commentText, setCommentText] = useState('');
   const [activeTab, setActiveTab] = useState('comments');
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentText, setEditingCommentText] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) {
       setCommentText('');
       setActiveTab('comments');
+      setEditingCommentId(null);
+      setEditingCommentText('');
     }
   }, [open]);
 
@@ -52,6 +60,32 @@ export function TaskDetailsDialog({
     if (!sanitizedComment) return;
     onAddComment(task.id, sanitizedComment);
     setCommentText('');
+  };
+
+  const handleEditComment = (commentId: string, currentContent: string) => {
+    setEditingCommentId(commentId);
+    setEditingCommentText(currentContent);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingCommentId || !editingCommentText.trim() || !onEditComment) return;
+    const sanitizedComment = Sanitizer.comment(editingCommentText);
+    if (!sanitizedComment) return;
+    onEditComment(task.id, editingCommentId, sanitizedComment);
+    setEditingCommentId(null);
+    setEditingCommentText('');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCommentId(null);
+    setEditingCommentText('');
+  };
+
+  const handleDeleteComment = (commentId: string) => {
+    if (!onDeleteComment) return;
+    if (confirm('Are you sure you want to delete this comment?')) {
+      onDeleteComment(task.id, commentId);
+    }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -208,25 +242,80 @@ export function TaskDetailsDialog({
                     <p className="text-sm">No comments yet</p>
                   </div>
                 ) : (
-                  comments.map((comment) => (
-                    <div key={comment.id} className="flex gap-3">
-                      <Avatar className="w-8 h-8 flex-shrink-0">
-                        <AvatarImage src={comment.userAvatar} alt={comment.userName} />
-                        <AvatarFallback className="text-xs">{comment.userName.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="bg-muted rounded-lg p-3">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium text-sm">{comment.userName}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
-                            </span>
-                          </div>
-                          <p className="text-sm whitespace-pre-wrap">{comment.content}</p>
+                  comments.map((comment) => {
+                    const isEditing = editingCommentId === comment.id;
+                    const isOwnComment = currentUser && comment.userId === currentUser.id;
+                    
+                    return (
+                      <div key={comment.id} className="flex gap-3">
+                        <Avatar className="w-8 h-8 flex-shrink-0">
+                          <AvatarImage src={comment.userAvatar} alt={comment.userName} />
+                          <AvatarFallback className="text-xs">{comment.userName.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          {isEditing ? (
+                            <div className="bg-muted rounded-lg p-3">
+                              <Textarea
+                                value={editingCommentText}
+                                onChange={(e) => setEditingCommentText(e.target.value)}
+                                className="min-h-[80px] resize-none mb-2"
+                                autoFocus
+                              />
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={handleSaveEdit}
+                                  disabled={!editingCommentText.trim()}
+                                >
+                                  Save
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={handleCancelEdit}
+                                >
+                                  <X className="w-4 h-4 mr-1" weight="bold" />
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="bg-muted rounded-lg p-3 group">
+                              <div className="flex items-center justify-between mb-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium text-sm">{comment.userName}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
+                                  </span>
+                                </div>
+                                {isOwnComment && onEditComment && onDeleteComment && (
+                                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-6 w-6"
+                                      onClick={() => handleEditComment(comment.id, comment.content)}
+                                    >
+                                      <PencilSimple className="w-3.5 h-3.5" weight="bold" />
+                                    </Button>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-6 w-6"
+                                      onClick={() => handleDeleteComment(comment.id)}
+                                    >
+                                      <Trash className="w-3.5 h-3.5" weight="bold" />
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                              <p className="text-sm whitespace-pre-wrap">{comment.content}</p>
+                            </div>
+                          )}
                         </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </ScrollArea>
