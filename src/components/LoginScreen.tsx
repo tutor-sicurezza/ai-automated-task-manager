@@ -236,18 +236,20 @@ export function LoginScreen() {
               </form>
             </CardContent>
 
+            {/*
+              L'auto-registrazione e' disattivata: gli account li crea
+              l'amministratore da "Manage Users". Il link "Registrati" e' stato
+              rimosso di proposito.
+              NOTA: questo nasconde solo il percorso nell'interfaccia. Il blocco
+              effettivo va fatto in Supabase (Authentication -> Sign In /
+              Providers -> "Allow new users to sign up"), altrimenti resta
+              possibile chiamare /auth/v1/signup direttamente.
+            */}
             <CardFooter className="justify-center">
-              <p className="text-muted-foreground text-sm">
-                {isSignUp ? 'Hai già un account?' : 'Non hai ancora un account?'}{' '}
-                <Button
-                  type="button"
-                  variant="link"
-                  className="h-auto p-0 align-baseline"
-                  onClick={switchMode}
-                  disabled={submitting}
-                >
-                  {isSignUp ? 'Accedi' : 'Registrati'}
-                </Button>
+              <p className="text-muted-foreground text-center text-sm">
+                Gli account sono creati dall'amministratore.
+                <br />
+                Se non riesci ad accedere, contattalo.
               </p>
             </CardFooter>
           </Card>

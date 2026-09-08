@@ -61,10 +61,54 @@ export const fetch = withErrors(async (request: Request) => {
       return jsonResponse({ error: profileError.message }, { status: 500 });
     }
 
+    let memberId = profile?.id;
+    let createdPassword: string | null = null;
+
     if (!profile) {
-      return jsonResponse({
-        error: 'User profile not found yet. Invite flow should be wired to auth before adding members.',
-      }, { status: 404 });
+      // L'utente non esiste ancora: lo crea l'amministratore.
+      // Questo e' l'UNICO percorso di creazione account previsto — la
+      // registrazione autonoma va disattivata in Supabase (Authentication ->
+      // Sign In / Providers -> "Allow new users to sign up").
+      const fullName =
+        typeof body.fullName === 'string' && body.fullName.trim()
+          ? body.fullName.trim()
+          : email.split('@')[0];
+
+      // Password temporanea: finche' non e' configurato un provider email,
+      // non esiste modo di recapitarla, quindi viene restituita all'admin
+      // nella risposta perche' la consegni lui.
+      createdPassword =
+        typeof body.password === 'string' && body.password.length >= 8
+          ? body.password
+          : `Tf-${crypto.randomUUID().slice(0, 12)}!`;
+
+      const { data: created, error: createError } =
+        await admin.auth.admin.createUser({
+          email,
+          password: createdPassword,
+          email_confirm: true,
+          user_metadata: { full_name: fullName },
+        });
+
+      if (createError || !created?.user) {
+        return jsonResponse(
+          { error: createError?.message ?? 'Creazione utente fallita' },
+          { status: 500 }
+        );
+      }
+
+      memberId = created.user.id;
+
+      const { error: insertProfileError } = await admin.from('profiles').insert({
+        id: memberId,
+        email,
+        full_name: fullName,
+        avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(memberId)}`,
+      });
+
+      if (insertProfileError) {
+        return jsonResponse({ error: insertProfileError.message }, { status: 500 });
+      }
     }
 
     const { data, error } = await admin
@@ -72,7 +116,7 @@ export const fetch = withErrors(async (request: Request) => {
       .upsert(
         {
           organization_id: tenantId,
-          user_id: profile.id,
+          user_id: memberId,
           role,
         },
         {
@@ -86,7 +130,13 @@ export const fetch = withErrors(async (request: Request) => {
       return jsonResponse({ error: error.message }, { status: 500 });
     }
 
-    return jsonResponse({ member: data }, { status: 201 });
+    // temporaryPassword compare solo quando l'account e' stato appena creato.
+    return jsonResponse(
+      createdPassword
+        ? { member: data, temporaryPassword: createdPassword }
+        : { member: data },
+      { status: 201 }
+    );
   }
 
   return jsonResponse({ error: 'Method not allowed' }, { status: 405 });
