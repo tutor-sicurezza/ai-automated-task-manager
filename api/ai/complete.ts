@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 
 import {
+  createSupabaseAdminClient,
   ensureTenantMembership,
   getAuthenticatedUser,
   jsonResponse,
@@ -22,6 +23,46 @@ import {
  */
 
 const DEFAULT_MODEL = 'claude-opus-5';
+
+/**
+ * Il modello arrivava dal body senza controlli: chiunque passasse per questa
+ * rotta poteva chiedere il modello piu' costoso del listino (o un id inventato,
+ * che si traduce in un 404 di Anthropic restituito come 500 al client). Il
+ * costo per token varia di un ordine di grandezza fra i modelli, quindi la
+ * scelta non puo' stare al chiamante. Lista esplicita e non regex: una regex
+ * su 'claude-*' continuerebbe ad accettare qualunque modello futuro, incluso
+ * il prossimo che costa dieci volte tanto.
+ */
+const ALLOWED_MODELS = new Set([
+  'claude-opus-5',
+  'claude-sonnet-5',
+  'claude-haiku-4-5',
+]);
+
+/**
+ * Tetti sulla singola richiesta. max_tokens era gia' fisso a 4096, ma il prompt
+ * no: un prompt da qualche megabyte costa in input quanto centinaia di
+ * richieste normali, e nessuna funzione dell'app ne ha bisogno.
+ */
+const MAX_OUTPUT_TOKENS = 4096;
+const MAX_PROMPT_CHARS = 24000;
+
+/**
+ * Soglie orarie. Sono la difesa vera contro la spesa non limitata: i tetti per
+ * richiesta limitano il costo di UNA chiamata, queste limitano quante ne puoi
+ * fare. Leggibili da env per poterle alzare in produzione senza un deploy di
+ * codice; i default sono tarati sull'uso umano dell'app (l'assistente AI, la
+ * stima dei task), non sull'uso da script.
+ */
+const USER_HOURLY_LIMIT = readLimit('AI_RATE_LIMIT_USER_HOUR', 30);
+const ORG_HOURLY_LIMIT = readLimit('AI_RATE_LIMIT_ORG_HOUR', 200);
+
+function readLimit(name: string, fallback: number) {
+  const parsed = Number.parseInt(process.env[name] ?? '', 10);
+  // Un env var scritto male non deve tradursi in "nessun limite": in caso di
+  // valore non numerico o non positivo si torna al default.
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
 
 export const fetch = withErrors(async (request: Request) => {
   const user = await getAuthenticatedUser(request);
@@ -54,14 +95,81 @@ export const fetch = withErrors(async (request: Request) => {
   if (!prompt) {
     return jsonResponse({ error: 'prompt is required' }, { status: 400 });
   }
+  if (!ALLOWED_MODELS.has(model)) {
+    return jsonResponse(
+      {
+        error: 'Model not allowed',
+        message: `Il modello '${model}' non e' consentito. Modelli disponibili: ${[
+          ...ALLOWED_MODELS,
+        ].join(', ')}.`,
+      },
+      { status: 400 }
+    );
+  }
+  if (prompt.length > MAX_PROMPT_CHARS) {
+    return jsonResponse(
+      {
+        error: 'Prompt too large',
+        message: `Il prompt supera il limite di ${MAX_PROMPT_CHARS} caratteri (ricevuti ${prompt.length}).`,
+      },
+      { status: 413 }
+    );
+  }
 
   await ensureTenantMembership(user.id, tenantId);
+
+  // Il conteggio va fatto PRIMA di chiamare Anthropic: contare dopo
+  // significherebbe pagare comunque la richiesta che supera la soglia.
+  const admin = createSupabaseAdminClient();
+  const windowStart = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+  const [userUsage, orgUsage] = await Promise.all([
+    admin
+      .from('ai_usage')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .gte('created_at', windowStart),
+    admin
+      .from('ai_usage')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', tenantId)
+      .gte('created_at', windowStart),
+  ]);
+
+  // Se il conteggio fallisce si chiude, non si apre: un errore del database non
+  // deve diventare una finestra di spesa illimitata.
+  if (userUsage.error || orgUsage.error) {
+    return jsonResponse(
+      {
+        error: 'Rate limit check failed',
+        message: userUsage.error?.message ?? orgUsage.error?.message ?? 'Errore interno',
+      },
+      { status: 500 }
+    );
+  }
+
+  const overUser = (userUsage.count ?? 0) >= USER_HOURLY_LIMIT;
+  const overOrg = (orgUsage.count ?? 0) >= ORG_HOURLY_LIMIT;
+
+  if (overUser || overOrg) {
+    const scope = overUser ? 'il tuo utente' : 'la tua organizzazione';
+    const limit = overUser ? USER_HOURLY_LIMIT : ORG_HOURLY_LIMIT;
+    return jsonResponse(
+      {
+        error: 'Rate limit exceeded',
+        message: `Limite di ${limit} richieste AI all'ora raggiunto per ${scope}. Riprova fra un'ora.`,
+      },
+      { status: 429, headers: { 'retry-after': '3600' } }
+    );
+  }
 
   const client = new Anthropic({ apiKey });
 
   const response = await client.messages.create({
     model,
-    max_tokens: 4096,
+    // Tetto lato server: qualunque valore chieda il client, l'output — cioe' la
+    // parte piu' cara della richiesta — non puo' superare questa soglia.
+    max_tokens: MAX_OUTPUT_TOKENS,
     messages: [{ role: 'user', content: prompt }],
     // Quando il chiamante fornisce uno schema il formato e' garantito dall'API,
     // non semplicemente richiesto nel prompt: JSON.parse lato client non puo'
@@ -70,6 +178,23 @@ export const fetch = withErrors(async (request: Request) => {
       ? { output_config: { format: { type: 'json_schema' as const, schema } } }
       : {}),
   });
+
+  // Si registra qui, appena la chiamata torna, non dopo la validazione del
+  // JSON piu' sotto: i token sono gia' stati consumati e fatturati anche quando
+  // la risposta si rivela inutilizzabile per il client. Contarli solo sui
+  // successi lascerebbe fuori dal limite proprio le richieste che sprecano
+  // soldi. L'insert non blocca la risposta: se il logging fallisce si perde una
+  // riga di contatore, non l'output gia' pagato.
+  const { error: usageError } = await admin.from('ai_usage').insert({
+    organization_id: tenantId,
+    user_id: user.id,
+    model: response.model,
+    input_tokens: response.usage?.input_tokens ?? 0,
+    output_tokens: response.usage?.output_tokens ?? 0,
+  });
+  if (usageError) {
+    console.error('[ai/complete] impossibile registrare ai_usage:', usageError.message);
+  }
 
   // stop_reason 'refusal' arriva con HTTP 200 e content vuoto: leggere
   // content[0] senza controllare esploderebbe.

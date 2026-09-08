@@ -41,6 +41,7 @@ import { playNotificationSound } from '@/lib/notificationSounds';
 import { desktopNotificationManager } from '@/lib/desktopNotifications';
 import { DesktopNotificationSettings } from '@/components/DesktopNotificationSettings';
 import { canPerformAction } from '@/lib/permissions';
+import { sendTaskAssignmentEmail } from '@/lib/taskEmail';
 import { Toaster, toast } from 'sonner';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -68,7 +69,7 @@ function mapOrgRoleToUserRole(orgRole: string | null | undefined): UserRole {
 }
 
 function App() {
-  const { user, profile, orgRole, signOut } = useAuth();
+  const { user, profile, orgRole, organization, signOut } = useAuth();
   const [tasks, setTasks] = useKV<Task[]>('tasks', []);
   const [employees, setEmployees] = useKV<Employee[]>('employees', []);
 
@@ -285,22 +286,27 @@ function App() {
       const now = new Date();
       const oneDayFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
+      // Gli id NON contengono piu' Date.now(). Prima ogni scadenza generava un
+      // id nuovo a ogni giro, e il controllo anti-duplicato leggeva
+      // `notifications` catturato dalla closure: l'effetto dipende solo da
+      // [tasks, currentUser], quindi l'intervallo trattiene per sempre la lista
+      // del render in cui e' partito. Con lista vecchia e id sempre diverso il
+      // dedup non agganciava nulla e ogni 60 secondi nasceva una copia.
+      //
+      // Con un id deterministico il dedup per id dentro addNotification e'
+      // sufficiente e legge lo stato aggiornato: qui non serve piu' guardare
+      // `notifications`, ed e' proprio quella lettura a essere stale.
       (tasks || []).forEach(task => {
         if (task.status === 'completed' || !task.assigneeId) return;
 
         const dueDate = new Date(task.dueDate);
-        const notificationId = `${task.id}-${task.assigneeId}-`;
+        if (Number.isNaN(dueDate.getTime())) return;
 
-        const existingDueSoonNotif = (notifications || []).find(
-          n => n.id.startsWith(notificationId + 'due-soon')
-        );
-        const existingOverdueNotif = (notifications || []).find(
-          n => n.id.startsWith(notificationId + 'overdue')
-        );
+        const base = `${task.id}-${task.assigneeId}-`;
 
-        if (dueDate < now && !existingOverdueNotif) {
+        if (dueDate < now) {
           addNotification({
-            id: `${notificationId}overdue-${Date.now()}`,
+            id: `${base}overdue`,
             userId: task.assigneeId,
             taskId: task.id,
             taskTitle: task.title,
@@ -309,9 +315,9 @@ function App() {
             createdAt: new Date().toISOString(),
             read: false,
           });
-        } else if (dueDate >= now && dueDate <= oneDayFromNow && !existingDueSoonNotif) {
+        } else if (dueDate <= oneDayFromNow) {
           addNotification({
-            id: `${notificationId}due-soon-${Date.now()}`,
+            id: `${base}due-soon`,
             userId: task.assigneeId,
             taskId: task.id,
             taskTitle: task.title,
@@ -333,12 +339,20 @@ function App() {
   const addNotification = async (notification: TaskNotification) => {
     const shouldSend = await shouldSendNotification(notification.userId, notification.type);
     if (!shouldSend) return;
-    
+
+    // Il dedup deve poter FERMARE anche suono e notifica desktop, non solo
+    // l'inserimento in lista: prima l'updater scartava silenziosamente il
+    // duplicato ma il codice sotto continuava comunque, quindi una notifica
+    // gia' esistente rifaceva suonare l'avviso a ogni giro.
+    let isNew = false;
     setNotifications((currentNotifications) => {
       const existing = (currentNotifications || []).find(n => n.id === notification.id);
       if (existing) return currentNotifications || [];
+      isNew = true;
       return [...(currentNotifications || []), notification];
     });
+
+    if (!isNew) return;
 
     // window.spark non esiste fuori dal runtime GitHub Spark: qui la lettura
     // lanciava un TypeError NON intercettato, quindi il suono e la notifica
@@ -433,6 +447,25 @@ function App() {
         createdAt: new Date().toISOString(),
         read: false,
       });
+
+      // L'email di assegnazione esisteva solo dentro <TaskEmailNotification />,
+      // componente mai montato: il percorso era irraggiungibile. L'invio e'
+      // best effort e non deve far fallire la creazione del task, che a questo
+      // punto e' gia' salvato.
+      const assegnatario = (employees || []).find(e => e.id === newTask.assigneeId);
+      if (organization?.id && assegnatario?.email) {
+        void sendTaskAssignmentEmail({
+          tenantId: organization.id,
+          recipientEmail: assegnatario.email,
+          recipientName: assegnatario.name,
+          taskTitle: newTask.title,
+          taskDescription: newTask.description,
+          dueDate: newTask.dueDate,
+          priority: newTask.priority,
+          assignedByName: currentUser.name,
+          kind: 'assigned',
+        });
+      }
     }
 
     toast.success('Task created successfully!');

@@ -101,6 +101,83 @@ export async function ensureTenantAdmin(userId: string, tenantId: string) {
   return membership;
 }
 
+/**
+ * Gerarchia dei ruoli di organizzazione.
+ *
+ * Fino a ora 'manager' e 'viewer' esistevano solo nel vincolo CHECK della
+ * tabella e nell'interfaccia: nessun controllo lato server li distingueva da
+ * 'member', quindi un 'viewer' — nominalmente in sola lettura — poteva creare
+ * e assegnare task come chiunque altro. I gate nel frontend non contano: le
+ * rotte in api/ sono chiamabili direttamente con un token valido.
+ */
+export const ROLE_RANK = {
+  viewer: 0,
+  member: 1,
+  manager: 2,
+  admin: 3,
+  owner: 4,
+} as const;
+
+export type OrgRole = keyof typeof ROLE_RANK;
+
+export function roleRank(role: string | null | undefined): number {
+  return role && role in ROLE_RANK ? ROLE_RANK[role as OrgRole] : -1;
+}
+
+function forbidden(message: string): never {
+  throw new Response(JSON.stringify({ error: message }), {
+    status: 403,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+/** Membership che soddisfa almeno `minRole` nella gerarchia sopra. */
+export async function ensureTenantRole(
+  userId: string,
+  tenantId: string,
+  minRole: OrgRole
+) {
+  const membership = await ensureTenantMembership(userId, tenantId);
+
+  if (roleRank(membership.role) < ROLE_RANK[minRole]) {
+    forbidden(`Richiede il ruolo '${minRole}' o superiore in questa organizzazione`);
+  }
+
+  return membership;
+}
+
+/**
+ * Verifica che `memberId` appartenga davvero a `tenantId`.
+ *
+ * Serve perche' gli handler usano il client service role: assegnare un task a
+ * un UUID qualunque riusciva anche quando quell'utente stava in un'ALTRA
+ * organizzazione, creando una riga che perde il confine multi-tenant e che il
+ * destinatario vede comparire fra i propri task.
+ */
+export async function ensureIsOrgMember(memberId: string, tenantId: string) {
+  const admin = createSupabaseAdminClient();
+
+  const { data, error } = await admin
+    .from('organization_members')
+    .select('user_id, role')
+    .eq('organization_id', tenantId)
+    .eq('user_id', memberId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
+
+  if (!data) {
+    forbidden("L'utente indicato non appartiene a questa organizzazione");
+  }
+
+  return data;
+}
+
 export function jsonResponse(payload: unknown, init?: ResponseInit) {
   return Response.json(payload, init);
 }

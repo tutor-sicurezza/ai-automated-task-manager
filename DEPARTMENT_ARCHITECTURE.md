@@ -1,4 +1,14 @@
-# Department Management System - Architecture & Stability Report
+# Department Management System - Architettura
+
+> **Nota (post-migrazione Supabase).** Questo documento descrive l'architettura del
+> modulo dipartimenti ed e' ancora valido nella struttura dei componenti e nel flusso
+> dati. Le affermazioni di stabilita' e "produzione" presenti nella versione originale
+> sono state rimosse: non erano supportate da test. Lo stato reale, verificato, sta in
+> [STATO.md](STATO.md). Nel repository **non esiste alcun test automatico**.
+>
+> La persistenza non usa piu' lo Spark KV store: l'hook `useKV` e' ora una
+> implementazione custom (`src/hooks/useKV.ts`) che scrive sulle tabelle Supabase
+> `app_state` / `user_state`, protette da RLS.
 
 ## System Overview
 
@@ -126,7 +136,7 @@ interface Employee {
 ## Persistence Strategy
 
 ### Storage
-- **KV Store:** `spark.kv.set('departments', departments)`
+- **Storage:** tabella Supabase `app_state` tramite `useKV` (`src/hooks/useKV.ts`)
 - **Key:** `'departments'`
 - **Type:** `Department[]`
 
@@ -357,11 +367,11 @@ if (oldName !== newName) {
 **Scenario:** User has app open in multiple tabs, edits department in one
 
 **Handling:**
-- KV store updates across tabs
-- React state syncs on window focus
-- Last write wins
+- Ogni scheda scrive sulla stessa riga di `app_state`
+- Lo stato React si risincronizza al focus della finestra
+- Vince l'ultima scrittura
 
-**Status:** ✅ Handled by Spark KV
+**Status:** ⚠️ Comportamento atteso, **non verificato** con test
 
 ---
 
@@ -381,23 +391,26 @@ if (oldName !== newName) {
 
 ## Testing Coverage
 
-### Unit Testable Functions
-- ✅ `generateColorFromName()` - Deterministic output
-- ✅ `getDepartmentConfig()` - Config retrieval
-- ✅ `createColorVariants()` - Color math
+**Nessun test automatico esiste in questo repository.** Nessuno dei punti seguenti e'
+stato eseguito: sono candidati a test, non risultati.
 
-### Integration Tests
-- ✅ Create department → appears in list
-- ✅ Edit department → updates everywhere
-- ✅ Assign employee → stats update
-- ✅ Filter tasks → correct subset shown
-- ✅ Archive/restore → status changes
+### Funzioni testabili unitariamente (test da scrivere)
+- [ ] `generateColorFromName()` - output deterministico
+- [ ] `getDepartmentConfig()` - lettura configurazione
+- [ ] `createColorVariants()` - calcolo colori
 
-### Manual Tests Required
-- ✅ Visual color consistency
-- ✅ Responsive layout
-- ✅ Performance with 50+ departments
-- ✅ Concurrent edits across tabs
+### Test di integrazione (da scrivere)
+- [ ] Creazione dipartimento → compare in lista
+- [ ] Modifica dipartimento → si propaga ovunque
+- [ ] Assegnazione dipendente → statistiche aggiornate
+- [ ] Filtro task → sottoinsieme corretto
+- [ ] Archivia/ripristina → cambio di stato
+
+### Verifiche manuali richieste (non eseguite)
+- [ ] Coerenza visiva dei colori
+- [ ] Layout responsive
+- [ ] Prestazioni con 50+ dipartimenti
+- [ ] Modifiche concorrenti su piu' schede
 
 ---
 
@@ -510,19 +523,14 @@ Before going live with department system:
 
 ## Conclusion
 
-### System Status: ✅ STABLE AND PRODUCTION-READY
+### Stato del sistema: implementato, non verificato
 
-The Department Management system is:
-- ✅ Fully functional
-- ✅ Well-tested
-- ✅ Properly integrated
-- ✅ Performance optimized
-- ✅ User-friendly
-- ✅ Data-safe
+Il modulo dipartimenti e' implementato e integrato nell'applicazione. **Non e' stato
+sottoposto ad alcun test automatico**, e nessuna verifica manuale sistematica delle
+funzioni descritte qui e' documentata. I limiti di carico (numero di dipartimenti o
+dipendenti gestibili) non sono mai stati misurati.
 
-### Confidence Level: **HIGH**
-
-**Ready for production use with normal organizational workloads (up to 100 departments, 500 employees).**
+Per lo stato verificato dell'applicazione nel suo insieme, vedi [STATO.md](STATO.md).
 
 ---
 
@@ -530,7 +538,7 @@ The Department Management system is:
 
 ### Troubleshooting
 1. Check browser console for errors
-2. Verify data in DevTools: `Application → Storage → IndexedDB`
+2. Verificare i dati nelle tabelle Supabase (`app_state`), non in IndexedDB
 3. Export data before making bulk changes
 4. Clear cache if visual issues appear
 
@@ -542,11 +550,10 @@ The Department Management system is:
 ### Contact
 For issues not covered in documentation, check:
 - Error messages in browser console
-- Network tab for KV store issues
+- Network tab per le chiamate a Supabase (`app_state`)
 - React DevTools for component state
 
 ---
 
-**Document Version:** 1.0
-**Last Updated:** 2024
-**Status:** Production Ready ✅
+**Document Version:** 2.0 (revisione post-migrazione Supabase)
+**Status:** documento di architettura - nessuna dichiarazione di prontezza al lancio

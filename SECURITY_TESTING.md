@@ -1,8 +1,18 @@
-# Security Testing Guide - XSS Protection
+# Security Testing Guide - XSS Protection (procedura MANUALE)
+
+> **AVVERTENZA.** Questa e' una **procedura da eseguire a mano**, non un rapporto.
+> **Non e' mai stata eseguita integralmente**, e nel repository **non esiste alcun
+> test automatico di sicurezza**. Nessun audit di sicurezza indipendente e' mai stato
+> svolto su questo progetto: i vecchi documenti che lo affermavano sono stati
+> cancellati perche' falsi. Stato reale: [STATO.md](STATO.md).
+>
+> Il codice di sanitizzazione a cui si riferisce questa guida esiste
+> (`src/lib/sanitization.ts`, `src/hooks/use-sanitized-input.ts`), ma il fatto che
+> esista non dimostra che funzioni: va verificato eseguendo i casi qui sotto.
 
 ## Quick Security Audit Checklist
 
-Use this guide to verify that XSS protection is working correctly across all input fields.
+Usa questa guida per verificare manualmente la protezione XSS sui campi di input.
 
 ---
 

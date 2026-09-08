@@ -1,7 +1,14 @@
-# Department Management - Comprehensive Test Plan
+# Department Management - Piano di test MANUALE
+
+> **AVVERTENZA.** Questo e' un piano di test **da eseguire a mano**, non un rapporto di
+> risultati. **Non e' mai stato eseguito integralmente e non esiste alcun test
+> automatico nel repository.** Le spunte ✅ che compaiono nel documento sono
+> *risultati attesi*, non risultati ottenuti. Non usarle come prova che qualcosa
+> funzioni. Lo stato realmente verificato dell'applicazione e' in [STATO.md](STATO.md).
 
 ## Overview
-This document outlines all department management operations and validation tests to ensure system stability before going live.
+Questo documento elenca le operazioni del modulo dipartimenti e i controlli da fare
+manualmente su ciascuna.
 
 ---
 
@@ -581,6 +588,5 @@ For issues or questions during testing:
 
 ---
 
-**Last Updated:** 2024
-**Version:** 1.0
-**Status:** Ready for Testing
+**Version:** 2.0 (revisione post-migrazione Supabase)
+**Status:** piano di test manuale - mai eseguito integralmente

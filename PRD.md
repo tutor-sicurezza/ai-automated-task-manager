@@ -1,4 +1,10 @@
-# Planning Guide
+# Planning Guide (PRD)
+
+> **Nota.** Documento di prodotto: descrive cosa l'applicazione deve fare, non cosa e'
+> stato verificato. Per lo stato reale (cosa funziona davvero e cosa no) vedi
+> [STATO.md](STATO.md). Alcuni riferimenti risalgono al template GitHub Spark: lo
+> stack attuale e' React 19 + Vite + Supabase, con le funzioni server su Vercel in
+> `api/`.
 
 A collaborative task management system that enables teams to assign, track, and complete work across employees with clear visibility into workload and progress.
 

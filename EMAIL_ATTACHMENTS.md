@@ -1,5 +1,13 @@
 # Email Attachment Support for Task Notifications
 
+> **AVVERTENZA (post-migrazione Supabase).** La funzionalita' descritta qui **non e'
+> stata verificata** dopo la migrazione. Inoltre `src/lib/emailAttachments.ts` invia
+> ancora le email direttamente dal client invece di passare dalla funzione serverless
+> `api/email/send.ts`: quel percorso e' da rivedere e non va considerato quello
+> supportato. L'unico invio email verificato (senza allegati) passa da
+> `api/email/send.ts` con Resend, configurato via `RESEND_API_KEY` ed `EMAIL_FROM`
+> lato server. Vedi [STATO.md](STATO.md).
+
 ## Overview
 
 TaskFlow now supports sending task attachments via email notifications. When users receive email notifications about tasks (assignments, updates, comments, etc.), any files attached to the task can be automatically included in the email.
@@ -263,10 +271,10 @@ All email sending attempts are logged:
 - Attachments follow task permissions
 
 ### Compliance
-- GDPR: Users can disable email notifications
-- Data retention: Configurable in system settings
-- Audit trail: All actions logged
-- Right to delete: Users can remove their data
+Nessuna verifica di conformita' (GDPR o altro) e' mai stata svolta su questo progetto.
+Le voci seguenti descrivono intenzioni di design, non requisiti verificati:
+- Gli utenti possono disattivare le notifiche email
+- La retention dei dati e' configurabile nelle impostazioni di sistema
 
 ## Future Enhancements
 
@@ -291,7 +299,7 @@ For issues or questions:
 
 ## Version History
 
-### v1.0 (Current)
+### v1.0 (Current) - implementato, non verificato
 - Initial email attachment support
 - Size limit configuration
 - Smart filtering

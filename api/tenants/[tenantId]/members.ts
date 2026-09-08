@@ -92,15 +92,20 @@ export const fetch = withErrors(async (request: Request) => {
       // Password temporanea: finche' non e' configurato un provider email,
       // non esiste modo di recapitarla, quindi viene restituita all'admin
       // nella risposta perche' la consegni lui.
-      createdPassword =
+      // Costante tipizzata a parte: `body` e' `any`, quindi assegnare
+      // direttamente a createdPassword (string | null) non restringe il tipo e
+      // password: string | null non e' accettato da createUser.
+      const password: string =
         typeof body.password === 'string' && body.password.length >= 8
           ? body.password
           : `Tf-${crypto.randomUUID().slice(0, 12)}!`;
 
+      createdPassword = password;
+
       const { data: created, error: createError } =
         await admin.auth.admin.createUser({
           email,
-          password: createdPassword,
+          password,
           email_confirm: true,
           user_metadata: { full_name: fullName },
         });

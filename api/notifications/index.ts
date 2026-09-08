@@ -1,6 +1,6 @@
 export const runtime = 'edge';
 
-import { createSupabaseAdminClient, ensureTenantMembership, getAuthenticatedUser, jsonResponse, withErrors } from '../_lib/supabase.js';
+import { createSupabaseAdminClient, ensureIsOrgMember, ensureTenantMembership, ensureTenantRole, getAuthenticatedUser, jsonResponse, withErrors } from '../_lib/supabase.js';
 
 export const fetch = withErrors(async (request: Request) => {
   const url = new URL(request.url);
@@ -45,6 +45,20 @@ export const fetch = withErrors(async (request: Request) => {
 
     if (!recipientId || !message) {
       return jsonResponse({ error: 'userId and message are required' }, { status: 400 });
+    }
+
+    // Chiunque poteva inserire una notifica arbitraria nella casella di un
+    // collega: testo libero, tipo a scelta, taskId a scelta. Con `action_by`
+    // mostrato nell'interfaccia questo e' impersonificazione — un messaggio
+    // che sembra provenire dal sistema o da un responsabile.
+    //
+    // Regola: notifiche a se stessi sempre concesse; per scrivere ad altri
+    // serve 'manager' o superiore, e il destinatario deve appartenere
+    // all'organizzazione (altrimenti si scrive nella casella di un utente di
+    // un altro tenant).
+    if (recipientId !== user.id) {
+      await ensureTenantRole(user.id, tenantId, 'manager');
+      await ensureIsOrgMember(recipientId, tenantId);
     }
 
     const { data, error } = await admin

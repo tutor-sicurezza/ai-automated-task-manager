@@ -92,6 +92,25 @@ if (typeof window !== 'undefined') {
   });
 }
 
+// Due firme, perche' i due casi sono davvero diversi e la differenza e' cio'
+// che il codice chiamante assume ovunque:
+//
+//   useKV<Config>('k', DEFAULT)  -> il valore non e' MAI undefined
+//   useKV<Config>('k')           -> puo' esserlo
+//
+// Dichiarando un unico ritorno `T | undefined` si ottenevano 67 errori in due
+// componenti, tutti della forma "config is possibly undefined" su chiavi che un
+// default ce l'hanno sempre. Erano invisibili solo perche' il build gira con
+// `tsc --noCheck`. La firma sotto non e' un cast per zittire il compilatore: se
+// initialValue e' fornito, lo stato parte da quel valore e il caricamento non
+// lo riporta mai a undefined, quindi `T` e' il tipo corretto.
+export function useKV<T>(
+  key: string,
+  initialValue: T
+): readonly [T, (newValue: T | ((oldValue: T) => T)) => void, () => void];
+export function useKV<T = string>(
+  key: string
+): readonly [T | undefined, (newValue: T | ((oldValue?: T) => T)) => void, () => void];
 export function useKV<T = string>(
   key: string,
   initialValue?: T

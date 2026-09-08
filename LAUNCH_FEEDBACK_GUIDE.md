@@ -1,4 +1,14 @@
-# 🚀 TaskFlow Launch & Feedback Collection Guide
+# TaskFlow - Guida alla raccolta feedback
+
+> **Nota.** Questo documento descrive le funzionalita' di annuncio e raccolta feedback
+> presenti nell'applicazione (`LaunchAnnouncement.tsx`, `FeedbackDialog.tsx`,
+> `FeedbackBoard.tsx`). **Non e' una dichiarazione che il prodotto sia pronto al
+> lancio**, e nessuna di queste funzionalita' e' stata verificata con test. Lo stato
+> reale del progetto e' in [STATO.md](STATO.md).
+>
+> Il feedback e' persistito tramite l'hook `useKV` custom (`src/hooks/useKV.ts`), che
+> scrive sulle tabelle Supabase `app_state` / `user_state`, non piu' sul KV store di
+> GitHub Spark.
 
 ## Overview
 This guide explains how to share your TaskFlow launch with your team and systematically gather valuable feedback to improve the platform.

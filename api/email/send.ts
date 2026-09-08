@@ -1,6 +1,6 @@
 export const runtime = 'edge';
 
-import { createSupabaseAdminClient, ensureTenantAdmin, getAuthenticatedUser, jsonResponse, withErrors } from '../_lib/supabase.js';
+import { createSupabaseAdminClient, ensureTenantRole, getAuthenticatedUser, jsonResponse, withErrors } from '../_lib/supabase.js';
 import { getRequiredEnv } from '../_lib/env.js';
 
 async function sendViaSendGrid(
@@ -111,9 +111,14 @@ export const fetch = withErrors(async (request: Request) => {
     return jsonResponse({ error: 'tenantId is required' }, { status: 400 });
   }
 
-  // Inviare posta a nome del dominio verificato dell'azienda e' un'operazione
-  // amministrativa, non una normale azione da membro.
-  await ensureTenantAdmin(user.id, tenantId);
+  // Inviare posta a nome del dominio verificato dell'azienda non e' una normale
+  // azione da membro. Il livello e' 'manager' e non 'admin' perche' assegnare
+  // task e' gia' una prerogativa da manager in su (vedi api/tasks/index.ts) e
+  // l'email di assegnazione parte proprio da li': richiedere 'admin' avrebbe
+  // reso quel percorso un 403 per i manager. Restano attivi i due vincoli che
+  // contano davvero: il mittente non e' scegliibile dal chiamante e il
+  // destinatario deve appartenere all'organizzazione.
+  await ensureTenantRole(user.id, tenantId, 'manager');
 
   const to = typeof body.to === 'string' ? body.to.trim() : '';
   const subject = typeof body.subject === 'string' ? body.subject.trim() : '';
