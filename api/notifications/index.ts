@@ -16,7 +16,12 @@ export const fetch = withErrors(async (request: Request) => {
   const admin = createSupabaseAdminClient();
 
   if (request.method === 'GET') {
-    const recipientId = url.searchParams.get('userId') || user.id;
+    // Il destinatario e' SEMPRE il chiamante. Accettare ?userId= permetteva a
+    // qualunque membro di leggere le notifiche di un collega (i loro UUID sono
+    // esposti da GET /api/tenants/<id>/members), vanificando la policy RLS
+    // "users can read their notifications" — inattiva qui, perche' gli handler
+    // usano il client service role.
+    const recipientId = user.id;
 
     const { data, error } = await admin
       .from('notifications')

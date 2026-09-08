@@ -41,11 +41,26 @@ export const fetch = withErrors(async (request: Request) => {
     // Aggiungere membri o assegnare ruoli e' un'operazione amministrativa.
     // Senza questo controllo un 'member' poteva promuoversi da solo: gli
     // handler usano il client service role, che ignora le policy RLS.
-    await ensureTenantAdmin(user.id, tenantId);
+    const callerMembership = await ensureTenantAdmin(user.id, tenantId);
 
     const body = await request.json().catch(() => ({}));
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
-    const role = body.role === 'owner' || body.role === 'admin' || body.role === 'member' ? body.role : 'member';
+    const role =
+      body.role === 'owner' || body.role === 'admin' || body.role === 'member'
+        ? body.role
+        : 'member';
+
+    // Solo il proprietario puo' conferire la proprieta'. Senza questo controllo
+    // un 'admin' poteva assegnare 'owner' a se stesso e poi declassare il vero
+    // proprietario a 'member': l'upsert su (organization_id, user_id) aggiorna
+    // una membership esistente, non crea solo inviti. Presa di controllo
+    // completa dell'organizzazione partendo da admin.
+    if (role === 'owner' && callerMembership.role !== 'owner') {
+      return jsonResponse(
+        { error: 'Solo il proprietario puo assegnare il ruolo owner' },
+        { status: 403 }
+      );
+    }
 
     if (!email) {
       return jsonResponse({ error: 'Email is required' }, { status: 400 });
@@ -109,6 +124,26 @@ export const fetch = withErrors(async (request: Request) => {
       if (insertProfileError) {
         return jsonResponse({ error: insertProfileError.message }, { status: 500 });
       }
+    }
+
+    // L'upsert aggiorna una membership esistente: senza questo controllo un
+    // 'admin' potrebbe declassare il proprietario, che perderebbe i privilegi
+    // e non potrebbe piu' annullare la modifica.
+    const { data: targetMembership } = await admin
+      .from('organization_members')
+      .select('role')
+      .eq('organization_id', tenantId)
+      .eq('user_id', memberId)
+      .maybeSingle();
+
+    if (
+      targetMembership?.role === 'owner' &&
+      callerMembership.role !== 'owner'
+    ) {
+      return jsonResponse(
+        { error: 'Solo il proprietario puo modificare il proprio ruolo' },
+        { status: 403 }
+      );
     }
 
     const { data, error } = await admin

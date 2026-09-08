@@ -11,10 +11,6 @@ import { useAuth } from '@/contexts/AuthContext';
  * Instradamento:
  *   - chiavi per-utente  -> public.user_state (RLS: solo il proprietario)
  *   - tutto il resto     -> public.app_state  (RLS: membri dell'organizzazione)
- *
- * Store condiviso a livello di modulo: due componenti che usano la stessa
- * chiave (es. 'departments' in DepartmentManagement e DepartmentColorLegend)
- * restano sincronizzati, come accadeva col KV di Spark.
  */
 
 /** Chiavi il cui valore appartiene al singolo utente, non all'organizzazione. */
@@ -31,31 +27,69 @@ function isPerUserKey(key: string) {
   );
 }
 
+/**
+ * Lo store di modulo e' indicizzato per SCOPE + chiave, non per sola chiave.
+ *
+ * Indicizzarlo per sola chiave causava una fuga di dati fra organizzazioni:
+ * dopo un logout la cache sopravviveva, e al login successivo `loaded` faceva
+ * saltare la rilettura. L'utente entrante vedeva i dati di quello uscente e,
+ * alla prima modifica, li riscriveva nella PROPRIA riga di app_state,
+ * distruggendo i suoi. Con lo scope nella chiave la collisione non e' piu'
+ * rappresentabile, indipendentemente da chi si ricordi di svuotare la cache.
+ */
+function scopedKey(scopeId: string, key: string) {
+  return `${scopeId}:${key}`;
+}
+
 type Listener = (value: unknown) => void;
 
 const cache = new Map<string, unknown>();
 const listeners = new Map<string, Set<Listener>>();
 /** Chiavi gia' caricate dal server, per non rifare la fetch a ogni mount. */
 const loaded = new Set<string>();
+/** Scritture in sospeso (debounce non ancora scaduto), per poterle forzare. */
+const pendingWrites = new Map<string, () => Promise<void>>();
 
-function subscribe(key: string, fn: Listener) {
-  if (!listeners.has(key)) listeners.set(key, new Set());
-  listeners.get(key)!.add(fn);
+function subscribe(cacheKey: string, fn: Listener) {
+  if (!listeners.has(cacheKey)) listeners.set(cacheKey, new Set());
+  listeners.get(cacheKey)!.add(fn);
   return () => {
-    listeners.get(key)?.delete(fn);
+    listeners.get(cacheKey)?.delete(fn);
   };
 }
 
-function broadcast(key: string, value: unknown) {
-  cache.set(key, value);
-  listeners.get(key)?.forEach((fn) => fn(value));
+function broadcast(cacheKey: string, value: unknown) {
+  cache.set(cacheKey, value);
+  listeners.get(cacheKey)?.forEach((fn) => fn(value));
 }
 
-/** Svuota lo store: da chiamare al logout o al cambio di organizzazione. */
+/** Forza subito tutte le scritture ancora in attesa del debounce. */
+export async function flushKVWrites() {
+  const writes = Array.from(pendingWrites.values());
+  pendingWrites.clear();
+  await Promise.all(writes.map((w) => w()));
+}
+
+/** Svuota lo store: chiamata al logout da AuthContext. */
 export function resetKVCache() {
   cache.clear();
   loaded.clear();
-  listeners.forEach((set, key) => set.forEach((fn) => fn(cache.get(key))));
+  pendingWrites.clear();
+  listeners.forEach((set) => set.forEach((fn) => fn(undefined)));
+}
+
+// Una modifica fatta e subito seguita dalla chiusura della scheda andrebbe
+// persa: il debounce di 400ms non fa in tempo a scadere. `pagehide` copre
+// chiusura, reload e navigazione; `visibilitychange` copre il passaggio in
+// background su mobile, dove `pagehide` non sempre arriva.
+if (typeof window !== 'undefined') {
+  const flushOnLeave = () => {
+    void flushKVWrites();
+  };
+  window.addEventListener('pagehide', flushOnLeave);
+  window.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushOnLeave();
+  });
 }
 
 export function useKV<T = string>(
@@ -65,9 +99,15 @@ export function useKV<T = string>(
   const { user, organization } = useAuth();
   const perUser = isPerUserKey(key);
   const scopeId = perUser ? user?.id : organization?.id;
+  const cacheKey = scopeId ? scopedKey(scopeId, key) : null;
 
-  const [value, setValue] = useState<T | undefined>(
-    () => (cache.has(key) ? (cache.get(key) as T) : initialValue)
+  // `initialValue` e' spesso un letterale (`[]`, `{}`) ricreato a ogni render.
+  // Tenuto in un ref, altrimenti finirebbe nelle dipendenze dell'effetto di
+  // caricamento e ogni render annullerebbe e rilancerebbe la fetch.
+  const initialRef = useRef(initialValue);
+
+  const [value, setValue] = useState<T | undefined>(() =>
+    cacheKey && cache.has(cacheKey) ? (cache.get(cacheKey) as T) : initialValue
   );
 
   const writeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -75,11 +115,14 @@ export function useKV<T = string>(
   latest.current = value;
 
   // Sincronizzazione fra componenti che condividono la stessa chiave
-  useEffect(() => subscribe(key, (v) => setValue(v as T | undefined)), [key]);
+  useEffect(() => {
+    if (!cacheKey) return;
+    return subscribe(cacheKey, (v) => setValue(v as T | undefined));
+  }, [cacheKey]);
 
   // Caricamento iniziale dal database
   useEffect(() => {
-    if (!scopeId || loaded.has(key)) return;
+    if (!scopeId || !cacheKey || loaded.has(cacheKey)) return;
     let cancelled = false;
 
     (async () => {
@@ -105,27 +148,33 @@ export function useKV<T = string>(
         return;
       }
 
-      loaded.add(key);
+      loaded.add(cacheKey);
+
+      // Se nel frattempo l'utente ha gia' modificato qualcosa, il valore letto
+      // dal server e' vecchio: sovrascriverlo cancellerebbe una modifica non
+      // ancora salvata.
+      if (pendingWrites.has(cacheKey)) return;
+
       if (data && data.value !== null && data.value !== undefined) {
-        broadcast(key, data.value as T);
-      } else if (initialValue !== undefined && !cache.has(key)) {
+        broadcast(cacheKey, data.value as T);
+      } else if (initialRef.current !== undefined && !cache.has(cacheKey)) {
         // Nessun valore salvato: teniamo il default in memoria senza scrivere,
         // cosi' non creiamo righe inutili finche' l'utente non modifica nulla.
-        broadcast(key, initialValue);
+        broadcast(cacheKey, initialRef.current);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [key, scopeId, perUser, initialValue]);
+  }, [key, cacheKey, scopeId, perUser]);
 
   const persist = useCallback(
     (next: T) => {
-      if (!scopeId) return;
+      if (!scopeId || !cacheKey) return;
 
-      if (writeTimer.current) clearTimeout(writeTimer.current);
-      writeTimer.current = setTimeout(async () => {
+      const write = async () => {
+        pendingWrites.delete(cacheKey);
         const now = new Date().toISOString();
 
         const { error } = perUser
@@ -147,9 +196,16 @@ export function useKV<T = string>(
         if (error) {
           console.error(`[useKV] scrittura fallita per "${key}":`, error.message);
         }
+      };
+
+      if (writeTimer.current) clearTimeout(writeTimer.current);
+      pendingWrites.set(cacheKey, write);
+      writeTimer.current = setTimeout(() => {
+        writeTimer.current = null;
+        void write();
       }, 400);
     },
-    [key, scopeId, perUser, user?.id]
+    [key, cacheKey, scopeId, perUser, user?.id]
   );
 
   const update = useCallback(
@@ -160,23 +216,25 @@ export function useKV<T = string>(
       // entrambi il valore precedente e il secondo annullerebbe il primo.
       // Succedeva davvero: completando un task, addActivity() sovrascriveva
       // il cambio di stato appena applicato e il task restava "not-started".
-      const base = (cache.has(key) ? (cache.get(key) as T) : latest.current);
+      const base =
+        cacheKey && cache.has(cacheKey) ? (cache.get(cacheKey) as T) : latest.current;
 
       const resolved =
         typeof newValue === 'function'
           ? (newValue as (oldValue?: T) => T)(base)
           : newValue;
 
-      broadcast(key, resolved);
+      if (cacheKey) broadcast(cacheKey, resolved);
       persist(resolved);
     },
-    [key, persist]
+    [cacheKey, persist]
   );
 
   const remove = useCallback(() => {
-    if (!scopeId) return;
-    broadcast(key, undefined);
-    loaded.delete(key);
+    if (!scopeId || !cacheKey) return;
+    broadcast(cacheKey, undefined);
+    loaded.delete(cacheKey);
+    pendingWrites.delete(cacheKey);
 
     void (perUser
       ? supabase.from('user_state').delete().eq('user_id', scopeId).eq('key', key)
@@ -185,11 +243,17 @@ export function useKV<T = string>(
           .delete()
           .eq('organization_id', scopeId)
           .eq('key', key));
-  }, [key, scopeId, perUser]);
+  }, [key, cacheKey, scopeId, perUser]);
 
+  // Smontando il componente il debounce verrebbe semplicemente annullato e la
+  // modifica persa (cambiare tab entro 400ms bastava). Qui lo si forza invece.
   useEffect(
     () => () => {
-      if (writeTimer.current) clearTimeout(writeTimer.current);
+      if (writeTimer.current) {
+        clearTimeout(writeTimer.current);
+        writeTimer.current = null;
+        void flushKVWrites();
+      }
     },
     []
   );

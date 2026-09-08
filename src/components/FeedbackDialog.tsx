@@ -33,8 +33,15 @@ export function FeedbackDialog({ open, onOpenChange, currentUser, onSubmitFeedba
   const [category, setCategory] = useState<FeedbackItem['category']>('improvement');
   const [rating, setRating] = useState(5);
   const [hoveredRating, setHoveredRating] = useState(0);
-  const { value: title, setValue: setTitle, sanitizedValue: sanitizedTitle } = useSanitizedInput('');
-  const { value: description, setValue: setDescription, sanitizedValue: sanitizedDescription } = useSanitizedInput('');
+  // useSanitizedInput non espone `sanitizedValue`: restituisce { value, rawValue,
+  // setValue, reset }, dove `value` E' gia' il testo sanificato. Destrutturare un
+  // campo inesistente rendeva sanitizedTitle undefined, e il .trim() al submit
+  // lanciava un TypeError che l'ErrorBoundary trasformava nella schermata di
+  // errore: l'invio di feedback era impossibile al 100%.
+  const { value: title, setValue: setTitle } = useSanitizedInput('');
+  const { value: description, setValue: setDescription } = useSanitizedInput('');
+  const sanitizedTitle = title;
+  const sanitizedDescription = description;
 
   const handleSubmit = () => {
     if (!currentUser) {

@@ -16,7 +16,7 @@ import { toast } from 'sonner';
 
 const defaultPreferences: Omit<NotificationPreferencesType, 'userId'> = {
   emailNotifications: true,
-  notificationFrequency: 'realtime',
+  notificationFrequency: 'instant',
   enabledNotifications: {
     task_assigned: true,
     task_reassigned: true,

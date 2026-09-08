@@ -9,6 +9,7 @@ import {
 } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { flushKVWrites, resetKVCache } from '@/hooks/useKV';
 import type { UserRole } from '@/lib/types';
 
 export interface AuthProfile {
@@ -280,7 +281,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
+    // Le modifiche ancora nel debounce di useKV andrebbero perse uscendo.
+    await flushKVWrites();
     await supabase.auth.signOut();
+    // Lo store di useKV e' gia' indicizzato per organizzazione, quindi l'utente
+    // entrante non puo' leggere i dati di quello uscente; lo svuotiamo comunque
+    // per non tenere in memoria dati di una sessione conclusa.
+    resetKVCache();
     setProfile(null);
     setOrganization(null);
     setOrgRole(null);

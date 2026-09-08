@@ -1,6 +1,6 @@
 export const runtime = 'edge';
 
-import { createSupabaseAdminClient, ensureTenantMembership, getAuthenticatedUser, jsonResponse, withErrors } from '../_lib/supabase.js';
+import { createSupabaseAdminClient, ensureTenantAdmin, getAuthenticatedUser, jsonResponse, withErrors } from '../_lib/supabase.js';
 import { getRequiredEnv } from '../_lib/env.js';
 
 async function sendViaSendGrid(
@@ -111,24 +111,50 @@ export const fetch = withErrors(async (request: Request) => {
     return jsonResponse({ error: 'tenantId is required' }, { status: 400 });
   }
 
-  await ensureTenantMembership(user.id, tenantId);
+  // Inviare posta a nome del dominio verificato dell'azienda e' un'operazione
+  // amministrativa, non una normale azione da membro.
+  await ensureTenantAdmin(user.id, tenantId);
 
   const to = typeof body.to === 'string' ? body.to.trim() : '';
   const subject = typeof body.subject === 'string' ? body.subject.trim() : '';
   const html = typeof body.htmlContent === 'string' ? body.htmlContent : '';
   const text = typeof body.textContent === 'string' ? body.textContent : '';
-  // Il default originale era no-reply@taskflow.local, un dominio inesistente:
-  // Resend e SendGrid rifiutano i mittenti su domini non verificati, quindi
-  // ogni invio sarebbe fallito. onboarding@resend.dev funziona senza
-  // configurazione, ma consegna SOLO all'indirizzo del titolare dell'account
-  // Resend. Per spedire a chiunque serve un dominio verificato, da indicare
-  // poi nella variabile EMAIL_FROM.
-  const from =
-    body.from || process.env.EMAIL_FROM || 'TaskFlow <onboarding@resend.dev>';
+
+  // Il mittente NON e' piu' scegliibile dal chiamante. Accettando body.from
+  // questo endpoint era un relay autenticato: qualunque membro poteva spedire
+  // a qualunque indirizzo del mondo apparendo come "billing@<dominio
+  // verificato>", con SPF e DKIM validi — phishing perfettamente allineato,
+  // a carico della reputazione del dominio e della quota del titolare.
+  //
+  // Il default originale era no-reply@taskflow.local, un dominio inesistente
+  // che i provider rifiutano; onboarding@resend.dev funziona senza
+  // configurazione ma consegna solo al titolare dell'account Resend.
+  const from = process.env.EMAIL_FROM || 'TaskFlow <onboarding@resend.dev>';
   const preferredProvider = body.provider || (sendgridApiKey ? 'sendgrid' : 'resend');
 
   if (!to || !subject || (!html && !text)) {
     return jsonResponse({ error: 'to, subject, and textContent/htmlContent are required' }, { status: 400 });
+  }
+
+  // Il destinatario deve appartenere all'organizzazione: l'app manda notifiche
+  // ai colleghi, non messaggi arbitrari verso l'esterno.
+  const recipientCheck = createSupabaseAdminClient();
+  const { data: recipient, error: recipientError } = await recipientCheck
+    .from('organization_members')
+    .select('user_id, profiles!inner(email)')
+    .eq('organization_id', tenantId)
+    .eq('profiles.email', to.toLowerCase())
+    .maybeSingle();
+
+  if (recipientError) {
+    return jsonResponse({ error: recipientError.message }, { status: 500 });
+  }
+
+  if (!recipient) {
+    return jsonResponse(
+      { error: 'Recipient is not a member of this organization' },
+      { status: 403 }
+    );
   }
 
   try {
@@ -149,7 +175,7 @@ export const fetch = withErrors(async (request: Request) => {
     const admin = createSupabaseAdminClient();
     await admin.from('email_delivery_logs').insert({
       organization_id: tenantId,
-      user_id: body.userId || user.id,
+      user_id: user.id,
       recipient_email: to,
       subject,
       provider: result.provider,
@@ -171,12 +197,12 @@ export const fetch = withErrors(async (request: Request) => {
     const admin = createSupabaseAdminClient();
     await admin.from('email_delivery_logs').insert({
       organization_id: tenantId,
-      user_id: body.userId || user.id,
+      user_id: user.id,
       recipient_email: to,
       subject,
       provider: preferredProvider,
       status: 'failed',
-      error_message: errorMessage,
+      error: errorMessage,
     });
 
     return jsonResponse(
