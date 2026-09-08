@@ -10,9 +10,15 @@ export const fetch = withErrors(async (request: Request) => {
   // quindi l'id arriva in query string. Il fallback legge il segmento di path
   // nel caso la rotta venga invocata direttamente.
   const url = new URL(request.url);
+  // Indicizzazione esplicita invece di .at(-2): Vercel compila le funzioni di
+  // api/ con il tsconfig.json di root, che ha target ES2020, dove
+  // Array.prototype.at non esiste. Il nostro tsconfig.api.json usa ES2022 e
+  // quindi non intercettava l'errore — il build passava in locale e falliva
+  // sulla piattaforma.
+  const segments = url.pathname.split('/').filter(Boolean);
   const tenantId =
     url.searchParams.get('tenantId') ??
-    url.pathname.split('/').filter(Boolean).at(-2) ??
+    (segments.length >= 2 ? segments[segments.length - 2] : '') ??
     '';
 
   if (!tenantId) {

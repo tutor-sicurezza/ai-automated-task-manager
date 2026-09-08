@@ -9,8 +9,13 @@
   // estensione .js obbligatoria (ESM a runtime su Vercel).
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.api.tsbuildinfo",
-    "target": "ES2022",
-    "lib": ["ES2022", "DOM"],
+    // ES2020 e non ES2022 di proposito: Vercel compila le funzioni di api/ con
+    // il tsconfig.json di root, che ha target ES2020. Con ES2022 qui il nostro
+    // check era piu' permissivo della piattaforma, e un .at() passava in locale
+    // per poi far fallire il build in remoto. Questo file deve restare allineato
+    // al target di tsconfig.json.
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "types": ["node"],
