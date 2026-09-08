@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { getRequiredEnv } from './env';
+import { getRequiredEnv } from './env.js';
 
 export function createSupabaseAdminClient() {
   const { supabaseUrl, supabaseServiceRoleKey } = getRequiredEnv();
@@ -79,6 +79,47 @@ export async function ensureTenantMembership(userId: string, tenantId: string) {
   return data;
 }
 
+/**
+ * Come ensureTenantMembership, ma richiede anche privilegi amministrativi.
+ *
+ * Necessaria perche' tutti gli handler in api/ operano con il client service
+ * role, che scavalca le RLS: la policy "admins can manage org members" non
+ * viene mai valutata, quindi il controllo di ruolo DEVE avvenire qui.
+ * Senza questa funzione un semplice 'member' poteva promuoversi ad 'admin'
+ * chiamando POST /api/tenants/<id>/members (verificato in produzione).
+ */
+export async function ensureTenantAdmin(userId: string, tenantId: string) {
+  const membership = await ensureTenantMembership(userId, tenantId);
+
+  if (membership.role !== 'owner' && membership.role !== 'admin') {
+    throw new Response(
+      JSON.stringify({ error: 'Richiede privilegi di amministratore' }),
+      { status: 403, headers: { 'content-type': 'application/json' } }
+    );
+  }
+
+  return membership;
+}
+
 export function jsonResponse(payload: unknown, init?: ResponseInit) {
   return Response.json(payload, init);
+}
+
+// Il runtime delle Vercel Functions non intercetta un `throw` di una Response:
+// l'eccezione risale non gestita e la piattaforma risponde
+// 500 FUNCTION_INVOCATION_FAILED invece del 401/403 previsto.
+// Questo wrapper cattura l'eccezione e restituisce la Response "lanciata",
+// trasformando qualsiasi altro errore in un 500 con corpo JSON.
+export function withErrors(
+  fn: (request: Request) => Promise<Response>
+): (request: Request) => Promise<Response> {
+  return async (request) => {
+    try {
+      return await fn(request);
+    } catch (e) {
+      if (e instanceof Response) return e;   // errori "lanciati" come Response
+      const message = e instanceof Error ? e.message : 'Errore interno';
+      return Response.json({ error: message }, { status: 500 });
+    }
+  };
 }

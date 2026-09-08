@@ -1,8 +1,8 @@
 export const runtime = 'edge';
 
-import { createSupabaseAdminClient, ensureTenantMembership, getAuthenticatedUser, jsonResponse } from '../_lib/supabase';
+import { createSupabaseAdminClient, ensureTenantMembership, getAuthenticatedUser, jsonResponse, withErrors } from '../_lib/supabase.js';
 
-export default async function handler(request: Request) {
+export const fetch = withErrors(async (request: Request) => {
   const url = new URL(request.url);
   const tenantId = url.searchParams.get('tenantId');
 
@@ -73,4 +73,4 @@ export default async function handler(request: Request) {
   }
 
   return jsonResponse({ error: 'Method not allowed' }, { status: 405 });
-}
+});

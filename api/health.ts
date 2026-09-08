@@ -1,6 +1,6 @@
 export const runtime = 'edge';
 
-export default function handler() {
+export function fetch() {
   return Response.json({
     ok: true,
     service: 'spark-template-backend',

@@ -1,6 +1,6 @@
 export const runtime = 'edge';
 
-import { createSupabaseAdminClient, getAuthenticatedUser, jsonResponse } from '../_lib/supabase';
+import { createSupabaseAdminClient, getAuthenticatedUser, jsonResponse, withErrors } from '../_lib/supabase.js';
 
 function slugify(value: string) {
   return value
@@ -11,7 +11,7 @@ function slugify(value: string) {
     .replace(/-+/g, '-');
 }
 
-export default async function handler(request: Request) {
+export const fetch = withErrors(async (request: Request) => {
   const user = await getAuthenticatedUser(request);
   const admin = createSupabaseAdminClient();
 
@@ -69,4 +69,4 @@ export default async function handler(request: Request) {
   }
 
   return jsonResponse({ error: 'Method not allowed' }, { status: 405 });
-}
+});

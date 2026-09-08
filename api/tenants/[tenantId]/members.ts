@@ -1,10 +1,24 @@
 export const runtime = 'edge';
 
-import { createSupabaseAdminClient, ensureTenantMembership, getAuthenticatedUser, jsonResponse } from '../../_lib/supabase';
+import { createSupabaseAdminClient, ensureTenantAdmin, ensureTenantMembership, getAuthenticatedUser, jsonResponse, withErrors } from '../../_lib/supabase.js';
 
-export default async function handler(request: Request, context: { params: { tenantId: string } }) {
+export const fetch = withErrors(async (request: Request) => {
   const user = await getAuthenticatedUser(request);
-  const tenantId = context.params.tenantId;
+
+  // Il routing generato da Vercel riscrive questa rotta come
+  //   /api/tenants/[tenantId]/members?tenantId=$1
+  // quindi l'id arriva in query string. Il fallback legge il segmento di path
+  // nel caso la rotta venga invocata direttamente.
+  const url = new URL(request.url);
+  const tenantId =
+    url.searchParams.get('tenantId') ??
+    url.pathname.split('/').filter(Boolean).at(-2) ??
+    '';
+
+  if (!tenantId) {
+    return jsonResponse({ error: 'tenantId mancante' }, { status: 400 });
+  }
+
   const admin = createSupabaseAdminClient();
 
   await ensureTenantMembership(user.id, tenantId);
@@ -24,6 +38,11 @@ export default async function handler(request: Request, context: { params: { ten
   }
 
   if (request.method === 'POST') {
+    // Aggiungere membri o assegnare ruoli e' un'operazione amministrativa.
+    // Senza questo controllo un 'member' poteva promuoversi da solo: gli
+    // handler usano il client service role, che ignora le policy RLS.
+    await ensureTenantAdmin(user.id, tenantId);
+
     const body = await request.json().catch(() => ({}));
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
     const role = body.role === 'owner' || body.role === 'admin' || body.role === 'member' ? body.role : 'member';
@@ -71,4 +90,4 @@ export default async function handler(request: Request, context: { params: { ten
   }
 
   return jsonResponse({ error: 'Method not allowed' }, { status: 405 });
-}
+});

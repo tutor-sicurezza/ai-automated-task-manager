@@ -1,7 +1,7 @@
 export const runtime = 'edge';
 
-import { createSupabaseAdminClient, ensureTenantMembership, getAuthenticatedUser, jsonResponse } from '../_lib/supabase';
-import { getRequiredEnv } from '../_lib/env';
+import { createSupabaseAdminClient, ensureTenantMembership, getAuthenticatedUser, jsonResponse, withErrors } from '../_lib/supabase.js';
+import { getRequiredEnv } from '../_lib/env.js';
 
 async function sendViaSendGrid(
   apiKey: string,
@@ -13,7 +13,8 @@ async function sendViaSendGrid(
   tenantId: string,
   userId: string
 ) {
-  const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+  // `globalThis.fetch`: in questo modulo l'export si chiama `fetch` e farebbe ombra al fetch globale.
+  const response = await globalThis.fetch('https://api.sendgrid.com/v3/mail/send', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -60,7 +61,8 @@ async function sendViaResend(
   tenantId: string,
   userId: string
 ) {
-  const response = await fetch('https://api.resend.com/emails', {
+  // `globalThis.fetch`: vedi nota in sendViaSendGrid.
+  const response = await globalThis.fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -88,7 +90,7 @@ async function sendViaResend(
   return { id: payload?.id, provider: 'resend' };
 }
 
-export default async function handler(request: Request) {
+export const fetch = withErrors(async (request: Request) => {
   const { resendApiKey, sendgridApiKey } = getRequiredEnv();
 
   if (!resendApiKey && !sendgridApiKey) {
@@ -178,4 +180,4 @@ export default async function handler(request: Request) {
       { status: 500 }
     );
   }
-}
+});
