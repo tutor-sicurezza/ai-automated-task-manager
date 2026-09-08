@@ -117,7 +117,14 @@ export const fetch = withErrors(async (request: Request) => {
   const subject = typeof body.subject === 'string' ? body.subject.trim() : '';
   const html = typeof body.htmlContent === 'string' ? body.htmlContent : '';
   const text = typeof body.textContent === 'string' ? body.textContent : '';
-  const from = body.from || 'TaskFlow <no-reply@taskflow.local>';
+  // Il default originale era no-reply@taskflow.local, un dominio inesistente:
+  // Resend e SendGrid rifiutano i mittenti su domini non verificati, quindi
+  // ogni invio sarebbe fallito. onboarding@resend.dev funziona senza
+  // configurazione, ma consegna SOLO all'indirizzo del titolare dell'account
+  // Resend. Per spedire a chiunque serve un dominio verificato, da indicare
+  // poi nella variabile EMAIL_FROM.
+  const from =
+    body.from || process.env.EMAIL_FROM || 'TaskFlow <onboarding@resend.dev>';
   const preferredProvider = body.provider || (sendgridApiKey ? 'sendgrid' : 'resend');
 
   if (!to || !subject || (!html && !text)) {
