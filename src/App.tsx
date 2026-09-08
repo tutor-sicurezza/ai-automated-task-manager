@@ -340,11 +340,18 @@ function App() {
       return [...(currentNotifications || []), notification];
     });
 
-    const prefsKey = `notification-preferences-${notification.userId}`;
-    const prefs = await window.spark.kv.get<NotificationPreferencesType>(prefsKey);
-    
-    if (prefs?.soundEnabled) {
-      await playNotificationSound(notification.type, prefs.soundVolume || 0.3);
+    // window.spark non esiste fuori dal runtime GitHub Spark: qui la lettura
+    // lanciava un TypeError NON intercettato, quindi il suono e la notifica
+    // desktop qui sotto non venivano mai eseguiti e restava una promise
+    // rifiutata a ogni notifica. La notifica in-app funzionava lo stesso solo
+    // perche' setNotifications viene chiamato prima.
+    //
+    // Le preferenze per-utente non sono ancora migrate su user_state, e
+    // comunque un utente non puo' leggere le preferenze di un collega sotto
+    // RLS: finche' non esiste quella tabella, si suona con il volume di
+    // default e solo per il destinatario, che e' l'unico caso sensato.
+    if (currentUser && notification.userId === currentUser.id) {
+      await playNotificationSound(notification.type, 0.3);
     }
 
     if (currentUser && notification.userId === currentUser.id) {
