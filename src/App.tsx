@@ -46,6 +46,7 @@ import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PaperPlaneTilt, Megaphone, SignOut } from '@phosphor-icons/react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSyncEmployees } from '@/hooks/useSyncEmployees';
 
 /**
  * Il database ha un ruolo `owner` in piu' rispetto al tipo `UserRole` usato
@@ -70,8 +71,20 @@ function App() {
   const { user, profile, orgRole, signOut } = useAuth();
   const [tasks, setTasks] = useKV<Task[]>('tasks', []);
   const [employees, setEmployees] = useKV<Employee[]>('employees', []);
+
+  // Popola `employees` dai membri reali dell'organizzazione: senza questo il
+  // menu "Assign To" resta vuoto e i task non sono assegnabili a nessuno.
+  useSyncEmployees();
   const [announcements, setAnnouncements] = useKV<Announcement[]>('announcements', []);
   const [notifications, setNotifications] = useKV<TaskNotification[]>('notifications', []);
+
+  // Le notifiche sono per-destinatario, ma venivano passate integralmente al
+  // componente, che non filtra: ogni utente vedeva quelle di tutti gli altri
+  // (l'admin leggeva "New task assigned to you" indirizzata a un collega).
+  const myNotifications = useMemo(
+    () => (notifications || []).filter((n) => n.userId === user?.id),
+    [notifications, user?.id]
+  );
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -395,6 +408,26 @@ function App() {
     };
     
     setTasks((currentTasks) => [...(currentTasks || []), newTask]);
+
+    // Creare un task gia' assegnato non generava alcuna notifica: solo la
+    // riassegnazione lo faceva. Era il percorso piu' comune a restare muto,
+    // quindi l'assegnatario non veniva mai avvisato.
+    if (newTask.assigneeId && newTask.assigneeId !== currentUser.id) {
+      addNotification({
+        id: `notif-${Date.now()}-${newTask.id}`,
+        userId: newTask.assigneeId,
+        taskId: newTask.id,
+        taskTitle: newTask.title,
+        type: 'task_assigned',
+        message: `New task assigned to you by ${currentUser.name}`,
+        actionBy: currentUser.id,
+        actionByName: currentUser.name,
+        actionByAvatar: currentUser.avatar,
+        createdAt: new Date().toISOString(),
+        read: false,
+      });
+    }
+
     toast.success('Task created successfully!');
   };
 
@@ -430,6 +463,27 @@ function App() {
           taskTitle: task.title,
           type: 'task_completed',
           message: `Your task "${task.title}" was marked as completed`,
+          actionBy: currentUser.id,
+          actionByName: currentUser.name,
+          actionByAvatar: currentUser.avatar,
+          createdAt: new Date().toISOString(),
+          read: false,
+        });
+      }
+
+      // Avvisa chi ha creato il task che e' stato completato. Mancava del
+      // tutto: se l'assegnatario chiudeva il proprio task, nessuno lo sapeva.
+      // Il tipo Task non ha un campo createdBy, quindi l'autore si ricava
+      // dall'attivita' 'created', registrata alla creazione.
+      const creatorId = (task.activities || []).find(a => a.type === 'created')?.userId;
+      if (creatorId && creatorId !== currentUser.id && creatorId !== task.assigneeId) {
+        addNotification({
+          id: `notif-${Date.now()}-creator-${taskId}`,
+          userId: creatorId,
+          taskId: task.id,
+          taskTitle: task.title,
+          type: 'task_completed',
+          message: `${currentUser.name} ha completato "${task.title}"`,
           actionBy: currentUser.id,
           actionByName: currentUser.name,
           actionByAvatar: currentUser.avatar,
@@ -1132,7 +1186,7 @@ function App() {
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <TaskNotifications
-                notifications={notifications || []}
+                notifications={myNotifications}
                 onMarkAsRead={handleMarkNotificationAsRead}
                 onMarkAllAsRead={handleMarkAllNotificationsAsRead}
                 onDelete={handleDeleteNotification}
@@ -1324,7 +1378,7 @@ function App() {
                     tasks={tasks || []}
                     employees={employees || []}
                     announcements={announcements || []}
-                    notifications={notifications || []}
+                    notifications={myNotifications}
                     onNavigateToTasks={() => setViewMode('tasks')}
                     onNavigateToUsers={() => {}}
                     onNavigateToAnnouncements={() => {}}

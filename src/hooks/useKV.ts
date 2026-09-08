@@ -154,9 +154,17 @@ export function useKV<T = string>(
 
   const update = useCallback(
     (newValue: T | ((oldValue?: T) => T)) => {
+      // L'updater funzionale DEVE partire dallo store di modulo, non da
+      // `latest.current`: quest'ultimo si aggiorna solo al render successivo,
+      // quindi due update consecutivi nello stesso handler leggerebbero
+      // entrambi il valore precedente e il secondo annullerebbe il primo.
+      // Succedeva davvero: completando un task, addActivity() sovrascriveva
+      // il cambio di stato appena applicato e il task restava "not-started".
+      const base = (cache.has(key) ? (cache.get(key) as T) : latest.current);
+
       const resolved =
         typeof newValue === 'function'
-          ? (newValue as (oldValue?: T) => T)(latest.current)
+          ? (newValue as (oldValue?: T) => T)(base)
           : newValue;
 
       broadcast(key, resolved);
