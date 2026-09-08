@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Task, Employee } from '@/lib/types';
+import { useAI } from '@/lib/ai';
 import { Sparkle, PaperPlaneTilt, X } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -32,6 +33,7 @@ export function AIAssistant({ open, onOpenChange, tasks, employees, onSuggestion
   const [isLoading, setIsLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<AISuggestion[]>([]);
   const [conversationHistory, setConversationHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
+  const { ask } = useAI();
 
   const handleSubmit = async () => {
     if (!prompt.trim() || isLoading) return;
@@ -53,7 +55,7 @@ export function AIAssistant({ open, onOpenChange, tasks, employees, onSuggestion
         taskCount: tasks.filter(t => t.assigneeId === emp.id && t.status !== 'completed').length,
       }));
 
-      const contextPrompt = window.spark.llmPrompt`You are an AI assistant for TaskFlow, a team task management application.
+      const contextPrompt = `You are an AI assistant for TaskFlow, a team task management application.
 
 Current Context:
 - Total tasks: ${tasks.length}
@@ -74,11 +76,11 @@ Analyze the user's request and provide helpful insights or suggestions. You can:
 
 Respond in a conversational, helpful manner. If suggesting actions, be specific about what should be done and why.`;
 
-      const response = await window.spark.llm(contextPrompt, 'gpt-4o-mini');
+      const response = await ask(contextPrompt);
       
       setConversationHistory(prev => [...prev, { role: 'assistant', content: response }]);
 
-      const suggestionsPrompt = window.spark.llmPrompt`Based on this conversation and the user's request, extract actionable suggestions.
+      const suggestionsPrompt = `Based on this conversation and the user's request, extract actionable suggestions.
 
 User request: ${userMessage}
 AI response: ${response}
@@ -107,7 +109,7 @@ Return a JSON object with a "suggestions" property containing an array of sugges
 
 If there are no actionable suggestions (just general advice/insights), return an empty array.`;
 
-      const suggestionsResponse = await window.spark.llm(suggestionsPrompt, 'gpt-4o-mini', true);
+      const suggestionsResponse = await ask(suggestionsPrompt, { json: true });
       const parsedSuggestions = JSON.parse(suggestionsResponse);
       
       if (parsedSuggestions.suggestions && Array.isArray(parsedSuggestions.suggestions)) {
@@ -115,10 +117,13 @@ If there are no actionable suggestions (just general advice/insights), return an
       }
 
     } catch (error) {
-      toast.error('Failed to get AI response');
-      setConversationHistory(prev => [...prev, { 
-        role: 'assistant', 
-        content: 'I apologize, but I encountered an error processing your request. Please try again.' 
+      // Il messaggio reale distingue chiave mancante, sessione scaduta o
+      // rifiuto del modello da un generico fallimento.
+      const message = error instanceof Error ? error.message : 'Failed to get AI response';
+      toast.error(message);
+      setConversationHistory(prev => [...prev, {
+        role: 'assistant',
+        content: `I apologize, but I encountered an error processing your request: ${message}`
       }]);
     } finally {
       setIsLoading(false);

@@ -6,6 +6,31 @@ import { Task, Employee } from '@/lib/types';
 import { Sparkle, TrendUp, WarningCircle, CheckCircle, LightbulbFilament } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { useAI } from '@/lib/ai';
+
+// Con lo schema il formato della risposta e' garantito dall'API, non solo
+// richiesto nel prompt: il modello non puo' restituire una forma diversa.
+const INSIGHTS_SCHEMA = {
+  type: 'object',
+  properties: {
+    insights: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          type: { type: 'string', enum: ['warning', 'success', 'tip', 'opportunity'] },
+          title: { type: 'string' },
+          description: { type: 'string' },
+          priority: { type: 'string', enum: ['high', 'medium', 'low'] },
+        },
+        required: ['type', 'title', 'description', 'priority'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['insights'],
+  additionalProperties: false,
+};
 
 interface AIInsightsProps {
   tasks: Task[];
@@ -23,6 +48,7 @@ export function AIInsights({ tasks, employees }: AIInsightsProps) {
   const [insights, setInsights] = useState<Insight[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const { ask } = useAI();
 
   const generateInsights = async () => {
     setIsLoading(true);
@@ -39,7 +65,7 @@ export function AIInsights({ tasks, employees }: AIInsightsProps) {
         taskCount: tasks.filter(t => t.assigneeId === emp.id && t.status !== 'completed').length,
       }));
 
-      const prompt = window.spark.llmPrompt`You are an AI assistant analyzing team task management data.
+      const prompt = `You are an AI assistant analyzing team task management data.
 
 Current Statistics:
 - Total tasks: ${tasks.length}
@@ -54,13 +80,7 @@ ${workloadByEmployee.map(w => `${w.name}: ${w.taskCount} active tasks`).join('\n
 Overdue tasks:
 ${overdueTasks.slice(0, 5).map(t => `- ${t.title} (due: ${new Date(t.dueDate).toLocaleDateString()})`).join('\n')}
 
-Generate 3-5 actionable insights about the team's performance and task management. Return a JSON object with an "insights" property containing an array of insight objects with this structure:
-{
-  "type": "warning" | "success" | "tip" | "opportunity",
-  "title": "Brief insight title",
-  "description": "Detailed description with specific recommendations",
-  "priority": "high" | "medium" | "low"
-}
+Generate 3-5 actionable insights about the team's performance and task management. Each insight needs a brief title and a detailed description with specific recommendations.
 
 Focus on:
 - Workload imbalances
@@ -68,7 +88,7 @@ Focus on:
 - Team productivity trends
 - Specific actionable recommendations`;
 
-      const response = await window.spark.llm(prompt, 'gpt-4o-mini', true);
+      const response = await ask(prompt, { json: true, schema: INSIGHTS_SCHEMA });
       const data = JSON.parse(response);
       
       if (data.insights && Array.isArray(data.insights)) {
@@ -77,7 +97,9 @@ Focus on:
         toast.success('Insights updated!');
       }
     } catch (error) {
-      toast.error('Failed to generate insights');
+      // Il messaggio reale distingue chiave mancante o richiesta rifiutata da
+      // un errore generico.
+      toast.error(error instanceof Error ? error.message : 'Impossibile generare gli insight');
     } finally {
       setIsLoading(false);
     }

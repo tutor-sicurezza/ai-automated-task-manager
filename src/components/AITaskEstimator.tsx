@@ -6,6 +6,7 @@ import { Sparkle, Clock, CalendarBlank, TrendUp, CheckCircle } from '@phosphor-i
 import { TaskPriority, Task, Employee } from '@/lib/types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { useAI } from '@/lib/ai';
 
 interface AITaskEstimatorProps {
   title: string;
@@ -26,6 +27,32 @@ interface EstimateResult {
   factors: string[];
 }
 
+/**
+ * Rispecchia `EstimateResult` campo per campo. Tutti i campi sono obbligatori
+ * anche nell'interfaccia, quindi lo schema strict (additionalProperties: false
+ * + required completo) e' esprimibile senza compromessi.
+ */
+const ESTIMATE_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  properties: {
+    estimatedDurationDays: { type: 'number' },
+    estimatedDurationHours: { type: 'number' },
+    suggestedDeadline: { type: 'string', description: 'Data nel formato YYYY-MM-DD' },
+    confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
+    reasoning: { type: 'string' },
+    factors: { type: 'array', items: { type: 'string' } },
+  },
+  required: [
+    'estimatedDurationDays',
+    'estimatedDurationHours',
+    'suggestedDeadline',
+    'confidence',
+    'reasoning',
+    'factors',
+  ],
+  additionalProperties: false,
+};
+
 export function AITaskEstimator({
   title,
   description,
@@ -37,6 +64,7 @@ export function AITaskEstimator({
 }: AITaskEstimatorProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [estimate, setEstimate] = useState<EstimateResult | null>(null);
+  const { ask } = useAI();
 
   const generateEstimate = async () => {
     if (!title.trim()) {
@@ -60,7 +88,7 @@ export function AITaskEstimator({
           }, 0) / completedTasks.length / (1000 * 60 * 60 * 24)
         : null;
 
-      const prompt = window.spark.llmPrompt`You are an expert project manager analyzing task complexity to estimate duration and suggest optimal deadlines.
+      const prompt = `You are an expert project manager analyzing task complexity to estimate duration and suggest optimal deadlines.
 
 Task Details:
 - Title: ${title}
@@ -88,24 +116,24 @@ Consider:
 - Standard development/business task timelines
 - Buffer time for reviews and iterations
 
-Return ONLY valid JSON with this structure:
-{
-  "estimatedDurationDays": number,
-  "estimatedDurationHours": number,
-  "suggestedDeadline": "YYYY-MM-DD",
-  "confidence": "high" | "medium" | "low",
-  "reasoning": "string",
-  "factors": ["factor1", "factor2", "factor3"]
-}`;
+The suggested deadline must be an absolute date in YYYY-MM-DD format.`;
 
-      const response = await window.spark.llm(prompt, 'gpt-4o', true);
+      // Il codice originale usava di proposito 'gpt-4o' (modello piu' forte) qui,
+      // non 'gpt-4o-mini' come altrove. Ora il modello lo sceglie il server: se la
+      // qualita' della stima dovesse calare, questo e' il punto dove reintrodurre
+      // un override per-chiamata con l'opzione `model`.
+      const response = await ask(prompt, { json: true, schema: ESTIMATE_SCHEMA });
       const result = JSON.parse(response) as EstimateResult;
 
       setEstimate(result);
       toast.success('AI estimate generated!');
     } catch (error) {
       console.error('Error generating estimate:', error);
-      toast.error('Failed to generate estimate. Please try again.');
+      // Il messaggio reale (chiave API mancante, sessione scaduta, rifiuto del
+      // modello) e' piu' utile del generico "riprova".
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to generate estimate. Please try again.'
+      );
     } finally {
       setIsLoading(false);
     }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Task, Employee } from '@/lib/types';
+import { useAI } from '@/lib/ai';
 import { Sparkle, UserCircleGear } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import {
@@ -28,10 +29,34 @@ interface AssignmentSuggestion {
   reason: string;
 }
 
+const ASSIGNMENTS_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  properties: {
+    assignments: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          taskId: { type: 'string', description: 'The id of the task being assigned' },
+          taskTitle: { type: 'string', description: 'The title of the task being assigned' },
+          employeeId: { type: 'string', description: 'The id of the employee receiving the task' },
+          employeeName: { type: 'string', description: 'The name of the employee receiving the task' },
+          reason: { type: 'string', description: 'Brief explanation why this assignment makes sense' },
+        },
+        required: ['taskId', 'taskTitle', 'employeeId', 'employeeName', 'reason'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['assignments'],
+  additionalProperties: false,
+};
+
 export function AIAutoAssign({ tasks, employees, onAssignTasks }: AIAutoAssignProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<AssignmentSuggestion[]>([]);
+  const { ask } = useAI();
 
   const unassignedTasks = tasks.filter(t => !t.assigneeId && t.status !== 'completed');
   const activeEmployees = employees.filter(e => e.status === 'active');
@@ -65,7 +90,7 @@ export function AIAutoAssign({ tasks, employees, onAssignTasks }: AIAutoAssignPr
         dueDate: t.dueDate,
       }));
 
-      const prompt = window.spark.llmPrompt`You are an AI assistant that helps assign tasks to team members based on workload balance, skills, and task requirements.
+      const prompt = `You are an AI assistant that helps assign tasks to team members based on workload balance, skills, and task requirements.
 
 Available employees and their current workload:
 ${JSON.stringify(workloadByEmployee, null, 2)}
@@ -79,16 +104,9 @@ Analyze the tasks and employees, then suggest optimal assignments. Consider:
 3. Employee role/department match to task requirements
 4. Due dates (urgent tasks to available members)
 
-Return a JSON object with an "assignments" property containing an array of assignment objects:
-{
-  "taskId": "task id",
-  "taskTitle": "task title",
-  "employeeId": "employee id",
-  "employeeName": "employee name",
-  "reason": "Brief explanation why this assignment makes sense"
-}`;
+For each assignment, include a brief explanation of why it makes sense.`;
 
-      const response = await window.spark.llm(prompt, 'gpt-4o-mini', true);
+      const response = await ask(prompt, { json: true, schema: ASSIGNMENTS_SCHEMA });
       const data = JSON.parse(response);
 
       if (data.assignments && Array.isArray(data.assignments)) {
@@ -96,7 +114,7 @@ Return a JSON object with an "assignments" property containing an array of assig
         setIsOpen(true);
       }
     } catch (error) {
-      toast.error('Failed to generate assignments');
+      toast.error(error instanceof Error ? error.message : 'Failed to generate assignments');
     } finally {
       setIsLoading(false);
     }
