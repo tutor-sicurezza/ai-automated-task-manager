@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { useKV } from '@github/spark/hooks';
+import { useKV } from '@/hooks/useKV';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -36,17 +36,38 @@ import { LaunchCelebration } from '@/components/LaunchCelebration';
 import { FeedbackDialog } from '@/components/FeedbackDialog';
 import { FeedbackBoard } from '@/components/FeedbackBoard';
 import { LaunchAnnouncement } from '@/components/LaunchAnnouncement';
-import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment, Announcement, TaskNotification, NotificationPreferences as NotificationPreferencesType, NotificationType, FeedbackItem } from '@/lib/types';
+import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment, Announcement, TaskNotification, NotificationPreferences as NotificationPreferencesType, NotificationType, FeedbackItem, UserRole } from '@/lib/types';
 import { playNotificationSound } from '@/lib/notificationSounds';
 import { desktopNotificationManager } from '@/lib/desktopNotifications';
 import { DesktopNotificationSettings } from '@/components/DesktopNotificationSettings';
 import { canPerformAction } from '@/lib/permissions';
 import { Toaster, toast } from 'sonner';
-import * as confetti from 'canvas-confetti';
+import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PaperPlaneTilt, Megaphone } from '@phosphor-icons/react';
+import { PaperPlaneTilt, Megaphone, SignOut } from '@phosphor-icons/react';
+import { useAuth } from '@/contexts/AuthContext';
+
+/**
+ * Il database ha un ruolo `owner` in piu' rispetto al tipo `UserRole` usato
+ * dalla UI: lo mappiamo su `admin`, che ne e' l'equivalente lato interfaccia.
+ */
+function mapOrgRoleToUserRole(orgRole: string | null | undefined): UserRole {
+  switch (orgRole) {
+    case 'owner':
+    case 'admin':
+      return 'admin';
+    case 'manager':
+      return 'manager';
+    case 'viewer':
+      return 'viewer';
+    case 'member':
+    default:
+      return 'member';
+  }
+}
 
 function App() {
+  const { user, profile, orgRole, signOut } = useAuth();
   const [tasks, setTasks] = useKV<Task[]>('tasks', []);
   const [employees, setEmployees] = useKV<Employee[]>('employees', []);
   const [announcements, setAnnouncements] = useKV<Announcement[]>('announcements', []);
@@ -64,8 +85,39 @@ function App() {
   const [activeTab, setActiveTab] = useState('all');
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
-  const [currentUser, setCurrentUser] = useState<{ id: string; name: string; avatar: string } | null>(null);
-  const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
+  const currentUser = useMemo(() => {
+    if (!user) return null;
+    return {
+      id: user.id,
+      name: profile?.full_name ?? user.email ?? 'Utente',
+      avatar:
+        profile?.avatar_url ??
+        `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.id)}`,
+    };
+  }, [user, profile]);
+
+  const currentEmployee = useMemo<Employee | null>(() => {
+    if (!user || !currentUser) return null;
+
+    const existing = (employees || []).find(e => e.id === user.id);
+    if (existing) return existing;
+
+    return {
+      id: user.id,
+      name: currentUser.name,
+      avatar: currentUser.avatar,
+      role: profile?.job_title || 'User',
+      userRole: mapOrgRoleToUserRole(orgRole),
+      email: profile?.email ?? user.email ?? undefined,
+      departments: profile?.departments ?? [],
+      department: profile?.departments?.[0],
+      status: profile?.status ?? 'active',
+      joinedDate: user.created_at ?? new Date().toISOString(),
+      teamLead: profile?.team_lead ?? false,
+      customPermissions:
+        (profile?.custom_permissions as Employee['customPermissions']) ?? undefined,
+    };
+  }, [user, profile, orgRole, employees, currentUser]);
   const [viewMode, setViewMode] = useState<'dashboard' | 'tasks' | 'analytics'>('dashboard');
   const [analyticsView, setAnalyticsView] = useState<'team' | 'departments'>('team');
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
@@ -111,113 +163,6 @@ function App() {
       }
     }
   }, []);
-
-  useEffect(() => {
-    const setupSuperAdmin = async () => {
-      try {
-        const user = await window.spark.user();
-        if (user && user.login === 'tutor-sicurezza') {
-          const userId = user.id.toString();
-          const existingEmployee = (employees || []).find(e => e.id === userId || e.name === 'tutor-sicurezza');
-          
-          if (existingEmployee && existingEmployee.userRole !== 'admin') {
-            setEmployees((currentEmployees) =>
-              (currentEmployees || []).map(emp => 
-                emp.id === existingEmployee.id 
-                  ? { ...emp, userRole: 'admin' }
-                  : emp
-              )
-            );
-            toast.success('Super admin privileges granted to tutor-sicurezza');
-          } else if (!existingEmployee) {
-            const newAdmin: Employee = {
-              id: userId,
-              name: user.login || 'tutor-sicurezza',
-              avatar: user.avatarUrl || 'https://api.dicebear.com/7.x/avataaars/svg?seed=tutor-sicurezza',
-              role: 'Super Administrator',
-              userRole: 'admin',
-              email: user.email || undefined,
-              status: 'active',
-              joinedDate: new Date().toISOString(),
-            };
-            setEmployees((currentEmployees) => [...(currentEmployees || []), newAdmin]);
-            toast.success('Super admin account created for tutor-sicurezza');
-          }
-        }
-      } catch (error) {
-        console.error('Failed to check user for super admin setup:', error);
-      }
-      
-      const tutorSicurezzaEmployee = (employees || []).find(e => 
-        e.name.toLowerCase().includes('tutor-sicurezza') || 
-        e.name.toLowerCase().includes('tutor sicurezza')
-      );
-      
-      if (tutorSicurezzaEmployee && tutorSicurezzaEmployee.userRole !== 'admin') {
-        setEmployees((currentEmployees) =>
-          (currentEmployees || []).map(emp => 
-            emp.id === tutorSicurezzaEmployee.id 
-              ? { ...emp, userRole: 'admin' }
-              : emp
-          )
-        );
-        toast.success(`Super admin privileges granted to ${tutorSicurezzaEmployee.name}`);
-      }
-    };
-    setupSuperAdmin();
-  }, [employees]);
-
-  useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const user = await window.spark.user();
-        if (user) {
-          const userId = user.id.toString();
-          setCurrentUser({
-            id: userId,
-            name: user.login || 'User',
-            avatar: user.avatarUrl || 'https://api.dicebear.com/7.x/avataaars/svg?seed=default',
-          });
-          
-          const employee = (employees || []).find(e => e.id === userId);
-          if (employee) {
-            setCurrentEmployee(employee);
-          } else {
-            setCurrentEmployee({
-              id: userId,
-              name: user.login || 'User',
-              avatar: user.avatarUrl || 'https://api.dicebear.com/7.x/avataaars/svg?seed=default',
-              role: 'User',
-              userRole: 'member',
-              status: 'active',
-              joinedDate: new Date().toISOString(),
-            });
-          }
-        }
-      } catch (error) {
-        const demoUser = {
-          id: 'demo-user',
-          name: 'Demo User',
-          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=demo',
-        };
-        setCurrentUser(demoUser);
-        
-        const demoEmployee = (employees || []).find(e => e.id === 'demo-user');
-        if (demoEmployee) {
-          setCurrentEmployee(demoEmployee);
-        } else {
-          setCurrentEmployee({
-            ...demoUser,
-            role: 'Demo User',
-            userRole: 'admin',
-            status: 'active',
-            joinedDate: new Date().toISOString(),
-          });
-        }
-      }
-    };
-    loadUser();
-  }, [employees]);
 
   useEffect(() => {
     if (!hasCompletedWelcome && currentUser) {
@@ -1291,6 +1236,16 @@ function App() {
                 Launch Info
               </Button>
               <HelpDocumentation />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { void signOut(); }}
+                aria-label="Esci"
+                title="Esci"
+              >
+                <SignOut className="mr-2 h-4 w-4" />
+                Esci
+              </Button>
               <DepartmentColorLegend />
               <DataManagement
                 onExportData={handleExportData}

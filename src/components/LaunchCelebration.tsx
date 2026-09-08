@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Rocket, Confetti, Trophy, Sparkle, Check, ArrowRight } from '@phosphor-icons/react';
-import * as confetti from 'canvas-confetti';
+import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface LaunchCelebrationProps {

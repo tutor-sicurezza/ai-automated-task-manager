@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button';
 import { Rocket, Sparkle, Users, CheckCircle, ChartBar, Heart } from '@phosphor-icons/react';
 import { motion } from 'framer-motion';
-import * as confetti from 'canvas-confetti';
+import confetti from 'canvas-confetti';
 import { useEffect } from 'react';
 
 interface LaunchAnnouncementProps {
