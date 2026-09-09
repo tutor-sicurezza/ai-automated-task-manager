@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Task, Employee } from '@/lib/types';
 import { useAI } from '@/lib/ai';
-import { Sparkle, PaperPlaneTilt, X } from '@phosphor-icons/react';
+import { Sparkle, PaperPlaneTilt } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 

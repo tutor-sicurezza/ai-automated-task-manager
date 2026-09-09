@@ -32,7 +32,7 @@ interface CreateTaskDialogProps {
 export function CreateTaskDialog({ open, onOpenChange, employees, tasks = [], onCreateTask }: CreateTaskDialogProps) {
   const [title, setTitle] = useState('');
   // La stima AI compare solo se il server ha la chiave configurata.
-  const aiAvailable = useAIAvailability();
+  const { available: aiAvailable } = useAIAvailability();
   const [description, setDescription] = useState('');
   const [assigneeId, setAssigneeId] = useState<string | null>(null);
   const [priority, setPriority] = useState<TaskPriority>('medium');

@@ -5,30 +5,13 @@ import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Task, Employee, TaskStatus } from '@/lib/types';
-import { Buildings, Users, CheckCircle, Clock, ChartBar, TrendUp, ListChecks, Download, FileCsv, FilePdf } from '@phosphor-icons/react';
+import { Task, Employee } from '@/lib/types';
+import { Buildings, Users, Clock, ChartBar, TrendUp, ListChecks, Download, FileCsv, FilePdf } from '@phosphor-icons/react';
 import { DepartmentBadge } from '@/components/DepartmentBadge';
 import { getDepartmentColor } from '@/lib/departments';
 import { exportDepartmentAnalyticsToCSV, exportDepartmentAnalyticsToPDF } from '@/lib/exportUtils';
 import { toast } from 'sonner';
-import {
-  BarChart,
-  Bar,
-  RadarChart,
-  Radar,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  Cell,
-  PieChart,
-  Pie,
-} from 'recharts';
+import { BarChart, Bar, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
 import { isBefore, parseISO } from 'date-fns';
 
 interface DepartmentAnalyticsProps {
@@ -216,7 +199,7 @@ export function DepartmentAnalytics({ tasks, employees }: DepartmentAnalyticsPro
         unassignedTasks: analytics.unassignedTasks,
       });
       toast.success('CSV report downloaded successfully!');
-    } catch (error) {
+    } catch {
       toast.error('Failed to export CSV report');
     }
   };
@@ -230,7 +213,7 @@ export function DepartmentAnalytics({ tasks, employees }: DepartmentAnalyticsPro
         unassignedTasks: analytics.unassignedTasks,
       });
       toast.success('PDF report will open in print dialog');
-    } catch (error) {
+    } catch {
       toast.error('Failed to export PDF report');
     }
   };

@@ -22,6 +22,7 @@ import { NotificationPreferences } from '@/components/NotificationPreferences';
 import { PermissionsOverview } from '@/components/PermissionsOverview';
 import { DepartmentManagement } from '@/components/DepartmentManagement';
 import { DepartmentColorLegend } from '@/components/DepartmentColorLegend';
+import { OrganizationSwitcher } from '@/components/OrganizationSwitcher';
 import { SuperAdminDashboard } from '@/components/dashboards/SuperAdminDashboard';
 import { DepartmentAdminDashboard } from '@/components/dashboards/DepartmentAdminDashboard';
 import { UserDashboard } from '@/components/dashboards/UserDashboard';
@@ -36,7 +37,7 @@ import { LaunchCelebration } from '@/components/LaunchCelebration';
 import { FeedbackDialog } from '@/components/FeedbackDialog';
 import { FeedbackBoard } from '@/components/FeedbackBoard';
 import { LaunchAnnouncement } from '@/components/LaunchAnnouncement';
-import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment, Announcement, TaskNotification, NotificationPreferences as NotificationPreferencesType, NotificationType, FeedbackItem, UserRole } from '@/lib/types';
+import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment, Announcement, TaskNotification, NotificationPreferences as NotificationPreferencesType, FeedbackItem, UserRole } from '@/lib/types';
 import { playNotificationSound } from '@/lib/notificationSounds';
 import { desktopNotificationManager } from '@/lib/desktopNotifications';
 import { DesktopNotificationSettings } from '@/components/DesktopNotificationSettings';
@@ -51,6 +52,7 @@ import { PaperPlaneTilt, Megaphone, SignOut } from '@phosphor-icons/react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSyncEmployees } from '@/hooks/useSyncEmployees';
 import { useNotifications } from '@/hooks/useNotifications';
+import { useTasks } from '@/hooks/useTasks';
 import { useAIAvailability } from '@/lib/ai';
 
 /**
@@ -74,7 +76,16 @@ function mapOrgRoleToUserRole(orgRole: string | null | undefined): UserRole {
 
 function App() {
   const { user, profile, orgRole, organization, signOut } = useAuth();
-  const [tasks, setTasks] = useKV<Task[]>('tasks', []);
+  /**
+   * I task arrivano dalla tabella public.tasks, una riga ciascuno.
+   *
+   * In app_state erano un blob unico che qualunque membro poteva sostituire
+   * per intero — cioe' cancellare tutti i task con una sola chiamata. Con una
+   * riga per task valgono le policy per riga della 0008. La firma dell'hook e'
+   * identica a quella di useKV, quindi tutti i punti che modificano i task qui
+   * sotto restano invariati.
+   */
+  const [tasks, setTasks] = useTasks();
   const [employees, setEmployees] = useKV<Employee[]>('employees', []);
 
   // Popola `employees` dai membri reali dell'organizzazione: senza questo il
@@ -210,7 +221,7 @@ function App() {
    * comunque li' e l'errore arrivava solo dopo averli premuti. Proporre una
    * funzione che non esiste e' peggio che non proporla.
    */
-  const aiAvailable = useAIAvailability();
+  const { available: aiAvailable } = useAIAvailability();
 
   useEffect(() => {
     if (employees && employees.length > 0) {
@@ -1450,6 +1461,7 @@ function App() {
                 <SignOut className="mr-2 h-4 w-4" />
                 Esci
               </Button>
+              <OrganizationSwitcher />
               <DepartmentColorLegend />
               {/*
                 Backup, ripristino e "Clear All Data" erano visibili a

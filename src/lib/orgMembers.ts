@@ -195,3 +195,39 @@ export async function resetMemberPassword(
 
   return payload.temporaryPassword as string;
 }
+
+/**
+ * Crea una nuova organizzazione e ne rende proprietario chi la crea.
+ *
+ * La rotta esisteva gia' in api/tenants/index.ts ma non era chiamata da
+ * nessuna parte: dopo la chiusura dell'auto-creazione al primo accesso non
+ * restava alcun modo, dall'applicazione, di aprire un secondo spazio di
+ * lavoro. Lato server e' riservata a chi e' gia' amministratore da qualche
+ * parte, o a chi non appartiene ancora a nulla.
+ */
+export async function createOrganization(name: string): Promise<{ id: string; name: string }> {
+  if (!name.trim()) throw new Error("Indica il nome dell'organizzazione");
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.access_token) throw new Error('Sessione scaduta, accedi di nuovo');
+
+  const response = await fetch('/api/tenants', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ name: name.trim() }),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(payload?.error || `Creazione fallita (${response.status})`);
+  }
+
+  return payload.tenant;
+}

@@ -30,6 +30,42 @@ export const fetch = withErrors(async (request: Request) => {
   }
 
   if (request.method === 'POST') {
+    /**
+     * Chi puo' creare un'organizzazione.
+     *
+     * La rotta era aperta a qualunque utente autenticato e non veniva
+     * chiamata da nessuna parte. Wirarla cosi' com'era avrebbe permesso a un
+     * 'member' di crearsi un'organizzazione di cui e' owner: non un furto di
+     * dati (la nuova sarebbe vuota), ma un modo per ottenere privilegi
+     * amministrativi e comparire come proprietario di uno spazio dentro lo
+     * stesso progetto.
+     *
+     * Restano ammessi: chi e' gia' owner o admin da qualche parte (sta
+     * aprendo un secondo spazio di lavoro) e chi non appartiene ad alcuna
+     * organizzazione (primo avvio del progetto, quando non esiste ancora
+     * nessuno che possa invitare).
+     */
+    const { data: appartenenze, error: appartenenzeError } = await admin
+      .from('organization_members')
+      .select('role')
+      .eq('user_id', user.id);
+
+    if (appartenenzeError) {
+      return jsonResponse({ error: appartenenzeError.message }, { status: 500 });
+    }
+
+    const membri = appartenenze ?? [];
+    const puoCreare =
+      membri.length === 0 ||
+      membri.some((m) => m.role === 'owner' || m.role === 'admin');
+
+    if (!puoCreare) {
+      return jsonResponse(
+        { error: 'Solo un amministratore puo creare una nuova organizzazione' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json().catch(() => ({}));
     const name = typeof body.name === 'string' ? body.name.trim() : '';
 
@@ -37,9 +73,14 @@ export const fetch = withErrors(async (request: Request) => {
       return jsonResponse({ error: 'Tenant name is required' }, { status: 400 });
     }
 
-    const slug = typeof body.slug === 'string' && body.slug.trim()
+    // Lo slug ha un vincolo di unicita' su tutto il progetto: due aziende con
+    // lo stesso nome facevano fallire la seconda creazione con un errore di
+    // chiave duplicata, incomprensibile per chi lo legge. Il suffisso lo rende
+    // unico senza chiederlo all'utente.
+    const base = typeof body.slug === 'string' && body.slug.trim()
       ? slugify(body.slug)
       : slugify(name);
+    const slug = `${base || 'org'}-${crypto.randomUUID().slice(0, 8)}`;
 
     const { data: organization, error: organizationError } = await admin
       .from('organizations')

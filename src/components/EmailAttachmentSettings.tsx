@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useKV } from '@/hooks/useKV';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Paperclip, Info, Warning, Check, Envelope } from '@phosphor-icons/react';
+import { Paperclip, Info, Warning, Check } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 
 interface EmailAttachmentSettings {

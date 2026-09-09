@@ -31,11 +31,19 @@ export interface AuthOrganization {
   owner_id: string;
 }
 
+export interface AuthMembership extends AuthOrganization {
+  role: UserRole | 'owner';
+}
+
 interface AuthContextValue {
   session: Session | null;
   user: User | null;
   profile: AuthProfile | null;
   organization: AuthOrganization | null;
+  /** Tutte le organizzazioni di cui l'utente e' membro. */
+  organizations: AuthMembership[];
+  /** Passa a un'altra organizzazione fra quelle disponibili. */
+  switchOrganization: (organizationId: string) => void;
   /** Ruolo dell'utente NELL'organizzazione corrente, letto da organization_members. */
   orgRole: UserRole | 'owner' | null;
   loading: boolean;
@@ -53,10 +61,14 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+/** Organizzazione scelta dall'utente, per non ripartire da un'altra a ogni avvio. */
+const CHIAVE_ORG_ATTIVA = 'taskflow.organizzazione-attiva';
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<AuthProfile | null>(null);
   const [organization, setOrganization] = useState<AuthOrganization | null>(null);
+  const [organizations, setOrganizations] = useState<AuthMembership[]>([]);
   const [orgRole, setOrgRole] = useState<UserRole | 'owner' | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -124,21 +136,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setProfile((existingProfile as AuthProfile | null) ?? null);
 
-    const { data: membership } = await supabase
+    /**
+     * TUTTE le appartenenze, non la prima che capita.
+     *
+     * Prima la query era `.limit(1).maybeSingle()`: con piu' di
+     * un'organizzazione l'utente veniva caricato in una qualsiasi, senza
+     * modo di scegliere. Finche' nessuno poteva crearne una seconda il
+     * problema non si vedeva; ora che si puo', l'ordinamento e' esplicito e
+     * la scelta e' dell'utente.
+     */
+    const { data: memberships } = await supabase
       .from('organization_members')
-      .select('role, organization_id, organizations(id, name, slug, owner_id)')
+      .select('role, organization_id, created_at, organizations(id, name, slug, owner_id)')
       .eq('user_id', currentUser.id)
-      .limit(1)
-      .maybeSingle();
+      .order('created_at', { ascending: true });
 
-    if (membership?.organizations) {
-      setOrganization(membership.organizations as unknown as AuthOrganization);
-      setOrgRole(membership.role as UserRole | 'owner');
+    const disponibili: AuthMembership[] = (memberships ?? [])
+      .filter((m) => m.organizations)
+      .map((m) => ({
+        ...(m.organizations as unknown as AuthOrganization),
+        role: m.role as UserRole | 'owner',
+      }));
+
+    setOrganizations(disponibili);
+
+    if (disponibili.length === 0) {
+      setOrganization(null);
+      setOrgRole(null);
       return;
     }
 
-    setOrganization(null);
-    setOrgRole(null);
+    const preferita = localStorage.getItem(CHIAVE_ORG_ATTIVA);
+    const scelta =
+      disponibili.find((o) => o.id === preferita) ?? disponibili[0];
+
+    setOrganization(scelta);
+    setOrgRole(scelta.role);
   };
 
   const refresh = useCallback(async () => {
@@ -199,6 +232,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: signInError?.message ?? null };
   }, []);
 
+  const switchOrganization = useCallback(
+    (organizationId: string) => {
+      const scelta = organizations.find((o) => o.id === organizationId);
+      if (!scelta) return;
+
+      localStorage.setItem(CHIAVE_ORG_ATTIVA, organizationId);
+      // Lo store di useKV e' indicizzato per organizzazione, ma i dati gia'
+      // caricati resterebbero in memoria: si azzera per non mostrare per un
+      // istante quelli dell'organizzazione precedente.
+      resetKVCache();
+      setOrganization(scelta);
+      setOrgRole(scelta.role);
+    },
+    [organizations]
+  );
+
   const requestPasswordReset = useCallback(async (email: string) => {
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(
       email.trim(),
@@ -223,6 +272,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     resetKVCache();
     setProfile(null);
     setOrganization(null);
+    setOrganizations([]);
     setOrgRole(null);
   }, []);
 
@@ -233,6 +283,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         profile,
         organization,
+        organizations,
+        switchOrganization,
         orgRole,
         loading,
         error,

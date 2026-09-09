@@ -10,15 +10,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
-import { Gear, FloppyDisk, Warning, CheckCircle, ShieldCheck, Robot, Bell, Users, FolderOpen, Globe, Plugs, ClockCounterClockwise, CloudArrowDown, CloudArrowUp, ChartBar, Palette, Envelope, Wrench, Database, WarningCircle, Info } from '@phosphor-icons/react';
+import { Gear, FloppyDisk, Warning, CheckCircle, ShieldCheck, Robot, Bell, Users, FolderOpen, Globe, Plugs, ClockCounterClockwise, CloudArrowDown, CloudArrowUp, ChartBar, Envelope, Wrench, Database, WarningCircle, Info } from '@phosphor-icons/react';
 import { SystemSettings, UserRole, AuditLogEntry } from '@/lib/types';
 import { SendGridConfiguration } from '@/components/SendGridConfiguration';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAIAvailability } from '@/lib/ai';
 import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
 import { newId } from '@/lib/utils';
@@ -125,6 +125,7 @@ function conImpostazioniPredefinite(salvate: SystemSettings | undefined): System
 export function SuperAdminSettings({ currentUserId, currentUserName }: SuperAdminSettingsProps) {
   const [open, setOpen] = useState(false);
   const { organization, user } = useAuth();
+  const statoAI = useAIAvailability();
   const [settings, setSettings] = useKV<SystemSettings>('system-settings', DEFAULT_SETTINGS);
   const [auditLog, setAuditLog] = useKV<AuditLogEntry[]>('audit-log', []);
   const [maintenanceMode, setMaintenanceMode] = useKV<boolean>('maintenance-mode', false);
@@ -264,6 +265,15 @@ export function SuperAdminSettings({ currentUserId, currentUserName }: SuperAdmi
 
       if (userError) throw new Error(userError.message);
 
+      // I task non stanno piu' in app_state (0012): senza questa lettura il
+      // backup conterrebbe tutto TRANNE il lavoro vero.
+      const { data: taskRows, error: tasksError } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('organization_id', organization.id);
+
+      if (tasksError) throw new Error(tasksError.message);
+
       const payload = {
         format: BACKUP_FORMAT,
         exportedAt: new Date().toISOString(),
@@ -271,6 +281,7 @@ export function SuperAdminSettings({ currentUserId, currentUserName }: SuperAdmi
         organizationName: organization.name,
         appState: Object.fromEntries((appRows ?? []).map((r) => [r.key, r.value])),
         userState: Object.fromEntries((userRows ?? []).map((r) => [r.key, r.value])),
+        tasks: taskRows ?? [],
       };
 
       const dataBlob = new Blob([JSON.stringify(payload, null, 2)], {
@@ -286,13 +297,17 @@ export function SuperAdminSettings({ currentUserId, currentUserName }: SuperAdmi
       URL.revokeObjectURL(url);
 
       const count = (appRows?.length ?? 0) + (userRows?.length ?? 0);
-      logAuditEntry('Data Export', `Esportate ${count} chiavi`, 'system');
+      logAuditEntry(
+        'Data Export',
+        `Esportate ${count} chiavi e ${taskRows?.length ?? 0} task`,
+        'system'
+      );
       confetti({
         particleCount: 100,
         spread: 70,
         origin: { y: 0.6 }
       });
-      toast.success(`Backup esportato: ${count} chiavi`);
+      toast.success(`Backup esportato: ${count} chiavi e ${taskRows?.length ?? 0} task`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Errore sconosciuto';
       toast.error(`Esportazione fallita: ${message}`);
@@ -332,10 +347,14 @@ export function SuperAdminSettings({ currentUserId, currentUserName }: SuperAdmi
           ? parsed.userState ?? {}
           : {};
 
+        const tasksDaRipristinare: Record<string, unknown>[] = isEnvelope && Array.isArray(parsed.tasks)
+          ? parsed.tasks
+          : [];
+
         const appKeys = Object.keys(appState);
         const userKeys = Object.keys(userState);
 
-        if (appKeys.length === 0 && userKeys.length === 0) {
+        if (appKeys.length === 0 && userKeys.length === 0 && tasksDaRipristinare.length === 0) {
           toast.error('Il file non contiene dati da ripristinare');
           setIsImporting(false);
           return;
@@ -350,7 +369,7 @@ ATTENZIONE: il backup proviene da un'altra organizzazione (${parsed.organization
 
         if (
           !confirm(
-            `Verranno sovrascritte ${appKeys.length + userKeys.length} chiavi di "${organization.name}". I dati attuali con le stesse chiavi andranno persi.${provenienza}
+            `Verranno sovrascritte ${appKeys.length + userKeys.length} chiavi e ripristinati ${tasksDaRipristinare.length} task di "${organization.name}". I dati attuali con le stesse chiavi andranno persi.${provenienza}
 
 Procedere?`
           )
@@ -388,9 +407,22 @@ Procedere?`
           if (error) throw new Error(error.message);
         }
 
+        if (tasksDaRipristinare.length > 0) {
+          // I task tornano nella loro tabella, con l'organizzazione corrente:
+          // un backup non deve poter reintrodurre righe di un'altra.
+          const { error } = await supabase.from('tasks').upsert(
+            tasksDaRipristinare.map((t) => ({
+              ...t,
+              organization_id: organization.id,
+            })),
+            { onConflict: 'id' }
+          );
+          if (error) throw new Error(error.message);
+        }
+
         logAuditEntry(
           'Data Import',
-          `Ripristinate ${appKeys.length + userKeys.length} chiavi`,
+          `Ripristinate ${appKeys.length + userKeys.length} chiavi e ${tasksDaRipristinare.length} task`,
           'system'
         );
         toast.success('Backup ripristinato. Ricarico la pagina...');
@@ -1130,6 +1162,30 @@ Procedere?`
               </TabsContent>
 
               <TabsContent value="ai" className="space-y-4">
+                {/*
+                  Stato reale del servizio. Senza questo, un amministratore
+                  vedeva le impostazioni AI come se tutto funzionasse, mentre
+                  l'endpoint rispondeva con un errore di configurazione: la
+                  diagnosi era leggibile solo nei log del server, cioe' dove
+                  lui non guarda mai.
+                */}
+                {statoAI.available === false && (
+                  <Alert>
+                    <WarningCircle weight="fill" />
+                    <AlertDescription>
+                      <strong>Le funzioni AI non sono attive</strong> e restano nascoste
+                      agli utenti. Motivo riportato dal server:
+                      <span className="mt-1 block font-mono text-xs break-all">
+                        {statoAI.reason ?? 'non specificato'}
+                      </span>
+                      <span className="mt-2 block">
+                        Se la chiave non e' legata a un workspace, imposta la variabile
+                        d'ambiente <code>ANTHROPIC_WORKSPACE_ID</code> oppure usa una
+                        chiave gia' associata a un workspace.
+                      </span>
+                    </AlertDescription>
+                  </Alert>
+                )}
                 <Card>
                   <CardHeader>
                     <CardTitle>AI Features</CardTitle>

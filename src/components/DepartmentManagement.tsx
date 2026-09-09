@@ -11,12 +11,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Buildings, Plus, PencilSimple, Trash, Users, ListChecks, TrendUp, ChartBar, X as XIcon, UserCircle, MapPin, CheckCircle, Warning, Star, Code, Briefcase, PaintBrush, Sparkle } from '@phosphor-icons/react';
-import { DepartmentBadge } from '@/components/DepartmentBadge';
-import { getAllDepartments, generateColorFromName } from '@/lib/departments';
+import { Buildings, Plus, PencilSimple, Trash, Users, ListChecks, ChartBar, X as XIcon, UserCircle, MapPin, CheckCircle, Warning, Star, Code, Briefcase, PaintBrush, Sparkle } from '@phosphor-icons/react';
+import { generateColorFromName } from '@/lib/departments';
 import { Employee } from '@/lib/types';
 import { toast } from 'sonner';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { newId } from '@/lib/utils';
 
 export interface Department {

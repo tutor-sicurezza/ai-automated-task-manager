@@ -33,7 +33,7 @@ interface EditTaskDialogProps {
 export function EditTaskDialog({ open, onOpenChange, employees, tasks = [], task, onEditTask }: EditTaskDialogProps) {
   const [title, setTitle] = useState('');
   // La stima AI compare solo se il server ha la chiave configurata.
-  const aiAvailable = useAIAvailability();
+  const { available: aiAvailable } = useAIAvailability();
   const [description, setDescription] = useState('');
   const [assigneeId, setAssigneeId] = useState<string | null>(null);
   const [priority, setPriority] = useState<TaskPriority>('medium');

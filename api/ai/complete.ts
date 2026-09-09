@@ -79,8 +79,30 @@ export const fetch = withErrors(async (request: Request) => {
    * non rivela nulla oltre a un booleano — resta comunque dietro
    * l'autenticazione.
    */
+  /**
+   * Chiavi non legate a un workspace.
+   *
+   * Una chiave a livello di organizzazione richiede l'header
+   * `anthropic-workspace-id`, altrimenti Anthropic risponde 400 a QUALUNQUE
+   * richiesta. E' il caso incontrato in produzione. Impostando
+   * ANTHROPIC_WORKSPACE_ID la chiave diventa utilizzabile senza doverla
+   * sostituire; una chiave gia' legata a un workspace ignora l'header.
+   */
+  const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID;
+  const opzioniClient = (key: string) => ({
+    apiKey: key,
+    ...(workspaceId
+      ? { defaultHeaders: { 'anthropic-workspace-id': workspaceId } }
+      : {}),
+  });
+
   if (request.method === 'GET') {
-    if (!apiKey) return jsonResponse({ available: false, reason: 'chiave assente' });
+    if (!apiKey) {
+      return jsonResponse({
+        available: false,
+        reason: 'ANTHROPIC_API_KEY non e configurata su questo ambiente',
+      });
+    }
 
     // Non basta che la chiave ESISTA: deve funzionare.
     //
@@ -93,7 +115,7 @@ export const fetch = withErrors(async (request: Request) => {
     // L'elenco dei modelli e' la verifica giusta: valida chiave, permessi e
     // scope reali senza generare token, quindi senza costo.
     try {
-      const anthropic = new Anthropic({ apiKey });
+      const anthropic = new Anthropic(opzioniClient(apiKey));
       await anthropic.models.list({ limit: 1 });
       return jsonResponse({ available: true });
     } catch (e) {
@@ -198,7 +220,7 @@ export const fetch = withErrors(async (request: Request) => {
     );
   }
 
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic(opzioniClient(apiKey));
 
   const response = await client.messages.create({
     model,

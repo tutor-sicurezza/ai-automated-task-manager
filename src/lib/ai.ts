@@ -95,9 +95,16 @@ export function useAI() {
  * pulsante. `undefined` significa "non ancora saputo", cosi' l'interfaccia non
  * fa lampeggiare i comandi mentre la risposta arriva.
  */
-export function useAIAvailability(): boolean | undefined {
+export interface AIStatus {
+  /** `undefined` finche' la risposta non e' arrivata. */
+  available: boolean | undefined;
+  /** Motivo dell'indisponibilita', da mostrare a chi puo' rimediare. */
+  reason?: string;
+}
+
+export function useAIAvailability(): AIStatus {
   const { organization } = useAuth();
-  const [available, setAvailable] = useState<boolean | undefined>(undefined);
+  const [stato, setStato] = useState<AIStatus>({ available: undefined });
 
   useEffect(() => {
     if (!organization?.id) return;
@@ -119,17 +126,25 @@ export function useAIAvailability(): boolean | undefined {
         if (cancelled) return;
 
         if (!response.ok) {
-          setAvailable(false);
+          setStato({ available: false, reason: `HTTP ${response.status}` });
           return;
         }
 
         const payload = await response.json().catch(() => ({}));
-        setAvailable(Boolean(payload?.available));
+        setStato({
+          available: Boolean(payload?.available),
+          reason: typeof payload?.reason === 'string' ? payload.reason : undefined,
+        });
       } catch {
         // In sviluppo con `npm run dev` le rotte api/ non rispondono affatto:
         // trattarlo come "non disponibile" e' esattamente il comportamento
         // giusto, perche' non lo e'.
-        if (!cancelled) setAvailable(false);
+        if (!cancelled) {
+          setStato({
+            available: false,
+            reason: 'endpoint non raggiungibile (con `npm run dev` le rotte api/ non rispondono)',
+          });
+        }
       }
     })();
 
@@ -138,5 +153,5 @@ export function useAIAvailability(): boolean | undefined {
     };
   }, [organization?.id]);
 
-  return available;
+  return stato;
 }

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Task, Employee, Announcement, TaskNotification } from '@/lib/types';
-import { Users, ChartBar, ListChecks, Bell, Buildings, Sparkle, CheckCircle, Clock, Warning, Plus, Megaphone, UsersThree, Robot, FolderOpen } from '@phosphor-icons/react';
+import { Users, ChartBar, ListChecks, Buildings, Sparkle, CheckCircle, Warning, Plus, Megaphone, UsersThree, Robot, FolderOpen } from '@phosphor-icons/react';
 import { TeamAnalytics } from '@/components/TeamAnalytics';
 import { DepartmentAnalytics } from '@/components/DepartmentAnalytics';
 import { AIInsights } from '@/components/AIInsights';

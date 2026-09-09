@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ShieldCheck, Lock, Eye, User } from '@phosphor-icons/react';
 import { Employee, UserRole, Permission } from '@/lib/types';
-import { DEFAULT_ROLES, getEmployeePermissions } from '@/lib/permissions';
+import { DEFAULT_ROLES } from '@/lib/permissions';
 import { updateOrgMemberRole } from '@/lib/orgMembers';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';

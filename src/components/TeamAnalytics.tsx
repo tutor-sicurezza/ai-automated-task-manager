@@ -6,25 +6,11 @@ import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Task, Employee, TaskStatus, TaskPriority } from '@/lib/types';
-import { TrendUp, TrendDown, CheckCircle, Clock, Timer, Target, ChartBar, User, Calendar, Download, FileCsv, FilePdf } from '@phosphor-icons/react';
+import { Task, Employee } from '@/lib/types';
+import { TrendUp, CheckCircle, Clock, Timer, Target, User, Calendar, Download, FileCsv, FilePdf } from '@phosphor-icons/react';
 import { exportTeamAnalyticsToCSV, exportTeamAnalyticsToPDF } from '@/lib/exportUtils';
 import { toast } from 'sonner';
-import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from 'recharts';
+import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { format, subDays, startOfDay, isAfter, isBefore, differenceInDays, parseISO } from 'date-fns';
 
 interface TeamAnalyticsProps {
@@ -193,7 +179,7 @@ export function TeamAnalytics({ tasks, employees }: TeamAnalyticsProps) {
         priorityBreakdown: analytics.priorityBreakdown,
       });
       toast.success('CSV report downloaded successfully!');
-    } catch (error) {
+    } catch {
       toast.error('Failed to export CSV report');
     }
   };
@@ -212,7 +198,7 @@ export function TeamAnalytics({ tasks, employees }: TeamAnalyticsProps) {
         priorityBreakdown: analytics.priorityBreakdown,
       });
       toast.success('PDF report will open in print dialog');
-    } catch (error) {
+    } catch {
       toast.error('Failed to export PDF report');
     }
   };
