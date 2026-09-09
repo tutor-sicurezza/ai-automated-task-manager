@@ -1,142 +1,109 @@
-# TaskFlow - Gestione task per team
+# TaskFlow
 
-Applicazione web per assegnare, tracciare e completare task all'interno di un'organizzazione,
-con utenti, ruoli, dipartimenti, notifiche e invio email.
+Applicazione web per assegnare, tracciare e completare attività all'interno di
+un'organizzazione: utenti, ruoli, dipartimenti, notifiche in tempo reale e
+invio email.
 
-Il progetto nasceva da un template GitHub Spark ed e' stato migrato a **Supabase + Vercel**.
-Il runtime Spark non e' piu' usato: autenticazione, dati e funzioni server sono reali.
-
-> Per sapere cosa e' stato effettivamente verificato e cosa no, leggi **[STATO.md](STATO.md)**.
-> Non esiste alcuna suite di test automatici in questo repository.
+Multi-tenant, con isolamento imposto dal database (Row Level Security) e non
+dall'interfaccia.
 
 ---
 
-## Architettura
+## Cosa fa
 
-- **Frontend**: React 19 + TypeScript, build con Vite, UI Radix/shadcn + Tailwind CSS 4.
-- **Autenticazione**: Supabase Auth (email + password). Nessun login finto o mock.
-- **Database**: Postgres su Supabase, multi-tenant, con **RLS** attiva su tutte le tabelle
-  applicative: ogni riga e' visibile solo ai membri dell'organizzazione a cui appartiene.
-- **Stato applicativo**: salvato nelle tabelle `app_state` (dati dell'organizzazione) e
-  `user_state` (dati del singolo utente) tramite un hook **`useKV` custom**
-  (`src/hooks/useKV.ts`). Ha la stessa firma dell'hook Spark che sostituisce, ma
-  scrive su Supabase, non su un KV store del runtime.
-- **Funzioni serverless**: cartella `api/` su Vercel
-  - `api/health.ts` - health check
-  - `api/tasks/index.ts`, `api/notifications/index.ts`
-  - `api/tenants/index.ts`, `api/tenants/[tenantId]/members.ts`
-  - `api/email/send.ts` - invio email (Resend; supporto SendGrid presente nel codice)
-  - `api/ai/complete.ts` - funzioni AI, richiede `ANTHROPIC_API_KEY`
-- **Email**: Resend, chiamato solo lato server. Le chiavi API non stanno nel bundle client.
-- **AI**: le chiamate passano da `api/ai/complete.ts` (SDK Anthropic). Se
-  `ANTHROPIC_API_KEY` non e' configurata l'endpoint risponde **503** e le funzioni AI
-  dell'interfaccia non funzionano.
+- **Attività**: creazione, assegnazione, stati, priorità, scadenze, commenti,
+  allegati e cronologia delle modifiche.
+- **Persone e ruoli**: `owner`, `admin`, `manager`, `member`, `viewer`. Gli
+  account li crea un amministratore: non esiste registrazione pubblica.
+- **Dipartimenti** con analisi per reparto e per persona.
+- **Notifiche** per destinatario, recapitate in tempo reale, con preferenze
+  personali (tipi abilitati, orari di silenzio, suono).
+- **Email** di assegnazione tramite Resend o SendGrid, inviate solo lato
+  server.
+- **Backup e ripristino** dei dati dell'organizzazione.
+- **Funzioni AI facoltative** (assistente, auto-assegnazione, stime, insight):
+  senza chiave API restano semplicemente nascoste.
 
----
+## Come sta in piedi
 
-## Prerequisiti
+- **Frontend**: React 19 + TypeScript, build con Vite, interfaccia Radix/shadcn
+  e Tailwind CSS 4.
+- **Autenticazione e dati**: Supabase (Postgres + Auth). Ogni tabella
+  applicativa ha RLS attiva.
+- **Funzioni server**: cartella `api/`, eseguita da Vercel. È l'unico posto in
+  cui vivono le chiavi segrete.
+- **Migrazioni**: `supabase/migrations/`, numerate e da applicare in ordine.
 
-- Node.js 20 o superiore e npm
-- Un progetto Supabase (URL, publishable key, service role key)
-- Supabase CLI, oppure accesso all'SQL editor del progetto, per applicare le migrazioni
-- Un account Resend con un dominio/mittente verificato (per le email)
-- Una chiave API Anthropic (solo se servono le funzioni AI)
-- Un account Vercel (per il deploy; le rotte in `api/` girano li')
+### Dove sta l'autorizzazione
 
----
+Nel database, non nei componenti. I controlli di permesso nell'interfaccia
+servono a non mostrare comandi inutili; a rifiutare le operazioni sono le
+policy RLS e le rotte in `api/`, che girano con privilegi elevati e ricontrollano
+il ruolo di chi chiama.
 
-## Setup
+In pratica:
 
-### 1. Dipendenze
+- le attività sono righe di `public.tasks`, con policy per riga: crea chi può
+  scrivere, modifica l'autore o l'assegnatario o un manager, elimina l'autore o
+  un manager;
+- le notifiche sono righe di `public.notifications`, leggibili solo dal
+  destinatario;
+- lo stato applicativo restante (`app_state`) distingue le chiavi di
+  configurazione, riservate a manager e amministratori, da quelle di lavoro
+  quotidiano.
+
+## Installazione
+
+Guida completa in **[INSTALL.md](INSTALL.md)**, comprese le due trappole di
+configurazione che costano più tempo. In sintesi:
 
 ```bash
 npm install
+cp .env.example .env.local          # e compilalo
+supabase link --project-ref <ref>
+supabase db push                    # applica TUTTE le migrazioni, in ordine
+vercel dev                          # frontend + funzioni api/
 ```
 
-### 2. Variabili d'ambiente
-
-Crea un file `.env.local` nella radice (e' ignorato da git; non committarlo mai).
-
-Variabili lette dal **client** (finiscono nel bundle, quindi solo valori pubblici):
+## Test
 
 ```bash
-VITE_SUPABASE_URL=https://<progetto>.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=<publishable/anon key>
+npm run test        # unità (Vitest)
+npm run typecheck
+npm run lint
+npm run build
 ```
 
-Variabili lette **solo dal server** (funzioni in `api/`, da configurare anche
-su Vercel come Environment Variables del progetto):
+La suite copre la matrice dei permessi per ruolo, la sanificazione dei
+contenuti che finiscono nel DOM, l'unicità degli identificatori e la
+resistenza delle impostazioni a dati malformati. Sono tutte aree in cui sono
+stati trovati difetti reali: i test descrivono il comportamento corretto perché
+non tornino.
+
+Esiste inoltre un controllo di integrazione contro un progetto Supabase vero:
 
 ```bash
-SUPABASE_URL=https://<progetto>.supabase.co
-SUPABASE_ANON_KEY=<anon key>
-SUPABASE_SERVICE_ROLE_KEY=<service role key>   # segreto: mai lato client
-RESEND_API_KEY=<chiave Resend>
-EMAIL_FROM="TaskFlow <no-reply@tuodominio.it>"
-ANTHROPIC_API_KEY=<chiave Anthropic>           # senza questa, /api/ai/complete risponde 503
+node scripts/smoke-auth.mjs
 ```
 
-`SUPABASE_URL`, `SUPABASE_ANON_KEY` e `SUPABASE_SERVICE_ROLE_KEY` sono obbligatorie:
-le funzioni serverless falliscono all'avvio se mancano (`api/_lib/env.ts`).
+Verifica che la registrazione pubblica sia chiusa, che la creazione di account
+da parte di un amministratore funzioni e che gli account esistenti risolvano la
+propria organizzazione. Va rieseguito dopo ogni modifica alla configurazione di
+autenticazione: un errore lì blocca l'accesso a tutti.
 
-### 3. Migrazioni del database
+**Cosa la suite non copre**: non ci sono test end-to-end né test dei componenti
+React. La copertura è sulla logica pura e sui punti critici, non
+sull'applicazione intera.
 
-Le migrazioni SQL stanno in `supabase/migrations/` e vanno applicate **tutte, in ordine
-numerico crescente** (`0001_...`, `0002_...`, e cosi' via). Il contenuto della cartella
-e' la fonte di verita': schema multi-tenant, policy RLS, tabelle `app_state` /
-`user_state`.
+## Contribuire
 
-Con la Supabase CLI:
+Segnalazioni e pull request sono benvenute. Prima di aprire una PR:
+`npm run test && npm run typecheck && npm run lint && npm run build`.
 
-```bash
-supabase link --project-ref <project-ref>
-supabase db push
-```
+Se la modifica tocca permessi, policy RLS o autenticazione, spiega nella
+descrizione **quale operazione diventa possibile e per chi**: è la parte che
+richiede più attenzione in revisione.
 
-In alternativa, incolla il contenuto di ciascun file nell'SQL editor del progetto
-Supabase, rispettando l'ordine numerico. Saltare o invertire una migrazione lascia
-le policy RLS in uno stato incoerente.
+## Licenza
 
----
-
-## Comandi npm
-
-| Comando            | Cosa fa                                            |
-| ------------------ | -------------------------------------------------- |
-| `npm run dev`      | Server di sviluppo Vite                            |
-| `npm run build`    | Type-check + build di produzione in `dist/`        |
-| `npm run preview`  | Anteprima locale della build                       |
-| `npm run lint`     | ESLint                                             |
-| `npm run optimize` | Pre-bundling delle dipendenze Vite                 |
-
-Non esiste alcuno script di test: nel repository non c'e' nessun test automatico.
-
-Nota: in sviluppo locale `npm run dev` serve solo il frontend. Le rotte `api/`
-richiedono un runtime Vercel (`vercel dev`) o un deploy su Vercel; senza di esso
-email e AI non rispondono.
-
----
-
-## Account utente
-
-**Gli account sono creati esclusivamente dall'amministratore.** Non esiste una
-registrazione pubblica: chi non e' stato censito da un amministratore non puo'
-entrare. L'amministratore crea gli utenti dall'interfaccia di gestione utenti;
-l'appartenenza all'organizzazione determina, tramite RLS, cosa ciascuno vede.
-
----
-
-## Documentazione presente in questo repository
-
-- [STATO.md](STATO.md) - cosa e' verificato e cosa no (leggilo per primo)
-- [PRD.md](PRD.md) - requisiti di prodotto
-- [DEPARTMENT_ARCHITECTURE.md](DEPARTMENT_ARCHITECTURE.md) - architettura dei dipartimenti
-- [DEPARTMENT_TEST_PLAN.md](DEPARTMENT_TEST_PLAN.md) - piano di test **manuale**, mai eseguito integralmente
-- [SECURITY_TESTING.md](SECURITY_TESTING.md) - procedura di test **manuale** anti-XSS
-- [XSS_PROTECTION.md](XSS_PROTECTION.md) - sanitizzazione degli input (`src/lib/sanitization.ts`)
-- [EMAIL_ATTACHMENTS.md](EMAIL_ATTACHMENTS.md) - allegati nelle email di notifica
-- [LAUNCH_FEEDBACK_GUIDE.md](LAUNCH_FEEDBACK_GUIDE.md) - funzionalita' di raccolta feedback
-
-Molti altri documenti presenti in precedenza sono stati rimossi perche' dichiaravano
-test eseguiti, audit di sicurezza superati e prontezza al lancio che non
-corrispondevano alla realta'.
+[MIT](LICENSE).
