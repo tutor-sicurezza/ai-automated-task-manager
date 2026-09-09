@@ -80,7 +80,27 @@ export const fetch = withErrors(async (request: Request) => {
    * l'autenticazione.
    */
   if (request.method === 'GET') {
-    return jsonResponse({ available: Boolean(apiKey) });
+    if (!apiKey) return jsonResponse({ available: false, reason: 'chiave assente' });
+
+    // Non basta che la chiave ESISTA: deve funzionare.
+    //
+    // La prima versione di questa sonda controllava solo `Boolean(apiKey)`, e
+    // in produzione ha dato "disponibile" con una chiave valida ma NON legata
+    // a un workspace. Risultato: l'interfaccia mostrava tutte le funzioni AI e
+    // ognuna falliva al primo clic con un 400 di Anthropic. Esattamente lo
+    // scenario che la sonda doveva evitare.
+    //
+    // L'elenco dei modelli e' la verifica giusta: valida chiave, permessi e
+    // scope reali senza generare token, quindi senza costo.
+    try {
+      const anthropic = new Anthropic({ apiKey });
+      await anthropic.models.list({ limit: 1 });
+      return jsonResponse({ available: true });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'chiave non utilizzabile';
+      console.error('[ai] chiave non utilizzabile:', message);
+      return jsonResponse({ available: false, reason: message.slice(0, 300) });
+    }
   }
 
   if (!apiKey) {
