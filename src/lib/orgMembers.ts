@@ -168,3 +168,30 @@ export async function removeOrgMember(tenantId: string, userId: string): Promise
     throw new Error(payload?.error || `Rimozione fallita (${response.status})`);
   }
 }
+
+/**
+ * Assegna una nuova password provvisoria a un membro.
+ *
+ * Serve perche' non esisteva alcun modo di rientrare dopo aver dimenticato la
+ * password: nessun "password dimenticata" nell'interfaccia e nessuna azione
+ * amministrativa. La password torna al chiamante perche' la consegni di
+ * persona — non c'e' un canale di recapito su cui fare affidamento.
+ */
+export async function resetMemberPassword(
+  tenantId: string,
+  email: string
+): Promise<string> {
+  if (!tenantId) throw new Error('Nessuna organizzazione attiva');
+  if (!email) throw new Error("Questo membro non ha un'email collegata");
+
+  const payload = await authorizedFetch(
+    `/api/tenants/${encodeURIComponent(tenantId)}/members`,
+    { action: 'reset-password', email: email.trim().toLowerCase() }
+  );
+
+  if (!payload?.temporaryPassword) {
+    throw new Error('Il server non ha restituito una password');
+  }
+
+  return payload.temporaryPassword as string;
+}

@@ -22,6 +22,39 @@ const STRICT_CONFIG: SanitizationConfig = {
   ALLOW_DATA_ATTR: false,
 };
 
+/**
+ * Configurazione per l'ANTEPRIMA dei template email.
+ *
+ * Serve un insieme di tag piu' largo del default (le email sono fatte di
+ * tabelle, div e stili inline), ma la lista resta esplicita: cio' che non e'
+ * elencato viene rimosso, quindi <script>, <iframe> e soprattutto gli
+ * attributi on* non sopravvivono.
+ *
+ * Perche' esiste: l'anteprima veniva iniettata con dangerouslySetInnerHTML
+ * senza alcuna sanificazione, e i template vivono in app_state, che qualunque
+ * membro dell'organizzazione puo' riscrivere. Bastava quindi essere un
+ * 'member' per far eseguire codice nel browser di un amministratore, con la
+ * sua sessione, appena apriva l'anteprima.
+ */
+const EMAIL_PREVIEW_CONFIG: SanitizationConfig = {
+  ALLOWED_TAGS: [
+    'div', 'span', 'p', 'br', 'hr', 'a', 'b', 'i', 'em', 'strong', 'u', 's',
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote',
+    'table', 'thead', 'tbody', 'tr', 'td', 'th', 'img', 'center', 'small',
+  ],
+  ALLOWED_ATTR: [
+    'href', 'target', 'rel', 'src', 'alt', 'title', 'width', 'height',
+    'align', 'valign', 'colspan', 'rowspan', 'style', 'class',
+  ],
+  ALLOW_DATA_ATTR: false,
+};
+
+/** Anteprima di un template email, ripulita prima di finire nel DOM. */
+export function sanitizeEmailPreview(dirty: string): string {
+  if (!dirty || typeof dirty !== 'string') return '';
+  return DOMPurify.sanitize(dirty, EMAIL_PREVIEW_CONFIG);
+}
+
 export function sanitizeHTML(dirty: string, config?: SanitizationConfig): string {
   if (!dirty || typeof dirty !== 'string') {
     return '';

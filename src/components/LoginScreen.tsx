@@ -28,13 +28,20 @@ interface FieldErrors {
  * POST /api/tenants/<id>/members.
  */
 export function LoginScreen() {
-  const { signIn, error } = useAuth();
+  const { signIn, requestPasswordReset, error } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  /**
+   * Recupero password. Non esisteva alcun percorso: chi dimenticava la
+   * password restava fuori definitivamente, perche' non c'era ne' un link di
+   * reimpostazione ne' un modo per l'amministratore di assegnarne una nuova.
+   */
+  const [recuperoInviato, setRecuperoInviato] = useState(false);
+  const [inviandoRecupero, setInviandoRecupero] = useState(false);
 
   const validate = (): boolean => {
     const errors: FieldErrors = {};
@@ -69,6 +76,28 @@ export function LoginScreen() {
       setFormError(e instanceof Error ? e.message : 'Si è verificato un errore imprevisto');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    if (!email.trim()) {
+      setFieldErrors({ email: "Inserisci la tua email, poi richiedi il ripristino" });
+      return;
+    }
+
+    setInviandoRecupero(true);
+    setFormError(null);
+    try {
+      const result = await requestPasswordReset(email.trim());
+      if (result.error) {
+        setFormError(result.error);
+        return;
+      }
+      // Messaggio identico che l'indirizzo esista o no: dire "questa email non
+      // esiste" permetterebbe a chiunque di scoprire chi ha un account.
+      setRecuperoInviato(true);
+    } finally {
+      setInviandoRecupero(false);
     }
   };
 
@@ -139,6 +168,22 @@ export function LoginScreen() {
               <Button type="submit" className="w-full" disabled={submitting}>
                 {submitting ? 'Accesso in corso...' : 'Accedi'}
               </Button>
+
+              {recuperoInviato ? (
+                <p className="text-muted-foreground text-center text-sm">
+                  Se l'indirizzo corrisponde a un account, riceverai un link per
+                  reimpostare la password. Controlla anche lo spam.
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handlePasswordReset}
+                  disabled={inviandoRecupero || submitting}
+                  className="text-muted-foreground hover:text-foreground text-center text-sm underline underline-offset-4"
+                >
+                  {inviandoRecupero ? 'Invio in corso...' : 'Password dimenticata?'}
+                </button>
+              )}
             </form>
           </CardContent>
 

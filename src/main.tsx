@@ -10,6 +10,7 @@ import App from './App.tsx'
 import { ErrorFallback } from './ErrorFallback.tsx'
 import { AuthProvider, useAuth } from './contexts/AuthContext.tsx'
 import { LoginScreen } from './components/LoginScreen.tsx'
+import { SetNewPasswordScreen } from './components/SetNewPasswordScreen.tsx'
 
 import "./main.css"
 import "./styles/theme.css"
@@ -21,7 +22,7 @@ import "./index.css"
  * organizzazione, cosi' useKV ha sempre uno scope valido su cui lavorare.
  */
 function AuthGate() {
-  const { session, profile, organization, loading, error, signOut } = useAuth()
+  const { session, profile, organization, loading, error, recovering, signOut } = useAuth()
 
   if (loading) {
     return (
@@ -32,6 +33,13 @@ function AuthGate() {
   }
 
   if (!session) return <LoginScreen />
+
+  // Arrivo dal link di recupero: prima di qualunque altra cosa si sceglie la
+  // nuova password. Il controllo sta qui, prima dei gate su stato e
+  // organizzazione, perche' deve valere anche per chi e' disattivato o non
+  // appartiene (piu') a un'organizzazione: sono comunque padroni del proprio
+  // account e devono poterne cambiare la password.
+  if (recovering) return <SetNewPasswordScreen />
 
   // Account disattivato: "disattiva utente" nell'interfaccia non impediva
   // nulla: la persona continuava ad accedere e a vedere tutto, perche' lo

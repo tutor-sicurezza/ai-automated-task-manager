@@ -14,7 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { PencilSimple, Trash, UserPlus, Users, MagnifyingGlass, Briefcase, Buildings, EnvelopeSimple, Phone, CheckCircle, XCircle, UserCircle, MapPin, Star, CheckSquare, Download, Upload, X as XIcon, ArrowsDownUp, Eye, SquaresFour, ListBullets, Funnel, CaretDown, CaretUp, TrendUp, Calendar, ShieldCheck, Plus } from '@phosphor-icons/react';
+import { PencilSimple, Trash, UserPlus, Users, MagnifyingGlass, Briefcase, Buildings, EnvelopeSimple, Phone, CheckCircle, XCircle, UserCircle, MapPin, Star, CheckSquare, Download, Upload, X as XIcon, ArrowsDownUp, Eye, SquaresFour, ListBullets, Funnel, CaretDown, CaretUp, TrendUp, Calendar, ShieldCheck, Plus, Key } from '@phosphor-icons/react';
 import { RoleManagementDialog } from '@/components/RoleManagementDialog';
 import { DepartmentBadge } from '@/components/DepartmentBadge';
 import { Employee, UserRole } from '@/lib/types';
@@ -43,6 +43,8 @@ interface UsersManagementProps {
   canEditEmployee?: boolean;
   canDeleteEmployee?: boolean;
   canManageRoles?: boolean;
+  /** Assegna una nuova password provvisoria; assente = pulsante nascosto. */
+  onResetPassword?: (employee: Employee) => void;
 }
 
 export function UsersManagement({
@@ -55,6 +57,7 @@ export function UsersManagement({
   canEditEmployee = false,
   canDeleteEmployee = false,
   canManageRoles = false,
+  onResetPassword,
 }: UsersManagementProps) {
   const [open, setOpen] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -675,6 +678,17 @@ export function UsersManagement({
                   }}
                 >
                   <ShieldCheck className="h-4 w-4" weight="bold" />
+                </Button>
+              )}
+              {canManageRoles && onResetPassword && employee.email && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title="Assegna una nuova password provvisoria"
+                  aria-label={`Reimposta la password di ${employee.name}`}
+                  onClick={() => onResetPassword(employee)}
+                >
+                  <Key className="h-4 w-4" weight="bold" />
                 </Button>
               )}
               {canEditEmployee && (

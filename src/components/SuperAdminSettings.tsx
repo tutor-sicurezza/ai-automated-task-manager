@@ -90,6 +90,38 @@ interface SuperAdminSettingsProps {
   currentUserName?: string;
 }
 
+/**
+ * Fonde le impostazioni salvate sopra quelle predefinite, sezione per sezione.
+ *
+ * Il codice leggeva direttamente `settings.ai.enableAIFeatures` e simili. Se il
+ * valore memorizzato era parziale o malformato — un backup vecchio
+ * ripristinato, una scrittura interrotta, una chiave creata a mano — l'accesso
+ * andava in TypeError e, non essendo intercettato, portava giu' l'intera
+ * applicazione: schermata bianca per tutti i membri dell'organizzazione,
+ * amministratore compreso, cioe' proprio chi avrebbe dovuto rimediare.
+ * Successo davvero, con un `system-settings` valorizzato a {}.
+ *
+ * La fusione e' a due livelli perche' tali sono le impostazioni: le sezioni
+ * mancanti tornano ai valori predefiniti, quelle presenti conservano solo i
+ * campi effettivamente salvati.
+ */
+function conImpostazioniPredefinite(salvate: SystemSettings | undefined): SystemSettings {
+  if (!salvate || typeof salvate !== 'object') return DEFAULT_SETTINGS;
+
+  const unite = { ...DEFAULT_SETTINGS } as unknown as Record<string, unknown>;
+
+  for (const [sezione, predefiniti] of Object.entries(DEFAULT_SETTINGS)) {
+    const valore = (salvate as unknown as Record<string, unknown>)[sezione];
+
+    unite[sezione] =
+      valore && typeof valore === 'object' && !Array.isArray(valore)
+        ? { ...(predefiniti as object), ...(valore as object) }
+        : predefiniti;
+  }
+
+  return unite as unknown as SystemSettings;
+}
+
 export function SuperAdminSettings({ currentUserId, currentUserName }: SuperAdminSettingsProps) {
   const [open, setOpen] = useState(false);
   const { organization, user } = useAuth();
@@ -97,14 +129,14 @@ export function SuperAdminSettings({ currentUserId, currentUserName }: SuperAdmi
   const [auditLog, setAuditLog] = useKV<AuditLogEntry[]>('audit-log', []);
   const [maintenanceMode, setMaintenanceMode] = useKV<boolean>('maintenance-mode', false);
   const [hasChanges, setHasChanges] = useState(false);
-  const [localSettings, setLocalSettings] = useState<SystemSettings>(settings || DEFAULT_SETTINGS);
+  const [localSettings, setLocalSettings] = useState<SystemSettings>(() =>
+    conImpostazioniPredefinite(settings)
+  );
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
 
   useEffect(() => {
-    if (settings) {
-      setLocalSettings(settings);
-    }
+    setLocalSettings(conImpostazioniPredefinite(settings));
   }, [settings]);
 
   useEffect(() => {

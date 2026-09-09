@@ -52,6 +52,71 @@ export const fetch = withErrors(async (request: Request) => {
     const body = await request.json().catch(() => ({}));
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
 
+    /**
+     * Reimpostazione della password da parte dell'amministratore.
+     *
+     * Senza questo percorso, chi dimenticava la password restava fuori per
+     * sempre: non esiste un "password dimenticata" recapitabile con certezza
+     * (il mailer di Supabase e' fortemente limitato) e non c'era alcun modo,
+     * dall'applicazione, di assegnare una nuova password. L'unica via era il
+     * dashboard Supabase, cioe' un accesso che l'amministratore
+     * dell'organizzazione normalmente non ha.
+     *
+     * La nuova password e' provvisoria e viene restituita a chi la richiede,
+     * perche' la consegni di persona: non essendoci un canale di recapito
+     * garantito, inviarla per email sarebbe una garanzia solo apparente.
+     */
+    if (body.action === 'reset-password') {
+      await ensureTenantAdmin(user.id, tenantId);
+
+      if (!email) {
+        return jsonResponse({ error: 'Email is required' }, { status: 400 });
+      }
+
+      const { data: target, error: targetError } = await admin
+        .from('profiles')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (targetError) {
+        return jsonResponse({ error: targetError.message }, { status: 500 });
+      }
+
+      if (!target) {
+        return jsonResponse({ error: 'Utente non trovato' }, { status: 404 });
+      }
+
+      // Deve appartenere a QUESTA organizzazione: senza il controllo, un
+      // amministratore potrebbe reimpostare la password di un utente di
+      // un'altra organizzazione conoscendone solo l'indirizzo email.
+      const { data: membership } = await admin
+        .from('organization_members')
+        .select('user_id')
+        .eq('organization_id', tenantId)
+        .eq('user_id', target.id)
+        .maybeSingle();
+
+      if (!membership) {
+        return jsonResponse(
+          { error: 'Questo utente non appartiene alla tua organizzazione' },
+          { status: 403 }
+        );
+      }
+
+      const nuovaPassword = `Tf-${crypto.randomUUID().slice(0, 12)}!`;
+
+      const { error: updateError } = await admin.auth.admin.updateUserById(target.id, {
+        password: nuovaPassword,
+      });
+
+      if (updateError) {
+        return jsonResponse({ error: updateError.message }, { status: 500 });
+      }
+
+      return jsonResponse({ temporaryPassword: nuovaPassword });
+    }
+
     // La lista deve coprire TUTTI i ruoli del vincolo CHECK di
     // organization_members (0004), non solo tre: con 'manager' e 'viewer'
     // fuori dalla lista, l'interfaccia poteva chiedere quei ruoli e l'utente

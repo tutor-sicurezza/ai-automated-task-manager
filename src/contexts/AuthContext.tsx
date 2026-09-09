@@ -41,6 +41,12 @@ interface AuthContextValue {
   loading: boolean;
   error: string | null;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  /** Invia il link di reimpostazione all'indirizzo indicato. */
+  requestPasswordReset: (email: string) => Promise<{ error: string | null }>;
+  /** Imposta una nuova password per la sessione di recupero in corso. */
+  setPassword: (password: string) => Promise<{ error: string | null }>;
+  /** Vero mentre e' in corso un recupero password aperto dal link email. */
+  recovering: boolean;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -54,6 +60,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [orgRole, setOrgRole] = useState<UserRole | 'owner' | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Supabase apre il link di recupero come una sessione normale ed emette
+   * l'evento PASSWORD_RECOVERY. Senza intercettarlo, l'utente entrerebbe
+   * nell'applicazione senza che gli venga mai chiesta la nuova password —
+   * cioe' il link diventerebbe un accesso permanente via email.
+   */
+  const [recovering, setRecovering] = useState(false);
 
   const user = session?.user ?? null;
 
@@ -158,6 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (_event === 'PASSWORD_RECOVERY') setRecovering(true);
       setSession(nextSession);
       if (!nextSession?.user) {
         setProfile(null);
@@ -185,6 +199,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: signInError?.message ?? null };
   }, []);
 
+  const requestPasswordReset = useCallback(async (email: string) => {
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+      email.trim(),
+      { redirectTo: window.location.origin }
+    );
+    return { error: resetError?.message ?? null };
+  }, []);
+
+  const setPassword = useCallback(async (password: string) => {
+    const { error: updateError } = await supabase.auth.updateUser({ password });
+    if (!updateError) setRecovering(false);
+    return { error: updateError?.message ?? null };
+  }, []);
+
   const signOut = useCallback(async () => {
     // Le modifiche ancora nel debounce di useKV andrebbero perse uscendo.
     await flushKVWrites();
@@ -209,6 +237,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         error,
         signIn,
+        requestPasswordReset,
+        setPassword,
+        recovering,
         signOut,
         refresh,
       }}

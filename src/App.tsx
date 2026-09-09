@@ -43,7 +43,7 @@ import { DesktopNotificationSettings } from '@/components/DesktopNotificationSet
 import { canPerformAction } from '@/lib/permissions';
 import { newId } from '@/lib/utils';
 import { sendTaskAssignmentEmail } from '@/lib/taskEmail';
-import { upsertOrgMember, removeOrgMember } from '@/lib/orgMembers';
+import { upsertOrgMember, removeOrgMember, resetMemberPassword } from '@/lib/orgMembers';
 import { Toaster, toast } from 'sonner';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -1091,6 +1091,25 @@ function App() {
     }
   };
 
+  /**
+   * Assegna una nuova password provvisoria e la mostra all'amministratore,
+   * che la consegna di persona. E' l'unico modo di far rientrare chi ha perso
+   * l'accesso: prima non ne esisteva nessuno.
+   */
+  const handleResetPassword = async (employee: Employee) => {
+    if (!organization?.id || !employee.email) {
+      toast.error("Questo membro non ha un'email collegata");
+      return;
+    }
+
+    try {
+      const password = await resetMemberPassword(organization.id, employee.email);
+      setNewAccountCredentials({ email: employee.email, password });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Reimpostazione fallita');
+    }
+  };
+
   const handleCreateAnnouncement = (announcementData: Omit<Announcement, 'id' | 'createdAt' | 'readBy'>) => {
     const newAnnouncement: Announcement = {
       ...announcementData,
@@ -1465,6 +1484,7 @@ function App() {
                   canEditEmployee={canPerformAction(currentEmployee, 'employees', 'edit')}
                   canDeleteEmployee={canPerformAction(currentEmployee, 'employees', 'delete')}
                   canManageRoles={canPerformAction(currentEmployee, 'employees', 'manage_roles')}
+                  onResetPassword={handleResetPassword}
                 />
               )}
               {viewMode === 'tasks' && (
@@ -1870,7 +1890,7 @@ function App() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Account creato</AlertDialogTitle>
+            <AlertDialogTitle>Credenziali di accesso</AlertDialogTitle>
             <AlertDialogDescription>
               Consegna queste credenziali all'utente: la password provvisoria non
               viene inviata per email e non sara' piu' visibile dopo la chiusura

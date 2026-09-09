@@ -17,6 +17,7 @@ import { EmailTemplate, EmailTemplateVariable, NotificationType } from '@/lib/ty
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { newId } from '@/lib/utils';
+import { sanitizeEmailPreview } from '@/lib/sanitization';
 
 const NOTIFICATION_TYPES: { value: NotificationType; label: string }[] = [
   { value: 'task_assigned', label: 'Task Assigned' },
@@ -567,7 +568,7 @@ export function EmailTemplateCustomization({ currentUserId, currentUserName }: E
                           {previewMode === 'html' ? (
                             <div
                               className="p-4"
-                              dangerouslySetInnerHTML={{ __html: generatePreview() }}
+                              dangerouslySetInnerHTML={{ __html: sanitizeEmailPreview(generatePreview()) }}
                             />
                           ) : (
                             <pre className="p-4 text-xs whitespace-pre-wrap font-sans">
