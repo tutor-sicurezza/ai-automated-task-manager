@@ -7,10 +7,11 @@
  * privato, si tolgono quelli che non devono uscire, e si riporta il risultato
  * nel pubblico come un commit normale.
  *
- * Perche' partire da `git archive HEAD` e non dalla cartella: cosi' escono
- * solo i file TRACCIATI. Tutto cio' che e' in .gitignore (.env.local,
- * .vercel/, dist/, supabase/.temp/) resta fuori per costruzione, non perche'
- * qualcuno si e' ricordato di aggiungerlo a un elenco.
+ * Perche' partire da un worktree di HEAD e non dalla cartella di lavoro: cosi'
+ * escono solo i file TRACCIATI e nello stato in cui sono stati committati.
+ * Tutto cio' che e' in .gitignore (.env.local, .vercel/, dist/,
+ * supabase/.temp/) resta fuori per costruzione, non perche' qualcuno si e'
+ * ricordato di aggiungerlo a un elenco.
  *
  * Uso:
  *   node scripts/sync-public.mjs              # mostra cosa cambierebbe
@@ -78,11 +79,14 @@ if (git(PUBBLICO, 'status', '--porcelain')) {
 const temporanea = fs.mkdtempSync(path.join(os.tmpdir(), 'sync-pubblico-'));
 
 try {
-  const archivio = path.join(temporanea, 'albero.tar');
-  execFileSync('git', ['archive', '-o', archivio, 'HEAD'], { cwd: process.cwd() });
+  // `git worktree` invece di `git archive | tar`: su Windows tar interpreta la
+  // "C:" del percorso come un host remoto e fallisce con
+  // "Cannot connect to C: resolve failed". Il worktree e' anche piu' diretto —
+  // e' un checkout di HEAD, quindi contiene esattamente i file tracciati.
   const estratti = path.join(temporanea, 'estratti');
-  fs.mkdirSync(estratti);
-  execFileSync('tar', ['-x', '-f', archivio, '-C', estratti]);
+  execFileSync('git', ['worktree', 'add', '--detach', '--quiet', estratti, 'HEAD'], {
+    cwd: process.cwd(),
+  });
 
   for (const relativo of SOLO_PRIVATI) {
     fs.rmSync(path.join(estratti, relativo), { force: true });
@@ -93,6 +97,8 @@ try {
   const elencaFile = (radice, base = '') => {
     const risultato = [];
     for (const voce of fs.readdirSync(path.join(radice, base), { withFileTypes: true })) {
+      // Il worktree porta con se' un file `.git`: non fa parte del progetto.
+      if (!base && voce.name === '.git') continue;
       const relativo = base ? `${base}/${voce.name}` : voce.name;
       if (voce.isDirectory()) risultato.push(...elencaFile(radice, relativo));
       else risultato.push(relativo);
@@ -176,5 +182,15 @@ try {
     console.log('  Non ancora pubblicato: rilancia con --push, oppure `git push` dal repo pubblico.\n');
   }
 } finally {
+  // Il worktree va rimosso da git, non solo dal disco: altrimenti resta
+  // registrato e `git worktree list` si riempie di voci morte.
+  try {
+    execFileSync('git', ['worktree', 'remove', '--force', path.join(temporanea, 'estratti')], {
+      cwd: process.cwd(),
+      stdio: 'ignore',
+    });
+  } catch {
+    // Gia' rimosso o mai creato: la pulizia del disco qui sotto basta.
+  }
   fs.rmSync(temporanea, { recursive: true, force: true });
 }
