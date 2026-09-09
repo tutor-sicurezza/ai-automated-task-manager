@@ -12,24 +12,30 @@ osservato. Tutto il resto sta nella sezione "Non verificato".**
 
 ---
 
-## 1. Non esistono test automatici
+## 1. Test automatici: ora esistono, ma coprono poco
 
-Questo e' il punto su cui i vecchi documenti mentivano di piu'.
+Questa sezione diceva "non esistono test automatici". Non e' piu' vero, e la
+correzione va scritta con la stessa precisione con cui era scritta la
+denuncia.
 
-- Nel repository **non c'e' nessuna suite di test automatici**: nessun test unitario,
-  nessun test di integrazione, nessun test end-to-end.
-- In `package.json` **non esiste uno script `test`** e non e' installato alcun
-  framework di test (niente Vitest, Jest, Playwright, Cypress).
-- I documenti che parlavano di "19/19 test passati", "5/5 test di sicurezza superati",
-  "100% pass rate" o "audit superato" descrivevano, nel migliore dei casi, una lettura
-  del codice fatta da un agente. **Nessun test e' mai stato eseguito da una macchina.**
-- Di conseguenza: **non esiste una rete di sicurezza contro le regressioni.** Ogni
-  modifica va verificata a mano.
+- `npm run test` esegue una suite Vitest: **34 test** su matrice dei permessi
+  per ruolo, sanificazione dei contenuti che finiscono nel DOM, unicita' degli
+  identificatori, resistenza delle impostazioni a dati malformati e
+  traduzioni.
+- Non sono test decorativi: reintroducendo i difetti che coprono (ad esempio
+  `Date.now()` al posto di `newId`, o la rimozione della fusione con le
+  impostazioni predefinite) la suite fallisce. E' stato verificato
+  esplicitamente.
+- `node scripts/smoke-auth.mjs` e' un controllo di integrazione contro il
+  progetto Supabase reale: registrazione pubblica chiusa, creazione account da
+  amministratore funzionante, account esistenti che risolvono la propria
+  organizzazione.
 
-Se in futuro qualcuno aggiunge dei test, aggiornare questa sezione con i comandi
-reali per eseguirli.
-
----
+**Cosa NON e' coperto**: nessun test end-to-end, nessun test dei componenti
+React, nessun test delle policy RLS eseguito in automatico. Le verifiche sulle
+policy di questa sessione sono state fatte a mano contro il database reale e
+NON vengono rieseguite da sole: possono regredire senza che nessuno se ne
+accorga.
 
 ## 2. Verificato funzionante (test manuali reali)
 

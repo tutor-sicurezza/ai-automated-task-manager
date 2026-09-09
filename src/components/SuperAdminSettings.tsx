@@ -105,7 +105,7 @@ interface SuperAdminSettingsProps {
  * mancanti tornano ai valori predefiniti, quelle presenti conservano solo i
  * campi effettivamente salvati.
  */
-function conImpostazioniPredefinite(salvate: SystemSettings | undefined): SystemSettings {
+export function conImpostazioniPredefinite(salvate: SystemSettings | undefined): SystemSettings {
   if (!salvate || typeof salvate !== 'object') return DEFAULT_SETTINGS;
 
   const unite = { ...DEFAULT_SETTINGS } as unknown as Record<string, unknown>;
