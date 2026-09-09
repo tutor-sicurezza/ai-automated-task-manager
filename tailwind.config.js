@@ -141,6 +141,7 @@ const defaultTheme = {
   darkMode: ["selector", '[data-appearance="dark"]'],
 }
 
+/* global console */
 export default {
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: { ...defaultTheme, ...theme },

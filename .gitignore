@@ -51,3 +51,7 @@ secrets.json
 *.key
 *.crt
 .vercel
+
+# Stato locale della Supabase CLI (project ref del progetto collegato):
+# e' per macchina, non va condiviso.
+supabase/.temp/

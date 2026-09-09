@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useKV } from '@/hooks/useKV';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -49,6 +49,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PaperPlaneTilt, Megaphone, SignOut } from '@phosphor-icons/react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSyncEmployees } from '@/hooks/useSyncEmployees';
+import { useNotifications } from '@/hooks/useNotifications';
+import { useAIAvailability } from '@/lib/ai';
 
 /**
  * Il database ha un ruolo `owner` in piu' rispetto al tipo `UserRole` usato
@@ -78,15 +80,55 @@ function App() {
   // menu "Assign To" resta vuoto e i task non sono assegnabili a nessuno.
   useSyncEmployees();
   const [announcements, setAnnouncements] = useKV<Announcement[]>('announcements', []);
-  const [notifications, setNotifications] = useKV<TaskNotification[]>('notifications', []);
 
-  // Le notifiche sono per-destinatario, ma venivano passate integralmente al
-  // componente, che non filtra: ogni utente vedeva quelle di tutti gli altri
-  // (l'admin leggeva "New task assigned to you" indirizzata a un collega).
-  const myNotifications = useMemo(
-    () => (notifications || []).filter((n) => n.userId === user?.id),
-    [notifications, user?.id]
+  /**
+   * Le notifiche non stanno piu' in app_state.
+   *
+   * Erano un blob JSON per organizzazione, quindi leggibile da qualunque
+   * membro via PostgREST: il filtro "solo le mie" viveva solo qui nel client
+   * e non proteggeva nulla. Ora arrivano dalla tabella public.notifications,
+   * dove la policy `user_id = auth.uid()` fa il filtro nel database, e il
+   * dedup e' un indice unico invece di un controllo in memoria.
+   */
+  /**
+   * Annuncio di una notifica APPENA ARRIVATA per l'utente corrente.
+   *
+   * Le preferenze si applicano qui: tipo disattivato od orario di silenzio
+   * significano nessun suono e nessuna notifica desktop, ma la voce resta
+   * comunque nell'elenco, cosi' non si perde nulla.
+   */
+  const annunciaNotifica = useCallback(
+    async (notification: TaskNotification) => {
+      if (prefsRef.current?.enabledNotifications?.[notification.type] === false) return;
+      if (isWithinQuietHours(prefsRef.current)) return;
+
+      if (prefsRef.current?.soundEnabled !== false) {
+        await playNotificationSound(
+          notification.type,
+          prefsRef.current?.soundVolume ?? 0.3
+        );
+      }
+
+      if (desktopNotificationManager.getPermission() === 'granted') {
+        await desktopNotificationManager.showTaskNotification(
+          notification.type,
+          notification.taskTitle,
+          notification.message,
+          notification.taskId
+        );
+      }
+    },
+    []
   );
+
+  const {
+    notifications: myNotifications,
+    addNotification: pushNotification,
+    markAsRead: markNotificationRead,
+    markAllAsRead: markAllNotificationsRead,
+    removeNotification,
+    removeAllNotifications,
+  } = useNotifications(annunciaNotifica);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -149,10 +191,25 @@ function App() {
   const [myNotificationPrefs] = useKV<NotificationPreferencesType | undefined>(
     `notification-preferences-${user?.id ?? 'anonimo'}`
   );
+
+  // In un ref perche' `annunciaNotifica` viene passata a useNotifications una
+  // volta sola: leggendo la variabile direttamente resterebbe legata al valore
+  // del primo render, cioe' alle preferenze non ancora caricate.
+  const prefsRef = useRef(myNotificationPrefs);
+  prefsRef.current = myNotificationPrefs;
   const [newAccountCredentials, setNewAccountCredentials] = useState<{
     email: string;
     password: string;
   } | null>(null);
+
+  /**
+   * I comandi AI compaiono solo se il server sa davvero rispondere.
+   *
+   * Senza ANTHROPIC_API_KEY l'endpoint risponde 503: prima i pulsanti erano
+   * comunque li' e l'errore arrivava solo dopo averli premuti. Proporre una
+   * funzione che non esiste e' peggio che non proporla.
+   */
+  const aiAvailable = useAIAvailability();
 
   useEffect(() => {
     if (employees && employees.length > 0) {
@@ -212,7 +269,9 @@ function App() {
       tasks: tasks || [],
       employees: employees || [],
       announcements: announcements || [],
-      notifications: notifications || [],
+      // Le notifiche non entrano piu' nel backup applicativo: sono per
+      // destinatario e vivono in una tabella con le proprie policy. Un export
+      // fatto da un admin non deve contenere la posta dei colleghi.
       exportDate: new Date().toISOString(),
       version: '1.0'
     };
@@ -227,7 +286,7 @@ function App() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  }, [tasks, employees, announcements, notifications]);
+  }, [tasks, employees, announcements]);
 
   const handleImportData = useCallback(async (dataStr: string) => {
     const data = JSON.parse(dataStr);
@@ -241,17 +300,14 @@ function App() {
     if (data.announcements) {
       setAnnouncements(data.announcements);
     }
-    if (data.notifications) {
-      setNotifications(data.notifications);
-    }
-  }, [setTasks, setEmployees, setAnnouncements, setNotifications]);
+  }, [setTasks, setEmployees, setAnnouncements]);
 
   const handleClearAllData = useCallback(async () => {
     setTasks([]);
     setEmployees([]);
     setAnnouncements([]);
-    setNotifications([]);
-  }, [setTasks, setEmployees, setAnnouncements, setNotifications]);
+    void removeAllNotifications();
+  }, [setTasks, setEmployees, setAnnouncements, removeAllNotifications]);
 
   /**
    * Le preferenze si applicano SOLO a quelle dell'utente corrente.
@@ -283,56 +339,17 @@ function App() {
       : currentTime >= startTime || currentTime < endTime;
   };
 
+  /**
+   * Crea la notifica per il destinatario. Nient'altro.
+   *
+   * Suono e notifica desktop NON stanno piu' qui: li faceva scattare chi
+   * scriveva, cioe' la persona sbagliata. La condizione era "se la notifica e'
+   * per me", ma tutti i punti di creazione escludono se stessi (non ci si
+   * notifica da soli), quindi in pratica non suonava mai nulla. Ora se ne
+   * occupa il client del destinatario, in `annunciaNotifica`.
+   */
   const addNotification = async (notification: TaskNotification) => {
-    // Gli id delle notifiche sono DETERMINISTICI: identificano l'evento
-    // (task + transizione + destinatario), non l'istante in cui il codice e'
-    // passato di qui. Con `Date.now()` dentro l'id il controllo anti-duplicato
-    // qui sotto non agganciava mai nulla: bastava che due schede avessero una
-    // copia diversa dei task perche' lo stesso completamento generasse due
-    // notifiche identiche. E' successo davvero, ed e' visibile nei dati.
-    // I commenti fanno eccezione solo in apparenza: ognuno e' un evento
-    // distinto, e infatti l'id porta quello del commento.
-    //
-    // Il dedup deve poter FERMARE anche suono e notifica desktop, non solo
-    // l'inserimento in lista: prima l'updater scartava silenziosamente il
-    // duplicato ma il codice sotto continuava comunque, quindi una notifica
-    // gia' esistente rifaceva suonare l'avviso a ogni giro.
-    let isNew = false;
-    setNotifications((currentNotifications) => {
-      const existing = (currentNotifications || []).find(n => n.id === notification.id);
-      if (existing) return currentNotifications || [];
-      isNew = true;
-      return [...(currentNotifications || []), notification];
-    });
-
-    if (!isNew) return;
-
-    // Suono e notifica desktop riguardano solo chi sta guardando lo schermo:
-    // per le notifiche destinate ad altri non c'e' nulla da riprodurre qui.
-    if (!currentUser || notification.userId !== currentUser.id) return;
-
-    // Preferenze del destinatario, ora lette davvero (user_state, RLS: solo
-    // il proprietario). Tipo disattivato od orario di silenzio = niente
-    // suono e niente notifica desktop; la voce resta comunque nell'elenco.
-    if (myNotificationPrefs?.enabledNotifications?.[notification.type] === false) return;
-    if (isWithinQuietHours(myNotificationPrefs)) return;
-
-    if (myNotificationPrefs?.soundEnabled !== false) {
-      await playNotificationSound(
-        notification.type,
-        myNotificationPrefs?.soundVolume ?? 0.3
-      );
-    }
-
-    const permission = desktopNotificationManager.getPermission();
-    if (permission === 'granted') {
-      await desktopNotificationManager.showTaskNotification(
-        notification.type,
-        notification.taskTitle,
-        notification.message,
-        notification.taskId
-      );
-    }
+    await pushNotification(notification);
   };
 
   const addActivity = (taskId: string, type: TaskActivity['type'], oldValue?: string, newValue?: string, details?: string) => {
@@ -1153,27 +1170,19 @@ function App() {
   }, [tasks]);
 
   const handleMarkNotificationAsRead = (notificationId: string) => {
-    setNotifications((currentNotifications) =>
-      (currentNotifications || []).map(notif =>
-        notif.id === notificationId ? { ...notif, read: true } : notif
-      )
-    );
+    void markNotificationRead(notificationId);
   };
 
   const handleMarkAllNotificationsAsRead = () => {
-    setNotifications((currentNotifications) =>
-      (currentNotifications || []).map(notif => ({ ...notif, read: true }))
-    );
+    void markAllNotificationsRead();
   };
 
   const handleDeleteNotification = (notificationId: string) => {
-    setNotifications((currentNotifications) =>
-      (currentNotifications || []).filter(notif => notif.id !== notificationId)
-    );
+    void removeNotification(notificationId);
   };
 
   const handleDeleteAllNotifications = () => {
-    setNotifications([]);
+    void removeAllNotifications();
   };
 
   const handleNotificationClick = (notification: TaskNotification) => {
@@ -1312,7 +1321,7 @@ function App() {
                 onPinAnnouncement={handlePinAnnouncement}
                 onMarkAsRead={handleMarkAnnouncementAsRead}
               />
-              {canPerformAction(currentEmployee, 'ai_features', 'use_assistant') && (
+              {aiAvailable && canPerformAction(currentEmployee, 'ai_features', 'use_assistant') && (
                 <Button
                   variant="outline"
                   onClick={() => setAiAssistantOpen(true)}
@@ -1392,7 +1401,7 @@ function App() {
               )}
               {viewMode === 'tasks' && (
                 <>
-                  {canPerformAction(currentEmployee, 'ai_features', 'auto_assign') && (
+                  {aiAvailable && canPerformAction(currentEmployee, 'ai_features', 'auto_assign') && (
                     <AIAutoAssign
                       tasks={tasks || []}
                       employees={employees || []}
@@ -1485,7 +1494,7 @@ function App() {
           </>
         ) : viewMode === 'analytics' ? (
           <>
-            {canPerformAction(currentEmployee, 'ai_features', 'get_insights') && (
+            {aiAvailable && canPerformAction(currentEmployee, 'ai_features', 'get_insights') && (
               <div className="mb-6">
                 <AIInsights tasks={tasks || []} employees={employees || []} />
               </div>

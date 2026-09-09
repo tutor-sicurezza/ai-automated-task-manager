@@ -68,6 +68,21 @@ export const fetch = withErrors(async (request: Request) => {
   const user = await getAuthenticatedUser(request);
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
+
+  /**
+   * Sonda di disponibilita'.
+   *
+   * L'interfaccia mostrava i comandi AI anche quando la chiave non era
+   * configurata: l'utente li premeva e riceveva un errore 503 in faccia, senza
+   * modo di capire che la funzione non e' attiva. Con questa GET il client
+   * puo' chiederlo prima e non proporre cio' che non c'e'. Non consuma token e
+   * non rivela nulla oltre a un booleano — resta comunque dietro
+   * l'autenticazione.
+   */
+  if (request.method === 'GET') {
+    return jsonResponse({ available: Boolean(apiKey) });
+  }
+
   if (!apiKey) {
     return jsonResponse(
       {

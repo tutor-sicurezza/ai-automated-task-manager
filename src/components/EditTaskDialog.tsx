@@ -12,6 +12,7 @@ import { useState, useEffect } from 'react';
 import { Employee, Task, TaskPriority } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { AITaskEstimator } from '@/components/AITaskEstimator';
+import { useAIAvailability } from '@/lib/ai';
 import { Sanitizer } from '@/lib/sanitization';
 
 interface EditTaskDialogProps {
@@ -31,6 +32,8 @@ interface EditTaskDialogProps {
 
 export function EditTaskDialog({ open, onOpenChange, employees, tasks = [], task, onEditTask }: EditTaskDialogProps) {
   const [title, setTitle] = useState('');
+  // La stima AI compare solo se il server ha la chiave configurata.
+  const aiAvailable = useAIAvailability();
   const [description, setDescription] = useState('');
   const [assigneeId, setAssigneeId] = useState<string | null>(null);
   const [priority, setPriority] = useState<TaskPriority>('medium');
@@ -178,7 +181,7 @@ export function EditTaskDialog({ open, onOpenChange, employees, tasks = [], task
 
           <Separator className="my-2" />
 
-          <AITaskEstimator
+          {aiAvailable && <AITaskEstimator
             title={title}
             description={description}
             priority={priority}
@@ -186,7 +189,7 @@ export function EditTaskDialog({ open, onOpenChange, employees, tasks = [], task
             employees={employees}
             tasks={tasks}
             onApplySuggestion={handleApplyAISuggestion}
-          />
+          />}
 
           {estimatedDuration && (
             <div className="text-xs text-muted-foreground bg-purple-50 border border-purple-200 rounded-lg px-3 py-2">

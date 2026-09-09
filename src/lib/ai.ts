@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -85,4 +85,58 @@ export function useAI() {
   );
 
   return { ask };
+}
+
+/**
+ * Dice se le funzioni AI sono realmente utilizzabili.
+ *
+ * Serve perche' i comandi AI erano sempre visibili: senza ANTHROPIC_API_KEY
+ * l'endpoint risponde 503 e l'utente scopriva la cosa solo premendo il
+ * pulsante. `undefined` significa "non ancora saputo", cosi' l'interfaccia non
+ * fa lampeggiare i comandi mentre la risposta arriva.
+ */
+export function useAIAvailability(): boolean | undefined {
+  const { organization } = useAuth();
+  const [available, setAvailable] = useState<boolean | undefined>(undefined);
+
+  useEffect(() => {
+    if (!organization?.id) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session?.access_token) return;
+
+        const response = await window.fetch('/api/ai/complete', {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+
+        if (cancelled) return;
+
+        if (!response.ok) {
+          setAvailable(false);
+          return;
+        }
+
+        const payload = await response.json().catch(() => ({}));
+        setAvailable(Boolean(payload?.available));
+      } catch {
+        // In sviluppo con `npm run dev` le rotte api/ non rispondono affatto:
+        // trattarlo come "non disponibile" e' esattamente il comportamento
+        // giusto, perche' non lo e'.
+        if (!cancelled) setAvailable(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [organization?.id]);
+
+  return available;
 }

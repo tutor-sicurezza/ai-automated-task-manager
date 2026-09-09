@@ -117,7 +117,7 @@ function downloadCSV(content: string, filename: string): void {
 export function exportTeamAnalyticsToPDF(data: TeamAnalyticsData): void {
   const timestamp = format(new Date(), 'yyyy-MM-dd_HH-mm-ss');
   
-  let htmlContent = `
+  const htmlContent = `
     <!DOCTYPE html>
     <html>
     <head>
@@ -347,7 +347,7 @@ export function exportTeamAnalyticsToPDF(data: TeamAnalyticsData): void {
 export function exportDepartmentAnalyticsToPDF(data: DepartmentAnalyticsData): void {
   const timestamp = format(new Date(), 'yyyy-MM-dd_HH-mm-ss');
   
-  let htmlContent = `
+  const htmlContent = `
     <!DOCTYPE html>
     <html>
     <head>

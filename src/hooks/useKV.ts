@@ -90,6 +90,85 @@ const active = new Map<string, Target>();
 
 const WRITE_DEBOUNCE_MS = 400;
 
+/**
+ * Canali realtime, uno per scope (organizzazione o utente) e non uno per
+ * chiave: le chiavi sono una quindicina e aprire quindici websocket per
+ * mostrare la stessa pagina sarebbe sproporzionato. Il canale riceve tutte le
+ * righe dello scope e le smista.
+ *
+ * Senza questo, una scheda aperta si aggiornava solo tornando in primo piano:
+ * due persone che lavoravano insieme vedevano il lavoro dell'altra con minuti
+ * di ritardo. La pubblicazione realtime su app_state e' abilitata dalla 0009;
+ * se non lo fosse, la sottoscrizione non riceve nulla e resta la rivalidazione
+ * al rientro, quindi il comportamento peggiora ma non si rompe.
+ */
+interface Channel {
+  unsubscribe: () => void;
+  refs: number;
+}
+
+const channels = new Map<string, Channel>();
+
+function subscribeRealtime(scopeId: string, perUser: boolean) {
+  const channelKey = `${perUser ? 'user' : 'org'}:${scopeId}`;
+  const existing = channels.get(channelKey);
+  if (existing) {
+    existing.refs += 1;
+    return () => releaseRealtime(channelKey);
+  }
+
+  const channel = supabase
+    .channel(`kv-${channelKey}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: perUser ? 'user_state' : 'app_state',
+        filter: perUser ? `user_id=eq.${scopeId}` : `organization_id=eq.${scopeId}`,
+      },
+      (payload) => {
+        const row = (payload.new ?? payload.old) as { key?: string; value?: unknown };
+        if (!row?.key) return;
+
+        const cacheKey = scopedKey(scopeId, row.key);
+
+        // Con modifiche non ancora salvate l'evento e' piu' vecchio di cio'
+        // che l'utente ha in mano: applicarlo gliele cancellerebbe sotto le
+        // dita. Verranno riconciliate dal flush, che rilegge dal server.
+        if (pending.has(cacheKey)) return;
+
+        const value = payload.eventType === 'DELETE' ? undefined : row.value;
+        serverValue.set(cacheKey, value);
+
+        // Anche le nostre scritture tornano indietro dal canale: senza questo
+        // confronto ogni salvataggio provocherebbe un render inutile.
+        if (JSON.stringify(value) === JSON.stringify(cache.get(cacheKey))) return;
+
+        broadcast(cacheKey, value);
+      }
+    )
+    .subscribe();
+
+  channels.set(channelKey, {
+    refs: 1,
+    unsubscribe: () => {
+      void supabase.removeChannel(channel);
+    },
+  });
+
+  return () => releaseRealtime(channelKey);
+}
+
+function releaseRealtime(channelKey: string) {
+  const entry = channels.get(channelKey);
+  if (!entry) return;
+  entry.refs -= 1;
+  if (entry.refs > 0) return;
+  entry.unsubscribe();
+  channels.delete(channelKey);
+}
+
 function subscribe(cacheKey: string, fn: Listener) {
   if (!listeners.has(cacheKey)) listeners.set(cacheKey, new Set());
   listeners.get(cacheKey)!.add(fn);
@@ -244,6 +323,8 @@ export function resetKVCache() {
   cache.clear();
   loaded.clear();
   serverValue.clear();
+  channels.forEach((c) => c.unsubscribe());
+  channels.clear();
   pending.forEach((entry) => entry.timer && clearTimeout(entry.timer));
   pending.clear();
   listeners.forEach((set) => set.forEach((fn) => fn(undefined)));
@@ -347,6 +428,12 @@ export function useKV<T = string>(
       active.delete(cacheKey);
     };
   }, [cacheKey, scopeId, key, perUser]);
+
+  // Aggiornamenti in tempo reale dello scope.
+  useEffect(() => {
+    if (!scopeId) return;
+    return subscribeRealtime(scopeId, perUser);
+  }, [scopeId, perUser]);
 
   // Caricamento iniziale dal database
   useEffect(() => {
