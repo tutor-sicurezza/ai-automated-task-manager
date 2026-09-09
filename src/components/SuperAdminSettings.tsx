@@ -17,6 +17,8 @@ import { Progress } from '@/components/ui/progress';
 import { Gear, FloppyDisk, Warning, CheckCircle, ShieldCheck, Robot, Bell, Users, FolderOpen, Globe, Plugs, ClockCounterClockwise, CloudArrowDown, CloudArrowUp, ChartBar, Palette, Envelope, Wrench, Database, WarningCircle, Info } from '@phosphor-icons/react';
 import { SystemSettings, UserRole, AuditLogEntry } from '@/lib/types';
 import { SendGridConfiguration } from '@/components/SendGridConfiguration';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
 
@@ -89,6 +91,7 @@ interface SuperAdminSettingsProps {
 
 export function SuperAdminSettings({ currentUserId, currentUserName }: SuperAdminSettingsProps) {
   const [open, setOpen] = useState(false);
+  const { organization, user } = useAuth();
   const [settings, setSettings] = useKV<SystemSettings>('system-settings', DEFAULT_SETTINGS);
   const [auditLog, setAuditLog] = useKV<AuditLogEntry[]>('audit-log', []);
   const [maintenanceMode, setMaintenanceMode] = useKV<boolean>('maintenance-mode', false);
@@ -191,19 +194,55 @@ export function SuperAdminSettings({ currentUserId, currentUserName }: SuperAdmi
     toast.success('IP address removed');
   };
 
+  /**
+   * Backup e ripristino, riscritti su app_state / user_state.
+   *
+   * Prima passavano da window.spark.kv, cioe' dagli endpoint /_spark/kv del
+   * runtime GitHub Spark: fuori da quel runtime rispondono 404. L'export
+   * scaricava quindi un file vuoto o falliva, e l'import non scriveva da
+   * nessuna parte — con l'aggravante che entrambi SEMBRAVANO funzionare, il
+   * che e' il modo peggiore in cui puo' rompersi un backup.
+   *
+   * Si esporta cio' che appartiene all'organizzazione corrente (app_state) e
+   * le chiavi personali di chi esporta (user_state). Le RLS fanno il resto:
+   * non e' possibile leggere ne' scrivere i dati di un'altra organizzazione,
+   * quindi un file altrui, se importato, finisce comunque nella propria.
+   */
+  const BACKUP_FORMAT = 'taskflow-backup-v1';
+
   const handleExportData = async () => {
+    if (!organization?.id) {
+      toast.error('Nessuna organizzazione attiva');
+      return;
+    }
+
     setIsExporting(true);
     try {
-      const keys = await window.spark.kv.keys();
-      const exportData: Record<string, any> = {};
-      
-      for (const key of keys) {
-        const value = await window.spark.kv.get(key);
-        exportData[key] = value;
-      }
-      
-      const dataStr = JSON.stringify(exportData, null, 2);
-      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const { data: appRows, error: appError } = await supabase
+        .from('app_state')
+        .select('key, value')
+        .eq('organization_id', organization.id);
+
+      if (appError) throw new Error(appError.message);
+
+      const { data: userRows, error: userError } = user?.id
+        ? await supabase.from('user_state').select('key, value').eq('user_id', user.id)
+        : { data: [], error: null };
+
+      if (userError) throw new Error(userError.message);
+
+      const payload = {
+        format: BACKUP_FORMAT,
+        exportedAt: new Date().toISOString(),
+        organizationId: organization.id,
+        organizationName: organization.name,
+        appState: Object.fromEntries((appRows ?? []).map((r) => [r.key, r.value])),
+        userState: Object.fromEntries((userRows ?? []).map((r) => [r.key, r.value])),
+      };
+
+      const dataBlob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: 'application/json',
+      });
       const url = URL.createObjectURL(dataBlob);
       const link = document.createElement('a');
       link.href = url;
@@ -212,16 +251,18 @@ export function SuperAdminSettings({ currentUserId, currentUserName }: SuperAdmi
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      
-      logAuditEntry('Data Export', 'Super admin exported system data', 'system');
+
+      const count = (appRows?.length ?? 0) + (userRows?.length ?? 0);
+      logAuditEntry('Data Export', `Esportate ${count} chiavi`, 'system');
       confetti({
         particleCount: 100,
         spread: 70,
         origin: { y: 0.6 }
       });
-      toast.success('Data exported successfully!');
+      toast.success(`Backup esportato: ${count} chiavi`);
     } catch (error) {
-      toast.error('Failed to export data');
+      const message = error instanceof Error ? error.message : 'Errore sconosciuto';
+      toast.error(`Esportazione fallita: ${message}`);
       console.error('Export error:', error);
     } finally {
       setIsExporting(false);
@@ -229,40 +270,112 @@ export function SuperAdminSettings({ currentUserId, currentUserName }: SuperAdmi
   };
 
   const handleImportData = async () => {
+    if (!organization?.id) {
+      toast.error('Nessuna organizzazione attiva');
+      return;
+    }
+
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'application/json';
-    
+
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
-      
-      if (!confirm('WARNING: This will overwrite all existing data. Are you sure you want to continue?')) {
-        return;
-      }
-      
+
       setIsImporting(true);
       try {
         const text = await file.text();
-        const importData = JSON.parse(text);
-        
-        for (const [key, value] of Object.entries(importData)) {
-          await window.spark.kv.set(key, value);
+        const parsed = JSON.parse(text);
+
+        // I backup prodotti prima di questa correzione (o a mano) sono un
+        // oggetto piatto chiave -> valore: si accettano ancora, trattandoli
+        // come dati di organizzazione.
+        const isEnvelope = parsed?.format === BACKUP_FORMAT;
+        const appState: Record<string, unknown> = isEnvelope
+          ? parsed.appState ?? {}
+          : parsed ?? {};
+        const userState: Record<string, unknown> = isEnvelope
+          ? parsed.userState ?? {}
+          : {};
+
+        const appKeys = Object.keys(appState);
+        const userKeys = Object.keys(userState);
+
+        if (appKeys.length === 0 && userKeys.length === 0) {
+          toast.error('Il file non contiene dati da ripristinare');
+          setIsImporting(false);
+          return;
         }
-        
-        logAuditEntry('Data Import', 'Super admin imported system data', 'system');
-        toast.success('Data imported successfully! Refreshing page...');
-        
+
+        const provenienza =
+          isEnvelope && parsed.organizationId && parsed.organizationId !== organization.id
+            ? `
+
+ATTENZIONE: il backup proviene da un'altra organizzazione (${parsed.organizationName ?? parsed.organizationId}). I dati verranno comunque scritti in "${organization.name}".`
+            : '';
+
+        if (
+          !confirm(
+            `Verranno sovrascritte ${appKeys.length + userKeys.length} chiavi di "${organization.name}". I dati attuali con le stesse chiavi andranno persi.${provenienza}
+
+Procedere?`
+          )
+        ) {
+          setIsImporting(false);
+          return;
+        }
+
+        const now = new Date().toISOString();
+
+        if (appKeys.length > 0) {
+          const { error } = await supabase.from('app_state').upsert(
+            appKeys.map((key) => ({
+              organization_id: organization.id,
+              key,
+              value: appState[key],
+              updated_at: now,
+              updated_by: user?.id ?? null,
+            })),
+            { onConflict: 'organization_id,key' }
+          );
+          if (error) throw new Error(error.message);
+        }
+
+        if (userKeys.length > 0 && user?.id) {
+          const { error } = await supabase.from('user_state').upsert(
+            userKeys.map((key) => ({
+              user_id: user.id,
+              key,
+              value: userState[key],
+              updated_at: now,
+            })),
+            { onConflict: 'user_id,key' }
+          );
+          if (error) throw new Error(error.message);
+        }
+
+        logAuditEntry(
+          'Data Import',
+          `Ripristinate ${appKeys.length + userKeys.length} chiavi`,
+          'system'
+        );
+        toast.success('Backup ripristinato. Ricarico la pagina...');
+
+        // Ricarica obbligatoria: lo store in memoria di useKV contiene ancora
+        // i valori precedenti e li riscriverebbe sopra a quelli appena
+        // ripristinati alla prima modifica.
         setTimeout(() => {
           window.location.reload();
-        }, 2000);
+        }, 1500);
       } catch (error) {
-        toast.error('Failed to import data. Please check the file format.');
+        const message = error instanceof Error ? error.message : 'formato non valido';
+        toast.error(`Ripristino fallito: ${message}`);
         console.error('Import error:', error);
         setIsImporting(false);
       }
     };
-    
+
     input.click();
   };
 

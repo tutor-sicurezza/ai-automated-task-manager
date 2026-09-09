@@ -1,6 +1,10 @@
 import { createRoot } from 'react-dom/client'
 import { ErrorBoundary } from "react-error-boundary";
-import "@github/spark/spark"
+// Il runtime GitHub Spark non e' piu' importato: nessuna riga di src/ usa
+// piu' `window.spark`. Restava solo a fare rumore — a ogni caricamento
+// chiedeva /_spark/user e /_spark/loaded, che su Vercel sono 404, e mandava
+// un postMessage alla finestra padre. I plugin Vite di Spark restano: quelli
+// servono al build (proxy delle icone e porta del dev server).
 
 import App from './App.tsx'
 import { ErrorFallback } from './ErrorFallback.tsx'

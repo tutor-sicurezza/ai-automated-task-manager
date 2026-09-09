@@ -31,7 +31,8 @@ import {
 import { EmailDeliveryLog, EmailAnalytics, Employee } from '@/lib/types';
 import { format, subDays } from 'date-fns';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { generateDemoEmailLogs } from '@/lib/emailTracking';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
 interface EmailDeliveryAnalyticsProps {
@@ -42,26 +43,77 @@ interface EmailDeliveryAnalyticsProps {
 const COLORS = ['oklch(0.45 0.12 210)', 'oklch(0.68 0.18 35)', 'oklch(0.55 0.22 25)', 'oklch(0.50 0.02 230)', 'oklch(0.35 0.08 230)'];
 
 export function EmailDeliveryAnalytics({ currentUserId, employees }: EmailDeliveryAnalyticsProps) {
-  const [deliveryLogs, setDeliveryLogs] = useKV<EmailDeliveryLog[]>('email-delivery-logs', []);
+  /**
+   * I log arrivano dalla tabella reale `email_delivery_logs`, scritta da
+   * api/email/send.ts a ogni invio.
+   *
+   * Prima questo pannello leggeva la chiave useKV 'email-delivery-logs', che
+   * nessuno scriveva: src/lib/emailTracking.ts salvava su window.spark.kv
+   * (endpoint inesistente) e il server scriveva sulla tabella, che nessuno
+   * leggeva. Tre archivi, nessuno collegato all'altro: il pannello era
+   * sempre vuoto, e l'unico modo di riempirlo era il pulsante "Generate Demo
+   * Data", cioe' numeri inventati dentro un cruscotto di analisi. Rimosso.
+   *
+   * Aperture e clic non sono misurati da nessuna parte: non esiste un
+   * endpoint di tracciamento. I relativi campi restano quindi a zero e sono
+   * dichiarati come non disponibili, invece di essere presentati come
+   * misurazioni reali.
+   */
+  const { organization } = useAuth();
+  const [deliveryLogs, setDeliveryLogs] = useState<EmailDeliveryLog[]>([]);
+  const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [selectedTimeRange, setSelectedTimeRange] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
   const [selectedType, setSelectedType] = useState<string>('all');
 
-  const handleGenerateDemoData = async () => {
-    if (!employees || employees.length === 0) {
-      toast.error('No employees available to generate demo data');
-      return;
-    }
+  useEffect(() => {
+    if (!open || !organization?.id) return;
+    let cancelled = false;
 
-    const demoLogs = generateDemoEmailLogs(employees);
-    setDeliveryLogs((current) => [...(current || []), ...demoLogs]);
-    toast.success(`Generated ${demoLogs.length} demo email delivery logs`);
-  };
+    (async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('email_delivery_logs')
+        .select('id, user_id, recipient_email, subject, provider, status, error, created_at')
+        .eq('organization_id', organization.id)
+        .order('created_at', { ascending: false })
+        .limit(500);
 
-  const handleClearAllData = async () => {
-    setDeliveryLogs([]);
-    toast.success('All email delivery logs cleared');
-  };
+      if (cancelled) return;
+      setLoading(false);
+
+      if (error) {
+        // La policy "admins can read email logs" limita la lettura agli
+        // amministratori: per gli altri non e' un guasto, e' il permesso.
+        toast.error(`Log non leggibili: ${error.message}`);
+        return;
+      }
+
+      const nomiPerId = new Map((employees ?? []).map((e) => [e.id, e.name]));
+
+      setDeliveryLogs(
+        (data ?? []).map((row) => ({
+          id: row.id,
+          userId: row.user_id,
+          userName: nomiPerId.get(row.user_id) ?? row.recipient_email ?? 'Utente',
+          userEmail: row.recipient_email ?? undefined,
+          // La tabella non registra il tipo di email: si mostra il provider,
+          // che invece c'e', invece di inventare una categoria.
+          emailType: (row.provider ?? 'sconosciuto') as EmailDeliveryLog['emailType'],
+          subject: row.subject,
+          sentAt: row.created_at,
+          status: row.status as EmailDeliveryLog['status'],
+          error: row.error ?? undefined,
+          openCount: 0,
+          clicks: [],
+        }))
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, organization?.id, employees]);
 
   const filteredLogs = useMemo(() => {
     let logs = deliveryLogs || [];
@@ -251,21 +303,15 @@ export function EmailDeliveryAnalytics({ currentUserId, employees }: EmailDelive
                 Email Delivery Analytics
               </DialogTitle>
               <DialogDescription>
-                Track email open rates, click rates, and delivery performance
+                Esiti di consegna reali registrati dal server. Aperture e clic
+                non sono tracciati: quei valori restano a zero.
               </DialogDescription>
             </div>
             <div className="flex gap-2">
-              {(deliveryLogs || []).length === 0 && (
-                <Button variant="outline" size="sm" onClick={handleGenerateDemoData}>
-                  <Sparkle className="mr-2 h-4 w-4" weight="fill" />
-                  Generate Demo Data
-                </Button>
-              )}
-              {(deliveryLogs || []).length > 0 && (
-                <Button variant="outline" size="sm" onClick={handleClearAllData}>
-                  <X className="mr-2 h-4 w-4" />
-                  Clear All
-                </Button>
+              {loading && (
+                <span className="text-muted-foreground self-center text-sm">
+                  Caricamento…
+                </span>
               )}
             </div>
           </div>

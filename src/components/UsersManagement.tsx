@@ -29,9 +29,33 @@ interface UsersManagementProps {
   onEditEmployee: (id: string, updates: Omit<Employee, 'id'>) => void;
   onDeleteEmployee: (id: string) => void;
   taskCounts: Map<string, number>;
+  /**
+   * L'elenco e' visibile a tutti i membri, le AZIONI no.
+   *
+   * Senza questi flag i pulsanti di aggiunta, modifica, eliminazione e
+   * gestione ruoli comparivano a chiunque potesse vedere la lista. Modifica
+   * ed eliminazione toccano app_state, dove is_org_writer ammette anche i
+   * 'member': non erano quindi rifiutate dal database, e un membro poteva
+   * cancellare i colleghi dall'anagrafica dell'organizzazione.
+   * Default a false: chi non passa il permesso non lo ottiene per sbaglio.
+   */
+  canAddEmployee?: boolean;
+  canEditEmployee?: boolean;
+  canDeleteEmployee?: boolean;
+  canManageRoles?: boolean;
 }
 
-export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDeleteEmployee, taskCounts }: UsersManagementProps) {
+export function UsersManagement({
+  employees,
+  onAddEmployee,
+  onEditEmployee,
+  onDeleteEmployee,
+  taskCounts,
+  canAddEmployee = false,
+  canEditEmployee = false,
+  canDeleteEmployee = false,
+  canManageRoles = false,
+}: UsersManagementProps) {
   const [open, setOpen] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -639,37 +663,43 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
                 nessuna parte: non c'era modo di aprirlo dall'interfaccia.
                 Cambiare il ruolo di qualcuno era semplicemente impossibile.
               */}
-              <Button
-                variant="ghost"
-                size="sm"
-                title="Gestisci ruolo e permessi"
-                aria-label={`Gestisci ruolo di ${employee.name}`}
-                onClick={() => {
-                  setManagingRoleEmployee(employee);
-                  setRoleManagementDialogOpen(true);
-                }}
-              >
-                <ShieldCheck className="h-4 w-4" weight="bold" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                title="Modifica anagrafica"
-                aria-label={`Modifica ${employee.name}`}
-                onClick={() => openEditDialog(employee)}
-              >
-                <PencilSimple className="h-4 w-4" weight="bold" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                title="Rimuovi dal team"
-                aria-label={`Rimuovi ${employee.name}`}
-                onClick={() => openDeleteDialog(employee)}
-                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-              >
-                <Trash className="h-4 w-4" weight="bold" />
-              </Button>
+              {canManageRoles && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title="Gestisci ruolo e permessi"
+                  aria-label={`Gestisci ruolo di ${employee.name}`}
+                  onClick={() => {
+                    setManagingRoleEmployee(employee);
+                    setRoleManagementDialogOpen(true);
+                  }}
+                >
+                  <ShieldCheck className="h-4 w-4" weight="bold" />
+                </Button>
+              )}
+              {canEditEmployee && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title="Modifica anagrafica"
+                  aria-label={`Modifica ${employee.name}`}
+                  onClick={() => openEditDialog(employee)}
+                >
+                  <PencilSimple className="h-4 w-4" weight="bold" />
+                </Button>
+              )}
+              {canDeleteEmployee && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title="Rimuovi dal team"
+                  aria-label={`Rimuovi ${employee.name}`}
+                  onClick={() => openDeleteDialog(employee)}
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                  <Trash className="h-4 w-4" weight="bold" />
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -794,13 +824,15 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
                   <CheckSquare className="mr-2 h-4 w-4" weight={bulkMode ? "fill" : "regular"} />
                   Bulk
                 </Button>
-                <Button 
-                  onClick={() => setAddDialogOpen(true)}
-                  className="w-full sm:w-auto"
-                >
-                  <UserPlus className="mr-2 h-4 w-4" weight="bold" />
-                  Add User
-                </Button>
+                {canAddEmployee && (
+                  <Button
+                    onClick={() => setAddDialogOpen(true)}
+                    className="w-full sm:w-auto"
+                  >
+                    <UserPlus className="mr-2 h-4 w-4" weight="bold" />
+                    Add User
+                  </Button>
+                )}
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3">
@@ -981,7 +1013,7 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
                         ? 'Add your first team member to get started'
                         : 'Try adjusting your search or filters'}
                     </p>
-                    {employees.length === 0 && (
+                    {employees.length === 0 && canAddEmployee && (
                       <Button onClick={() => setAddDialogOpen(true)}>
                         <UserPlus className="mr-2 h-4 w-4" weight="bold" />
                         Add User
@@ -1745,7 +1777,7 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
               onEditEmployee(id, { ...employee, ...updates });
             }
           }}
-          currentUserRole="admin"
+          canManageRoles={canManageRoles}
         />
       )}
     </>

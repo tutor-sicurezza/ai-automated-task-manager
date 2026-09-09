@@ -20,7 +20,13 @@ interface RoleManagementDialogProps {
   onOpenChange: (open: boolean) => void;
   employee: Employee;
   onUpdateEmployee: (id: string, updates: Partial<Employee>) => void;
-  currentUserRole: UserRole;
+  /**
+   * Il chiamante passava una costante 'admin': il dialog si credeva quindi
+   * sempre in mano a un amministratore e il proprio controllo interno non
+   * poteva mai scattare. Ora riceve la capacita' reale, derivata dai permessi
+   * di chi sta guardando.
+   */
+  canManageRoles: boolean;
 }
 
 const PERMISSION_LABELS: Record<keyof Permission, string> = {
@@ -78,7 +84,7 @@ export function RoleManagementDialog({
   onOpenChange,
   employee,
   onUpdateEmployee,
-  currentUserRole,
+  canManageRoles,
 }: RoleManagementDialogProps) {
   const [selectedRole, setSelectedRole] = useState<UserRole>(employee.userRole || 'member');
   const [customPermissions, setCustomPermissions] = useState<Partial<Permission>>(
@@ -88,8 +94,6 @@ export function RoleManagementDialog({
   const [saving, setSaving] = useState(false);
 
   const { organization } = useAuth();
-
-  const canManageRoles = currentUserRole === 'admin';
 
   const handleRoleChange = (role: UserRole) => {
     setSelectedRole(role);

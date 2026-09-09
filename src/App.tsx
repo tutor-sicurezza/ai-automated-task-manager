@@ -1355,15 +1355,28 @@ function App() {
                 Esci
               </Button>
               <DepartmentColorLegend />
-              <DataManagement
-                onExportData={handleExportData}
-                onImportData={handleImportData}
-                onClearAllData={handleClearAllData}
-              />
-              <DepartmentManagement
-                employees={employees || []}
-                onEmployeeUpdate={handleEditEmployee}
-              />
+              {/*
+                Backup, ripristino e "Clear All Data" erano visibili a
+                CHIUNQUE, ruolo 'member' compreso. Non era solo una svista
+                estetica: quelle azioni scrivono su app_state, dove la policy
+                is_org_writer ammette anche i member, quindi un membro
+                qualsiasi poteva azzerare i dati dell'intera organizzazione
+                dall'interfaccia. Ora seguono il permesso di modifica
+                dell'anagrafica, che di fatto significa amministratore.
+              */}
+              {canPerformAction(currentEmployee, 'employees', 'edit') && (
+                <DataManagement
+                  onExportData={handleExportData}
+                  onImportData={handleImportData}
+                  onClearAllData={handleClearAllData}
+                />
+              )}
+              {canPerformAction(currentEmployee, 'employees', 'edit') && (
+                <DepartmentManagement
+                  employees={employees || []}
+                  onEmployeeUpdate={handleEditEmployee}
+                />
+              )}
               {canPerformAction(currentEmployee, 'employees', 'view') && (
                 <UsersManagement
                   employees={employees || []}
@@ -1371,6 +1384,10 @@ function App() {
                   onEditEmployee={handleEditEmployee}
                   onDeleteEmployee={handleDeleteEmployee}
                   taskCounts={taskCountsByEmployee}
+                  canAddEmployee={canPerformAction(currentEmployee, 'employees', 'add')}
+                  canEditEmployee={canPerformAction(currentEmployee, 'employees', 'edit')}
+                  canDeleteEmployee={canPerformAction(currentEmployee, 'employees', 'delete')}
+                  canManageRoles={canPerformAction(currentEmployee, 'employees', 'manage_roles')}
                 />
               )}
               {viewMode === 'tasks' && (
