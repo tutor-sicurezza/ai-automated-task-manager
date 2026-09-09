@@ -144,6 +144,11 @@ function App() {
   const [launchAnnouncementOpen, setLaunchAnnouncementOpen] = useState(false);
   const [hasSeenLaunchAnnouncement, setHasSeenLaunchAnnouncement] = useKV<boolean>('has-seen-launch-announcement', false);
   const [feedback, setFeedback] = useKV<FeedbackItem[]>('feedback', []);
+  // Chiave per-utente: useKV la instrada su user_state, dove le policy RLS
+  // permettono al solo proprietario di leggere e scrivere.
+  const [myNotificationPrefs] = useKV<NotificationPreferencesType | undefined>(
+    `notification-preferences-${user?.id ?? 'anonimo'}`
+  );
   const [newAccountCredentials, setNewAccountCredentials] = useState<{
     email: string;
     password: string;
@@ -248,103 +253,46 @@ function App() {
     setNotifications([]);
   }, [setTasks, setEmployees, setAnnouncements, setNotifications]);
 
-  const shouldSendNotification = async (userId: string, notificationType: NotificationType): Promise<boolean> => {
-    try {
-      const prefsKey = `notification-preferences-${userId}`;
-      const prefs = await window.spark.kv.get<NotificationPreferencesType>(prefsKey);
-      
-      if (!prefs) return true;
-      
-      if (prefs.enabledNotifications && !prefs.enabledNotifications[notificationType]) {
-        return false;
-      }
-      
-      if (prefs.quietHours && prefs.quietHours.enabled) {
-        const now = new Date();
-        const currentTime = now.getHours() * 60 + now.getMinutes();
-        const [startHour, startMin] = prefs.quietHours.startTime.split(':').map(Number);
-        const [endHour, endMin] = prefs.quietHours.endTime.split(':').map(Number);
-        const startTime = startHour * 60 + startMin;
-        const endTime = endHour * 60 + endMin;
-        
-        if (startTime < endTime) {
-          if (currentTime >= startTime && currentTime < endTime) {
-            return false;
-          }
-        } else {
-          if (currentTime >= startTime || currentTime < endTime) {
-            return false;
-          }
-        }
-      }
-      
-      return true;
-    } catch (error) {
-      return true;
-    }
+  /**
+   * Le preferenze si applicano SOLO a quelle dell'utente corrente.
+   *
+   * Prima questa funzione leggeva `notification-preferences-<destinatario>` da
+   * window.spark.kv, cioe' da un endpoint (/_spark/kv) che fuori dal runtime
+   * GitHub Spark non esiste: la lettura falliva, il catch restituiva `true` e
+   * le preferenze non avevano alcun effetto — orari di silenzio compresi.
+   *
+   * Non bastava cambiare la fonte: sotto RLS un utente non puo' leggere
+   * user_state di un collega, quindi chi CREA la notifica non potra' mai
+   * sapere cosa ha disattivato il destinatario. Il filtro va dove i dati sono
+   * leggibili e dove serve davvero, cioe' sul client del destinatario, prima
+   * di suono e notifica desktop.
+   */
+  const isWithinQuietHours = (prefs: NotificationPreferencesType | undefined) => {
+    if (!prefs?.quietHours?.enabled) return false;
+
+    const now = new Date();
+    const currentTime = now.getHours() * 60 + now.getMinutes();
+    const [startHour, startMin] = prefs.quietHours.startTime.split(':').map(Number);
+    const [endHour, endMin] = prefs.quietHours.endTime.split(':').map(Number);
+    const startTime = startHour * 60 + startMin;
+    const endTime = endHour * 60 + endMin;
+
+    // Intervallo che scavalca la mezzanotte (es. 22:00-07:00).
+    return startTime < endTime
+      ? currentTime >= startTime && currentTime < endTime
+      : currentTime >= startTime || currentTime < endTime;
   };
 
-  useEffect(() => {
-    const checkDeadlines = () => {
-      if (!currentUser || !tasks) return;
-
-      const now = new Date();
-      const oneDayFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-
-      // Gli id NON contengono piu' Date.now(). Prima ogni scadenza generava un
-      // id nuovo a ogni giro, e il controllo anti-duplicato leggeva
-      // `notifications` catturato dalla closure: l'effetto dipende solo da
-      // [tasks, currentUser], quindi l'intervallo trattiene per sempre la lista
-      // del render in cui e' partito. Con lista vecchia e id sempre diverso il
-      // dedup non agganciava nulla e ogni 60 secondi nasceva una copia.
-      //
-      // Con un id deterministico il dedup per id dentro addNotification e'
-      // sufficiente e legge lo stato aggiornato: qui non serve piu' guardare
-      // `notifications`, ed e' proprio quella lettura a essere stale.
-      (tasks || []).forEach(task => {
-        if (task.status === 'completed' || !task.assigneeId) return;
-
-        const dueDate = new Date(task.dueDate);
-        if (Number.isNaN(dueDate.getTime())) return;
-
-        const base = `${task.id}-${task.assigneeId}-`;
-
-        if (dueDate < now) {
-          addNotification({
-            id: `${base}overdue`,
-            userId: task.assigneeId,
-            taskId: task.id,
-            taskTitle: task.title,
-            type: 'task_overdue',
-            message: `Task is overdue! Due date was ${dueDate.toLocaleDateString()}`,
-            createdAt: new Date().toISOString(),
-            read: false,
-          });
-        } else if (dueDate <= oneDayFromNow) {
-          addNotification({
-            id: `${base}due-soon`,
-            userId: task.assigneeId,
-            taskId: task.id,
-            taskTitle: task.title,
-            type: 'task_due_soon',
-            message: `Task is due soon on ${dueDate.toLocaleDateString()}`,
-            createdAt: new Date().toISOString(),
-            read: false,
-          });
-        }
-      });
-    };
-
-    checkDeadlines();
-    const interval = setInterval(checkDeadlines, 60000);
-
-    return () => clearInterval(interval);
-  }, [tasks, currentUser]);
-
   const addNotification = async (notification: TaskNotification) => {
-    const shouldSend = await shouldSendNotification(notification.userId, notification.type);
-    if (!shouldSend) return;
-
+    // Gli id delle notifiche sono DETERMINISTICI: identificano l'evento
+    // (task + transizione + destinatario), non l'istante in cui il codice e'
+    // passato di qui. Con `Date.now()` dentro l'id il controllo anti-duplicato
+    // qui sotto non agganciava mai nulla: bastava che due schede avessero una
+    // copia diversa dei task perche' lo stesso completamento generasse due
+    // notifiche identiche. E' successo davvero, ed e' visibile nei dati.
+    // I commenti fanno eccezione solo in apparenza: ognuno e' un evento
+    // distinto, e infatti l'id porta quello del commento.
+    //
     // Il dedup deve poter FERMARE anche suono e notifica desktop, non solo
     // l'inserimento in lista: prima l'updater scartava silenziosamente il
     // duplicato ma il codice sotto continuava comunque, quindi una notifica
@@ -359,30 +307,31 @@ function App() {
 
     if (!isNew) return;
 
-    // window.spark non esiste fuori dal runtime GitHub Spark: qui la lettura
-    // lanciava un TypeError NON intercettato, quindi il suono e la notifica
-    // desktop qui sotto non venivano mai eseguiti e restava una promise
-    // rifiutata a ogni notifica. La notifica in-app funzionava lo stesso solo
-    // perche' setNotifications viene chiamato prima.
-    //
-    // Le preferenze per-utente non sono ancora migrate su user_state, e
-    // comunque un utente non puo' leggere le preferenze di un collega sotto
-    // RLS: finche' non esiste quella tabella, si suona con il volume di
-    // default e solo per il destinatario, che e' l'unico caso sensato.
-    if (currentUser && notification.userId === currentUser.id) {
-      await playNotificationSound(notification.type, 0.3);
+    // Suono e notifica desktop riguardano solo chi sta guardando lo schermo:
+    // per le notifiche destinate ad altri non c'e' nulla da riprodurre qui.
+    if (!currentUser || notification.userId !== currentUser.id) return;
+
+    // Preferenze del destinatario, ora lette davvero (user_state, RLS: solo
+    // il proprietario). Tipo disattivato od orario di silenzio = niente
+    // suono e niente notifica desktop; la voce resta comunque nell'elenco.
+    if (myNotificationPrefs?.enabledNotifications?.[notification.type] === false) return;
+    if (isWithinQuietHours(myNotificationPrefs)) return;
+
+    if (myNotificationPrefs?.soundEnabled !== false) {
+      await playNotificationSound(
+        notification.type,
+        myNotificationPrefs?.soundVolume ?? 0.3
+      );
     }
 
-    if (currentUser && notification.userId === currentUser.id) {
-      const permission = desktopNotificationManager.getPermission();
-      if (permission === 'granted') {
-        await desktopNotificationManager.showTaskNotification(
-          notification.type,
-          notification.taskTitle,
-          notification.message,
-          notification.taskId
-        );
-      }
+    const permission = desktopNotificationManager.getPermission();
+    if (permission === 'granted') {
+      await desktopNotificationManager.showTaskNotification(
+        notification.type,
+        notification.taskTitle,
+        notification.message,
+        notification.taskId
+      );
     }
   };
 
@@ -440,7 +389,7 @@ function App() {
     // quindi l'assegnatario non veniva mai avvisato.
     if (newTask.assigneeId && newTask.assigneeId !== currentUser.id) {
       addNotification({
-        id: `notif-${Date.now()}-${newTask.id}`,
+        id: `notif-${newTask.id}-assigned-${newTask.assigneeId}`,
         userId: newTask.assigneeId,
         taskId: newTask.id,
         taskTitle: newTask.title,
@@ -502,7 +451,7 @@ function App() {
       
       if (task.assigneeId && task.assigneeId !== currentUser.id) {
         addNotification({
-          id: `notif-${Date.now()}-${taskId}`,
+          id: `notif-${taskId}-completed-${task.assigneeId}`,
           userId: task.assigneeId,
           taskId: task.id,
           taskTitle: task.title,
@@ -523,7 +472,7 @@ function App() {
       const creatorId = (task.activities || []).find(a => a.type === 'created')?.userId;
       if (creatorId && creatorId !== currentUser.id && creatorId !== task.assigneeId) {
         addNotification({
-          id: `notif-${Date.now()}-creator-${taskId}`,
+          id: `notif-${taskId}-completed-creator-${creatorId}`,
           userId: creatorId,
           taskId: task.id,
           taskTitle: task.title,
@@ -543,7 +492,7 @@ function App() {
         'completed': 'Completed'
       };
       addNotification({
-        id: `notif-${Date.now()}-${taskId}`,
+        id: `notif-${taskId}-status-${oldStatus}-${status}-${task.assigneeId}`,
         userId: task.assigneeId,
         taskId: task.id,
         taskTitle: task.title,
@@ -576,7 +525,7 @@ function App() {
     if (assigneeId) {
       const isReassign = task.assigneeId !== null;
       addNotification({
-        id: `notif-${Date.now()}-${taskId}`,
+        id: `notif-${taskId}-assign-${task.assigneeId ?? 'nessuno'}-${assigneeId}`,
         userId: assigneeId,
         taskId: task.id,
         taskTitle: task.title,
@@ -679,7 +628,7 @@ function App() {
     
     if (task && task.assigneeId && task.assigneeId !== currentUser.id) {
       addNotification({
-        id: `notif-${Date.now()}-${taskId}`,
+        id: `notif-${taskId}-comment-${comment.id}`,
         userId: task.assigneeId,
         taskId: task.id,
         taskTitle: task.title,

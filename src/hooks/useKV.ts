@@ -72,6 +72,17 @@ const cache = new Map<string, unknown>();
 const listeners = new Map<string, Set<Listener>>();
 /** Chiavi gia' caricate dal server, per non rifare la fetch a ogni mount. */
 const loaded = new Set<string>();
+/**
+ * Ultimo valore che risulta essere SUL SERVER, per chiave.
+ *
+ * Distinto da `cache`, che contiene il valore ottimistico gia' mostrato
+ * nell'interfaccia. Confonderli duplica i dati: le operazioni in coda vanno
+ * riapplicate allo stato del server, e il valore ottimistico le ha gia'
+ * dentro. Applicandole una seconda volta su di esso, creare un task lo
+ * inseriva DUE volte (stesso id) alla prima scrittura di una chiave che sul
+ * server non esisteva ancora.
+ */
+const serverValue = new Map<string, unknown>();
 /** Scritture in sospeso (debounce non ancora scaduto), per poterle forzare. */
 const pending = new Map<string, Pending>();
 /** Chiavi attualmente montate: sono quelle da rivalidare al rientro. */
@@ -121,6 +132,13 @@ async function readRemote({ scopeId, key, perUser }: Target) {
   };
 }
 
+/** Come readRemote, ma memorizza anche cio' che il server ha davvero. */
+async function readRemoteTracked(cacheKey: string, target: Target) {
+  const remote = await readRemote(target);
+  if (remote.ok) serverValue.set(cacheKey, remote.value);
+  return remote;
+}
+
 /**
  * Applica le operazioni in coda al valore FRESCO letto dal server.
  *
@@ -155,12 +173,24 @@ async function flushKey(cacheKey: string): Promise<void> {
   entry.ops = [];
 
   const run = (async () => {
-    const remote = await readRemote(entry);
+    const remote = await readRemoteTracked(cacheKey, entry);
 
-    // Lettura fallita: si riparte da cio' che abbiamo, come faceva la versione
-    // precedente. Meglio una scrittura potenzialmente stantia che perdere del
-    // tutto la modifica dell'utente.
-    const base = remote.ok ? remote.value ?? cache.get(cacheKey) : cache.get(cacheKey);
+    if (!remote.ok && !serverValue.has(cacheKey)) {
+      // Non sappiamo cosa c'e' sul server e non l'abbiamo mai saputo:
+      // scrivere ora significherebbe sovrascrivere alla cieca. Le operazioni
+      // tornano in coda e riparte tutto al prossimo salvataggio o rientro
+      // sulla scheda. Il valore ottimistico resta a schermo, quindi per
+      // l'utente non si perde nulla nel frattempo.
+      console.error(`[useKV] scrittura rinviata per "${entry.key}": stato del server ignoto`);
+      entry.ops.unshift(...ops);
+      return;
+    }
+
+    // La base e' SEMPRE lo stato del server, mai `cache`: quest'ultima
+    // contiene gia' il risultato ottimistico delle stesse operazioni che
+    // stiamo per riapplicare. `undefined` significa "riga non ancora
+    // esistente", e gli updater dell'app lo gestiscono (`current || []`).
+    const base = remote.ok ? remote.value : serverValue.get(cacheKey);
 
     let next: unknown = base;
     for (const op of ops) next = op(next);
@@ -187,6 +217,8 @@ async function flushKey(cacheKey: string): Promise<void> {
       return;
     }
 
+    serverValue.set(cacheKey, next);
+
     // Il risultato riconciliato torna all'interfaccia: se il server aveva
     // qualcosa che non avevamo, ora compare senza aspettare un reload.
     broadcast(cacheKey, next);
@@ -211,6 +243,7 @@ export async function flushKVWrites() {
 export function resetKVCache() {
   cache.clear();
   loaded.clear();
+  serverValue.clear();
   pending.forEach((entry) => entry.timer && clearTimeout(entry.timer));
   pending.clear();
   listeners.forEach((set) => set.forEach((fn) => fn(undefined)));
@@ -231,7 +264,7 @@ async function revalidateActive() {
       // cancellerebbe sotto le dita.
       if (pending.has(cacheKey)) return;
 
-      const remote = await readRemote(target);
+      const remote = await readRemoteTracked(cacheKey, target);
       if (!remote.ok || remote.value === undefined) return;
       if (pending.has(cacheKey)) return;
 
@@ -321,7 +354,7 @@ export function useKV<T = string>(
     let cancelled = false;
 
     (async () => {
-      const remote = await readRemote({ scopeId, key, perUser });
+      const remote = await readRemoteTracked(cacheKey, { scopeId, key, perUser });
       if (cancelled || !remote.ok) return;
 
       loaded.add(cacheKey);
@@ -414,6 +447,7 @@ export function useKV<T = string>(
     if (!scopeId || !cacheKey) return;
     broadcast(cacheKey, undefined);
     loaded.delete(cacheKey);
+    serverValue.delete(cacheKey);
 
     const entry = pending.get(cacheKey);
     if (entry?.timer) clearTimeout(entry.timer);

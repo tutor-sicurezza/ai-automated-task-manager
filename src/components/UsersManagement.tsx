@@ -633,9 +633,29 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
 
           {!bulkMode && (
             <div className="flex gap-2 flex-shrink-0">
+              {/*
+                Il dialog di gestione ruoli esisteva ed era montato, ma
+                `setRoleManagementDialogOpen(true)` non veniva chiamato da
+                nessuna parte: non c'era modo di aprirlo dall'interfaccia.
+                Cambiare il ruolo di qualcuno era semplicemente impossibile.
+              */}
               <Button
                 variant="ghost"
                 size="sm"
+                title="Gestisci ruolo e permessi"
+                aria-label={`Gestisci ruolo di ${employee.name}`}
+                onClick={() => {
+                  setManagingRoleEmployee(employee);
+                  setRoleManagementDialogOpen(true);
+                }}
+              >
+                <ShieldCheck className="h-4 w-4" weight="bold" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                title="Modifica anagrafica"
+                aria-label={`Modifica ${employee.name}`}
                 onClick={() => openEditDialog(employee)}
               >
                 <PencilSimple className="h-4 w-4" weight="bold" />
@@ -643,6 +663,8 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
               <Button
                 variant="ghost"
                 size="sm"
+                title="Rimuovi dal team"
+                aria-label={`Rimuovi ${employee.name}`}
                 onClick={() => openDeleteDialog(employee)}
                 className="text-destructive hover:text-destructive hover:bg-destructive/10"
               >
