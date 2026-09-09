@@ -41,8 +41,9 @@ import { playNotificationSound } from '@/lib/notificationSounds';
 import { desktopNotificationManager } from '@/lib/desktopNotifications';
 import { DesktopNotificationSettings } from '@/components/DesktopNotificationSettings';
 import { canPerformAction } from '@/lib/permissions';
+import { newId } from '@/lib/utils';
 import { sendTaskAssignmentEmail } from '@/lib/taskEmail';
-import { upsertOrgMember } from '@/lib/orgMembers';
+import { upsertOrgMember, removeOrgMember } from '@/lib/orgMembers';
 import { Toaster, toast } from 'sonner';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -356,7 +357,7 @@ function App() {
     if (!currentUser) return;
 
     const activity: TaskActivity = {
-      id: `activity-${Date.now()}`,
+      id: newId('activity'),
       taskId,
       userId: currentUser.id,
       userName: currentUser.name,
@@ -382,15 +383,21 @@ function App() {
   const handleCreateTask = (taskData: Omit<Task, 'id' | 'status' | 'createdAt' | 'comments' | 'activities'>) => {
     if (!currentUser) return;
 
+    // L'id si calcola PRIMA: l'attivita' 'created' deve riferirsi a questo
+    // task. Prima erano due chiamate distinte a Date.now(), che coincidevano
+    // solo perche' cadevano nello stesso millisecondo — un legame che si
+    // reggeva sulla fortuna, e che con id univoci si sarebbe rotto del tutto.
+    const taskId = newId();
+
     const newTask: Task = {
       ...taskData,
-      id: Date.now().toString(),
+      id: taskId,
       status: 'not-started',
       createdAt: new Date().toISOString(),
       comments: [],
       activities: [{
-        id: `activity-${Date.now()}`,
-        taskId: Date.now().toString(),
+        id: newId('activity'),
+        taskId,
         userId: currentUser.id,
         userName: currentUser.name,
         userAvatar: currentUser.avatar,
@@ -620,7 +627,7 @@ function App() {
     if (!currentUser) return;
 
     const comment: TaskComment = {
-      id: `comment-${Date.now()}`,
+      id: newId('comment'),
       taskId,
       userId: currentUser.id,
       userName: currentUser.name,
@@ -710,7 +717,7 @@ function App() {
     const reader = new FileReader();
     reader.onload = () => {
       const attachment: TaskAttachment = {
-        id: `attachment-${Date.now()}`,
+        id: newId('attachment'),
         taskId,
         fileName: file.name,
         fileSize: file.size,
@@ -1000,7 +1007,43 @@ function App() {
     }
   };
 
-  const handleEditEmployee = (id: string, updates: Omit<Employee, 'id'>) => {
+  /**
+   * Modifica l'anagrafica di un membro, scrivendo anche sul database.
+   *
+   * Prima aggiornava solo l'array `employees`: qualifica, dipartimenti e
+   * soprattutto lo STATO (attivo/disattivato) non arrivavano mai su profiles.
+   * Il risultato e' che "disattiva utente" non bloccava nulla e non durava
+   * neppure — useSyncEmployees rilegge quei campi dal database a ogni avvio e
+   * riportava tutti ad 'active'.
+   *
+   * I campi che il database non conosce (bio, competenze, permessi
+   * personalizzati) restano nello stato applicativo, dove hanno senso.
+   */
+  const handleEditEmployee = async (id: string, updates: Omit<Employee, 'id'>) => {
+    const precedente = (employees || []).find((e) => e.id === id);
+    const email = updates.email ?? precedente?.email;
+
+    if (organization?.id && email) {
+      try {
+        await upsertOrgMember({
+          tenantId: organization.id,
+          email,
+          // Nessun ruolo: questa e' una modifica di anagrafica e il ruolo si
+          // cambia dalla gestione ruoli. Ometterlo lo lascia invariato.
+          fullName: updates.name,
+          jobTitle: updates.role,
+          departments: updates.departments,
+          status: updates.status,
+          teamLead: updates.teamLead,
+          phone: updates.phone,
+          location: updates.location,
+        });
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Aggiornamento non salvato');
+        return;
+      }
+    }
+
     setEmployees((currentEmployees) =>
       (currentEmployees || []).map(employee =>
         employee.id === id ? { ...employee, ...updates } : employee
@@ -1009,24 +1052,49 @@ function App() {
     toast.success('Team member updated successfully!');
   };
 
-  const handleDeleteEmployee = (id: string) => {
-    setTasks((currentTasks) =>
-      (currentTasks || []).map(task =>
-        task.assigneeId === id ? { ...task, assigneeId: null } : task
-      )
-    );
-    
-    setEmployees((currentEmployees) =>
-      (currentEmployees || []).filter(employee => employee.id !== id)
-    );
-    
-    toast.success('Team member removed');
+  /**
+   * Rimuove davvero la persona dall'organizzazione.
+   *
+   * Prima qui si toglieva solo la voce dall'array `employees`: la membership
+   * restava, quindi l'interessato continuava ad accedere e a vedere tutti i
+   * dati, e alla ricarica successiva useSyncEmployees lo rimetteva in elenco
+   * — la rimozione non revocava nulla e non durava nemmeno. Lo stato locale si
+   * aggiorna solo dopo che il server ha confermato la revoca.
+   */
+  const handleDeleteEmployee = async (id: string) => {
+    if (!organization?.id) {
+      toast.error('Nessuna organizzazione attiva');
+      return;
+    }
+
+    if (id === user?.id) {
+      toast.error("Non puoi rimuovere te stesso dall'organizzazione");
+      return;
+    }
+
+    try {
+      await removeOrgMember(organization.id, id);
+
+      setTasks((currentTasks) =>
+        (currentTasks || []).map(task =>
+          task.assigneeId === id ? { ...task, assigneeId: null } : task
+        )
+      );
+
+      setEmployees((currentEmployees) =>
+        (currentEmployees || []).filter(employee => employee.id !== id)
+      );
+
+      toast.success('Accesso revocato e membro rimosso');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Rimozione fallita');
+    }
   };
 
   const handleCreateAnnouncement = (announcementData: Omit<Announcement, 'id' | 'createdAt' | 'readBy'>) => {
     const newAnnouncement: Announcement = {
       ...announcementData,
-      id: Date.now().toString(),
+      id: newId(),
       createdAt: new Date().toISOString(),
       readBy: [],
     };
@@ -1192,7 +1260,7 @@ function App() {
   const handleSubmitFeedback = (feedbackData: Omit<FeedbackItem, 'id' | 'createdAt' | 'status' | 'upvotes'>) => {
     const newFeedback: FeedbackItem = {
       ...feedbackData,
-      id: `feedback-${Date.now()}`,
+      id: newId('feedback'),
       createdAt: new Date().toISOString(),
       status: 'new',
       upvotes: [],

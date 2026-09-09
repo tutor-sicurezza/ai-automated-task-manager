@@ -17,6 +17,7 @@ import { getAllDepartments, generateColorFromName } from '@/lib/departments';
 import { Employee } from '@/lib/types';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+import { newId } from '@/lib/utils';
 
 export interface Department {
   id: string;
@@ -267,7 +268,7 @@ export function DepartmentManagement({ employees, onEmployeeUpdate }: Department
       : formData.color;
 
     const newDepartment: Department = {
-      id: Date.now().toString(),
+      id: newId(),
       name: formData.name.trim(),
       description: formData.description.trim(),
       color: autoColor,
@@ -476,7 +477,7 @@ export function DepartmentManagement({ employees, onEmployeeUpdate }: Department
 
       if (!existingDept) {
         const newDepartment: Department = {
-          id: `${Date.now()}-${Math.random()}`,
+          id: newId(),
           name: templateDept.name,
           description: templateDept.description,
           color: templateDept.suggestedColor,

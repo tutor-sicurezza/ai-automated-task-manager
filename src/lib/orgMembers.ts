@@ -38,10 +38,15 @@ export interface OrgMemberResult {
 interface UpsertMemberArgs {
   tenantId: string;
   email: string;
-  role: OrgRole;
+  /** Facoltativo: se assente, il ruolo esistente non viene toccato. */
+  role?: OrgRole;
   fullName?: string;
   jobTitle?: string;
   departments?: string[];
+  status?: 'active' | 'inactive';
+  teamLead?: boolean;
+  phone?: string;
+  location?: string;
 }
 
 async function authorizedFetch(path: string, body: unknown) {
@@ -83,6 +88,10 @@ export async function upsertOrgMember({
   fullName,
   jobTitle,
   departments,
+  status,
+  teamLead,
+  phone,
+  location,
 }: UpsertMemberArgs): Promise<OrgMemberResult> {
   if (!tenantId) throw new Error('Nessuna organizzazione attiva');
   if (!email?.trim()) {
@@ -97,6 +106,10 @@ export async function upsertOrgMember({
       fullName,
       jobTitle,
       departments,
+      status,
+      teamLead,
+      phone,
+      location,
     }
   );
 
@@ -119,4 +132,39 @@ export async function updateOrgMemberRole(
   role: OrgRole
 ): Promise<OrgMemberResult> {
   return upsertOrgMember({ tenantId, email, role });
+}
+
+/**
+ * Rimuove un membro dall'organizzazione, revocandone davvero l'accesso.
+ *
+ * "Team member removed" toglieva la persona solo dall'elenco nello stato
+ * applicativo: la riga in organization_members restava, quindi continuava ad
+ * accedere e a vedere tutto, e alla ricarica successiva useSyncEmployees la
+ * rimetteva in elenco. L'account non viene cancellato — puo' appartenere ad
+ * altre organizzazioni — ma perde ogni accesso a questa.
+ */
+export async function removeOrgMember(tenantId: string, userId: string): Promise<void> {
+  if (!tenantId) throw new Error('Nessuna organizzazione attiva');
+  if (!userId) throw new Error('Utente non indicato');
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.access_token) {
+    throw new Error('Sessione scaduta, accedi di nuovo');
+  }
+
+  const response = await fetch(
+    `/api/tenants/${encodeURIComponent(tenantId)}/members?userId=${encodeURIComponent(userId)}`,
+    {
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${session.access_token}` },
+    }
+  );
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload?.error || `Rimozione fallita (${response.status})`);
+  }
 }

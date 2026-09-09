@@ -21,7 +21,7 @@ import "./index.css"
  * organizzazione, cosi' useKV ha sempre uno scope valido su cui lavorare.
  */
 function AuthGate() {
-  const { session, organization, loading, error, signOut } = useAuth()
+  const { session, profile, organization, loading, error, signOut } = useAuth()
 
   if (loading) {
     return (
@@ -32,6 +32,30 @@ function AuthGate() {
   }
 
   if (!session) return <LoginScreen />
+
+  // Account disattivato: "disattiva utente" nell'interfaccia non impediva
+  // nulla: la persona continuava ad accedere e a vedere tutto, perche' lo
+  // stato era solo un'etichetta nell'elenco. Ora e' un vero blocco.
+  if (profile?.status === 'inactive') {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-6">
+        <div className="max-w-md space-y-3 text-center">
+          <p className="font-medium">Account disattivato</p>
+          <p className="text-muted-foreground text-sm">
+            Questo account e' stato disattivato da un amministratore. Contattalo
+            se pensi si tratti di un errore.
+          </p>
+          <button
+            type="button"
+            onClick={() => { void signOut() }}
+            className="text-sm underline underline-offset-4"
+          >
+            Esci
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   if (error) {
     return (

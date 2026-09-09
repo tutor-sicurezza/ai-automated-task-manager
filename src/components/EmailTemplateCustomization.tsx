@@ -16,6 +16,7 @@ import { Envelope, Eye, FloppyDisk, ArrowCounterClockwise, Sparkle, Code, Plus, 
 import { EmailTemplate, EmailTemplateVariable, NotificationType } from '@/lib/types';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { newId } from '@/lib/utils';
 
 const NOTIFICATION_TYPES: { value: NotificationType; label: string }[] = [
   { value: 'task_assigned', label: 'Task Assigned' },
@@ -325,7 +326,7 @@ export function EmailTemplateCustomization({ currentUserId, currentUserName }: E
     if ((templates || []).length === 0) {
       const defaultTemplates = Object.values(DEFAULT_TEMPLATES).map((template, index) => ({
         ...template,
-        id: `template-${Date.now()}-${index}`,
+        id: newId('template'),
         lastModifiedAt: new Date().toISOString(),
         lastModifiedBy: currentUserName || 'System',
       }));

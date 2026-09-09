@@ -21,6 +21,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
+import { newId } from '@/lib/utils';
 
 const DEFAULT_SETTINGS: SystemSettings = {
   general: {
@@ -118,7 +119,7 @@ export function SuperAdminSettings({ currentUserId, currentUserName }: SuperAdmi
     if (!currentUserId || !currentUserName) return;
 
     const entry: AuditLogEntry = {
-      id: `audit-${Date.now()}`,
+      id: newId('audit'),
       timestamp: new Date().toISOString(),
       userId: currentUserId,
       userName: currentUserName,
