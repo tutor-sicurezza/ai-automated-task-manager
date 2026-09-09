@@ -55,9 +55,23 @@ export const fetch = withErrors(async (request: Request) => {
     }
 
     const membri = appartenenze ?? [];
+
+    // "Non appartengo a nulla" non basta come permesso: e' la condizione in
+    // cui si trova anche chi e' stato RIMOSSO da un amministratore, che
+    // potrebbe cosi' rientrare creandosi un'organizzazione propria e
+    // continuare a usare questa installazione. Il primo avvio si riconosce
+    // invece dal fatto che l'istanza e' ancora vuota.
+    const { count: organizzazioniEsistenti, error: conteggioError } = await admin
+      .from('organizations')
+      .select('id', { count: 'exact', head: true });
+
+    if (conteggioError) {
+      return jsonResponse({ error: conteggioError.message }, { status: 500 });
+    }
+
+    const primoAvvio = (organizzazioniEsistenti ?? 0) === 0;
     const puoCreare =
-      membri.length === 0 ||
-      membri.some((m) => m.role === 'owner' || m.role === 'admin');
+      primoAvvio || membri.some((m) => m.role === 'owner' || m.role === 'admin');
 
     if (!puoCreare) {
       return jsonResponse(

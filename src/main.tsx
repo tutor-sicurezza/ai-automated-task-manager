@@ -11,6 +11,7 @@ import { ErrorFallback } from './ErrorFallback.tsx'
 import { AuthProvider, useAuth } from './contexts/AuthContext.tsx'
 import { LoginScreen } from './components/LoginScreen.tsx'
 import { SetNewPasswordScreen } from './components/SetNewPasswordScreen.tsx'
+import { FirstOrganizationScreen } from './components/FirstOrganizationScreen.tsx'
 
 import "./main.css"
 import "./styles/theme.css"
@@ -76,31 +77,17 @@ function AuthGate() {
     )
   }
 
-  // Nessuna organizzazione = account non censito da un amministratore.
-  // Prima qui si restava su "Preparazione dell'area di lavoro…" perche' il
-  // bootstrap creava un'organizzazione al volo per chiunque; ora non la crea
-  // piu', quindi questo stato e' definitivo e va detto, non fatto girare.
-  if (!organization) {
-    return (
-      <div className="flex min-h-screen items-center justify-center p-6">
-        <div className="max-w-md space-y-3 text-center">
-          <p className="font-medium">Nessuna organizzazione associata</p>
-          <p className="text-muted-foreground text-sm">
-            Questo account non appartiene a nessuna organizzazione. Gli accessi
-            sono assegnati da un amministratore: contattalo perche' ti aggiunga
-            al gruppo di lavoro.
-          </p>
-          <button
-            type="button"
-            onClick={() => { void signOut() }}
-            className="text-sm underline underline-offset-4"
-          >
-            Esci
-          </button>
-        </div>
-      </div>
-    )
-  }
+  /**
+   * Nessuna organizzazione: o e' il primo avvio dell'installazione, o
+   * l'account e' stato rimosso da un amministratore. La schermata offre di
+   * crearne una; a decidere se e' lecito e' il server, non il client.
+   *
+   * Prima qui c'era solo un messaggio con il pulsante "Esci": per chi
+   * installava il progetto da zero era un vicolo cieco, perche' con la
+   * registrazione pubblica chiusa la prima organizzazione si poteva creare
+   * soltanto scrivendo SQL a mano.
+   */
+  if (!organization) return <FirstOrganizationScreen />
 
   return <App />
 }
