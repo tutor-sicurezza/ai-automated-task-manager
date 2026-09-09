@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ShieldCheck, Lock, Eye, User } from '@phosphor-icons/react';
 import { Employee, UserRole, Permission } from '@/lib/types';
 import { DEFAULT_ROLES, getEmployeePermissions } from '@/lib/permissions';
+import { updateOrgMemberRole } from '@/lib/orgMembers';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
 interface RoleManagementDialogProps {
@@ -83,6 +85,9 @@ export function RoleManagementDialog({
     employee.customPermissions || {}
   );
   const [useCustomPermissions, setUseCustomPermissions] = useState(!!employee.customPermissions);
+  const [saving, setSaving] = useState(false);
+
+  const { organization } = useAuth();
 
   const canManageRoles = currentUserRole === 'admin';
 
@@ -107,19 +112,62 @@ export function RoleManagementDialog({
     }));
   };
 
-  const handleSave = () => {
+  /**
+   * Il ruolo va scritto su organization_members, non solo nello stato
+   * applicativo.
+   *
+   * Prima qui si aggiornava soltanto `userRole` nell'array `employees`. Quel
+   * campo non e' pero' cio' che autorizza alcunche': le policy RLS e i
+   * controlli delle rotte api/ leggono organization_members. La promozione era
+   * quindi puramente decorativa e, per giunta, temporanea — useSyncEmployees
+   * rilegge il ruolo dal database a ogni avvio e la sovrascriveva.
+   *
+   * I permessi personalizzati restano invece nello stato applicativo: non
+   * hanno un equivalente nel database e valgono solo per l'interfaccia.
+   */
+  const handleSave = async () => {
     if (!canManageRoles) {
       toast.error('You do not have permission to manage roles');
       return;
     }
 
-    onUpdateEmployee(employee.id, {
-      userRole: selectedRole,
-      customPermissions: useCustomPermissions ? customPermissions : undefined,
-    });
+    if (!organization?.id) {
+      toast.error('Nessuna organizzazione attiva');
+      return;
+    }
 
-    toast.success('Role and permissions updated successfully');
-    onOpenChange(false);
+    // Senza email non si risale all'account: e' il caso delle righe rimaste
+    // dalla vecchia "Add User", che non ne creava uno.
+    if (!employee.email) {
+      toast.error(
+        "Questo membro non ha un account collegato: rimuovilo e ricrealo indicando l'email"
+      );
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const roleChanged = (employee.userRole || 'member') !== selectedRole;
+
+      if (roleChanged) {
+        await updateOrgMemberRole(organization.id, employee.email, selectedRole);
+      }
+
+      onUpdateEmployee(employee.id, {
+        userRole: selectedRole,
+        customPermissions: useCustomPermissions ? customPermissions : undefined,
+      });
+
+      toast.success('Role and permissions updated successfully');
+      onOpenChange(false);
+    } catch (e) {
+      // Nessun aggiornamento locale se la scrittura sul database fallisce:
+      // un'interfaccia che mostra 'admin' mentre il database dice 'member' e'
+      // peggio di un errore visibile.
+      toast.error(e instanceof Error ? e.message : 'Aggiornamento del ruolo fallito');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleReset = () => {
@@ -289,9 +337,9 @@ export function RoleManagementDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={!canManageRoles}>
+          <Button onClick={handleSave} disabled={!canManageRoles || saving}>
             <ShieldCheck className="mr-2 h-4 w-4" weight="fill" />
-            Save Changes
+            {saving ? 'Saving…' : 'Save Changes'}
           </Button>
         </DialogFooter>
       </DialogContent>

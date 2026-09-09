@@ -41,26 +41,11 @@ interface AuthContextValue {
   loading: boolean;
   error: string | null;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUp: (
-    email: string,
-    password: string,
-    fullName: string
-  ) => Promise<{ error: string | null; needsConfirmation: boolean }>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-
-function slugify(input: string) {
-  return (
-    input
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 40) || 'org'
-  );
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -97,41 +82,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * Risolve profilo, organizzazione e ruolo dell'utente autenticato.
+   *
+   * Qui, prima, un utente senza membership si vedeva CREARE al volo
+   * un'organizzazione di cui diventava owner. Unito al fatto che la
+   * registrazione pubblica non era stata disattivata su Supabase, chiunque
+   * conoscesse la chiave anon (che sta nel bundle, quindi chiunque) poteva
+   * registrarsi e ottenere il proprio spazio di lavoro sul progetto altrui.
+   *
+   * Gli account li crea l'amministratore (POST /api/tenants/<id>/members), che
+   * inserisce sia il profilo sia la membership. Chi arriva qui senza
+   * membership non e' stato censito: non gli si costruisce nulla, resta senza
+   * organizzazione e l'interfaccia glielo dice.
+   *
+   * ATTENZIONE: questo chiude il percorso applicativo, non l'endpoint. Il
+   * blocco della registrazione va fatto ANCHE su Supabase
+   * (Authentication -> Sign In / Providers -> "Allow new users to sign up"),
+   * altrimenti resta possibile creare account chiamando /auth/v1/signup
+   * direttamente — semplicemente non serviranno piu' a nulla.
+   */
   const runBootstrap = async (currentUser: User) => {
-    const displayName =
-      (currentUser.user_metadata?.full_name as string | undefined) ||
-      currentUser.email?.split('@')[0] ||
-      'Utente';
-
     const { data: existingProfile } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', currentUser.id)
       .maybeSingle();
 
-    let resolvedProfile = existingProfile;
+    setProfile((existingProfile as AuthProfile | null) ?? null);
 
-    if (!resolvedProfile) {
-      const { data: inserted, error: insertError } = await supabase
-        .from('profiles')
-        .insert({
-          id: currentUser.id,
-          email: currentUser.email,
-          full_name: displayName,
-          avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
-            currentUser.id
-          )}`,
-        })
-        .select()
-        .single();
-
-      if (insertError) throw new Error(insertError.message);
-      resolvedProfile = inserted;
-    }
-
-    setProfile(resolvedProfile as AuthProfile);
-
-    // Organizzazione: prima quella di cui e' gia' membro
     const { data: membership } = await supabase
       .from('organization_members')
       .select('role, organization_id, organizations(id, name, slug, owner_id)')
@@ -145,66 +124,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Puo' esistere gia' un'organizzazione di cui e' proprietario ma senza
-    // riga di membership (bootstrap interrotto a meta'): riusiamola.
-    const { data: ownedOrg } = await supabase
-      .from('organizations')
-      .select('id, name, slug, owner_id')
-      .eq('owner_id', currentUser.id)
-      .limit(1)
-      .maybeSingle();
-
-    let newOrg = ownedOrg;
-
-    if (!newOrg) {
-      const orgName = `${displayName} Workspace`;
-      const { data: created, error: orgError } = await supabase
-        .from('organizations')
-        .insert({
-          name: orgName,
-          slug: `${slugify(orgName)}-${currentUser.id.slice(0, 8)}`,
-          owner_id: currentUser.id,
-        })
-        .select()
-        .single();
-
-      if (orgError) {
-        // 23505 = slug duplicato: un altro bootstrap concorrente ha gia' creato
-        // l'organizzazione. Non e' un errore, rileggiamo la sua.
-        const { data: raced } = await supabase
-          .from('organizations')
-          .select('id, name, slug, owner_id')
-          .eq('owner_id', currentUser.id)
-          .limit(1)
-          .maybeSingle();
-
-        if (!raced) throw new Error(orgError.message);
-        newOrg = raced;
-      } else {
-        newOrg = created;
-      }
-    }
-
-    if (!newOrg) throw new Error('Impossibile creare o recuperare l\'organizzazione');
-
-    // upsert invece di insert: se un bootstrap concorrente ha gia' creato la
-    // membership, il vincolo unique (organization_id, user_id) non deve
-    // trasformarsi in un errore visibile all'utente.
-    const { error: memberError } = await supabase
-      .from('organization_members')
-      .upsert(
-        {
-          organization_id: newOrg.id,
-          user_id: currentUser.id,
-          role: 'owner',
-        },
-        { onConflict: 'organization_id,user_id', ignoreDuplicates: true }
-      );
-
-    if (memberError) throw new Error(memberError.message);
-
-    setOrganization(newOrg as AuthOrganization);
-    setOrgRole('owner');
+    setOrganization(null);
+    setOrgRole(null);
   };
 
   const refresh = useCallback(async () => {
@@ -264,22 +185,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: signInError?.message ?? null };
   }, []);
 
-  const signUp = useCallback(
-    async (email: string, password: string, fullName: string) => {
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { full_name: fullName } },
-      });
-      return {
-        error: signUpError?.message ?? null,
-        // Se il progetto richiede conferma email, session e' null
-        needsConfirmation: !signUpError && !data.session,
-      };
-    },
-    []
-  );
-
   const signOut = useCallback(async () => {
     // Le modifiche ancora nel debounce di useKV andrebbero perse uscendo.
     await flushKVWrites();
@@ -304,7 +209,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         error,
         signIn,
-        signUp,
         signOut,
         refresh,
       }}

@@ -42,6 +42,7 @@ import { desktopNotificationManager } from '@/lib/desktopNotifications';
 import { DesktopNotificationSettings } from '@/components/DesktopNotificationSettings';
 import { canPerformAction } from '@/lib/permissions';
 import { sendTaskAssignmentEmail } from '@/lib/taskEmail';
+import { upsertOrgMember } from '@/lib/orgMembers';
 import { Toaster, toast } from 'sonner';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -143,6 +144,10 @@ function App() {
   const [launchAnnouncementOpen, setLaunchAnnouncementOpen] = useState(false);
   const [hasSeenLaunchAnnouncement, setHasSeenLaunchAnnouncement] = useKV<boolean>('has-seen-launch-announcement', false);
   const [feedback, setFeedback] = useKV<FeedbackItem[]>('feedback', []);
+  const [newAccountCredentials, setNewAccountCredentials] = useState<{
+    email: string;
+    password: string;
+  } | null>(null);
 
   useEffect(() => {
     if (employees && employees.length > 0) {
@@ -957,16 +962,76 @@ function App() {
     setSelectedTasks(new Set());
   };
 
-  const handleAddEmployee = (employeeData: Omit<Employee, 'id'>) => {
-    const newEmployee: Employee = {
-      ...employeeData,
-      id: Date.now().toString(),
-      status: employeeData.status || 'active',
-      joinedDate: employeeData.joinedDate || new Date().toISOString(),
-    };
-    
-    setEmployees((currentEmployees) => [...(currentEmployees || []), newEmployee]);
-    toast.success('Team member added successfully!');
+  /**
+   * Aggiunge un membro creandone davvero l'account.
+   *
+   * Prima qui si generava soltanto `id: Date.now().toString()` e si appendeva
+   * l'oggetto all'array `employees`: nessun account, nessuna riga in
+   * organization_members. L'utente "creato" non poteva accedere e i task che
+   * gli venivano assegnati puntavano a un id che non apparteneva a nessuno,
+   * quindi non comparivano a nessuno e non generavano notifiche recapitabili.
+   * L'unico percorso di creazione reale — POST /api/tenants/<id>/members —
+   * non era chiamato da nessuna parte dell'interfaccia.
+   *
+   * L'id del membro e' ora quello dell'account (auth.users/profiles): e' cio'
+   * che rende assegnazioni, notifiche e RLS coerenti fra loro.
+   */
+  const handleAddEmployee = async (employeeData: Omit<Employee, 'id'>) => {
+    if (!organization?.id) {
+      toast.error('Nessuna organizzazione attiva');
+      return;
+    }
+
+    if (!employeeData.email?.trim()) {
+      toast.error("L'email e' obbligatoria: senza account l'utente non puo' accedere");
+      return;
+    }
+
+    try {
+      const result = await upsertOrgMember({
+        tenantId: organization.id,
+        email: employeeData.email,
+        // Ruolo minimo alla creazione: si alza dalla gestione ruoli, che ora
+        // scrive anch'essa su organization_members.
+        role: 'member',
+        fullName: employeeData.name,
+        jobTitle: employeeData.role,
+        departments: employeeData.departments,
+      });
+
+      const newEmployee: Employee = {
+        ...employeeData,
+        id: result.userId,
+        userRole: mapOrgRoleToUserRole(result.role),
+        status: employeeData.status || 'active',
+        joinedDate: employeeData.joinedDate || new Date().toISOString(),
+      };
+
+      setEmployees((currentEmployees) => {
+        const list = currentEmployees || [];
+        const index = list.findIndex((e) => e.id === newEmployee.id);
+        // L'account puo' esistere gia' (utente reinvitato, oppure riga creata
+        // da useSyncEmployees): in quel caso si aggiorna, non si duplica.
+        if (index === -1) return [...list, newEmployee];
+        const next = [...list];
+        next[index] = { ...list[index], ...newEmployee };
+        return next;
+      });
+
+      if (result.temporaryPassword) {
+        // Non esiste ancora un invito via email: la password provvisoria la
+        // consegna l'amministratore, quindi deve restare a schermo finche' non
+        // la chiude lui (un toast sparirebbe da solo).
+        setNewAccountCredentials({
+          email: employeeData.email.trim().toLowerCase(),
+          password: result.temporaryPassword,
+        });
+      } else {
+        toast.success('Utente aggiunto all\'organizzazione');
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Creazione utente fallita');
+    }
   };
 
   const handleEditEmployee = (id: string, updates: Omit<Employee, 'id'>) => {
@@ -1746,6 +1811,42 @@ function App() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/*
+        Le credenziali del nuovo account vanno consegnate a mano: non c'e'
+        ancora un invito via email. Restano quindi in un dialog che si chiude
+        solo su azione dell'amministratore.
+      */}
+      <AlertDialog
+        open={!!newAccountCredentials}
+        onOpenChange={(open) => !open && setNewAccountCredentials(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Account creato</AlertDialogTitle>
+            <AlertDialogDescription>
+              Consegna queste credenziali all'utente: la password provvisoria non
+              viene inviata per email e non sara' piu' visibile dopo la chiusura
+              di questa finestra.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="bg-muted rounded-md p-4 font-mono text-sm break-all">
+            <div>
+              <span className="text-muted-foreground">Email: </span>
+              {newAccountCredentials?.email}
+            </div>
+            <div>
+              <span className="text-muted-foreground">Password: </span>
+              {newAccountCredentials?.password}
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setNewAccountCredentials(null)}>
+              Ho annotato le credenziali
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

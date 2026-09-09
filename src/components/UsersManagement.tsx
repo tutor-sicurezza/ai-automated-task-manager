@@ -217,7 +217,15 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
       return;
     }
 
-    if (formData.email && !isValidEmail(formData.email)) {
+    // L'email non e' piu' facoltativa: e' l'identificativo con cui viene
+    // creato l'account. Senza, si tornerebbe a inserire in elenco una persona
+    // che non puo' accedere e a cui non si puo' assegnare nulla di reale.
+    if (!formData.email.trim()) {
+      toast.error('Email is required: the account is created from this address');
+      return;
+    }
+
+    if (!isValidEmail(formData.email)) {
       toast.error('Please enter a valid email address');
       return;
     }
@@ -1140,7 +1148,7 @@ export function UsersManagement({ employees, onAddEmployee, onEditEmployee, onDe
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="add-email">Email Address</Label>
+              <Label htmlFor="add-email">Email Address *</Label>
               <Input
                 id="add-email"
                 type="email"

@@ -11,6 +11,15 @@ import { useAuth } from '@/contexts/AuthContext';
  * Instradamento:
  *   - chiavi per-utente  -> public.user_state (RLS: solo il proprietario)
  *   - tutto il resto     -> public.app_state  (RLS: membri dell'organizzazione)
+ *
+ * CONCORRENZA (vedi anche il commento su `enqueue`): ogni chiave e' un unico
+ * blob JSON riscritto per intero. Finche' la scrittura partiva dalla copia in
+ * memoria del browser, due persone che lavoravano insieme si cancellavano il
+ * lavoro a vicenda: chi salvava per ultimo sovrascriveva l'array COMPLETO con
+ * la propria versione, vecchia di minuti. Non e' un caso di scuola, e'
+ * successo in produzione (un task completato due volte, con attivita' e
+ * notifiche duplicate, perche' il secondo browser aveva ancora la fotografia
+ * precedente al completamento).
  */
 
 /** Chiavi il cui valore appartiene al singolo utente, non all'organizzazione. */
@@ -42,13 +51,33 @@ function scopedKey(scopeId: string, key: string) {
 }
 
 type Listener = (value: unknown) => void;
+type Op = (previous: unknown) => unknown;
+
+interface Target {
+  scopeId: string;
+  key: string;
+  perUser: boolean;
+}
+
+interface Pending extends Target {
+  /** Operazioni in attesa, nell'ordine in cui sono state richieste. */
+  ops: Op[];
+  timer: ReturnType<typeof setTimeout> | null;
+  /** Flush in corso: serializza i salvataggi sulla stessa chiave. */
+  running: Promise<void> | null;
+  userId: string | null;
+}
 
 const cache = new Map<string, unknown>();
 const listeners = new Map<string, Set<Listener>>();
 /** Chiavi gia' caricate dal server, per non rifare la fetch a ogni mount. */
 const loaded = new Set<string>();
 /** Scritture in sospeso (debounce non ancora scaduto), per poterle forzare. */
-const pendingWrites = new Map<string, () => Promise<void>>();
+const pending = new Map<string, Pending>();
+/** Chiavi attualmente montate: sono quelle da rivalidare al rientro. */
+const active = new Map<string, Target>();
+
+const WRITE_DEBOUNCE_MS = 400;
 
 function subscribe(cacheKey: string, fn: Listener) {
   if (!listeners.has(cacheKey)) listeners.set(cacheKey, new Set());
@@ -63,32 +92,171 @@ function broadcast(cacheKey: string, value: unknown) {
   listeners.get(cacheKey)?.forEach((fn) => fn(value));
 }
 
+/** Legge il valore attualmente sul server. `undefined` = riga assente. */
+async function readRemote({ scopeId, key, perUser }: Target) {
+  const query = perUser
+    ? supabase
+        .from('user_state')
+        .select('value')
+        .eq('user_id', scopeId)
+        .eq('key', key)
+        .maybeSingle()
+    : supabase
+        .from('app_state')
+        .select('value')
+        .eq('organization_id', scopeId)
+        .eq('key', key)
+        .maybeSingle();
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error(`[useKV] lettura fallita per "${key}":`, error.message);
+    return { ok: false as const, value: undefined };
+  }
+
+  return {
+    ok: true as const,
+    value: data && data.value !== null ? (data.value as unknown) : undefined,
+  };
+}
+
+/**
+ * Applica le operazioni in coda al valore FRESCO letto dal server.
+ *
+ * E' qui che sta la differenza con la versione precedente, che salvava il
+ * valore gia' calcolato in memoria: partendo dal server, la modifica di chi
+ * salva per ultimo si somma a quella dell'altro invece di cancellarla. Resta
+ * una finestra di rischio fra lettura e scrittura, ma si misura in
+ * millisecondi invece che nella durata della sessione.
+ */
+async function flushKey(cacheKey: string): Promise<void> {
+  const entry = pending.get(cacheKey);
+  if (!entry) return;
+
+  if (entry.timer) {
+    clearTimeout(entry.timer);
+    entry.timer = null;
+  }
+
+  // Un flush per volta sulla stessa chiave, altrimenti due letture
+  // concorrenti ripartirebbero dallo stesso valore e la seconda scrittura
+  // perderebbe la prima — esattamente il problema che stiamo chiudendo.
+  if (entry.running) {
+    await entry.running;
+    return flushKey(cacheKey);
+  }
+
+  const ops = entry.ops;
+  if (ops.length === 0) {
+    pending.delete(cacheKey);
+    return;
+  }
+  entry.ops = [];
+
+  const run = (async () => {
+    const remote = await readRemote(entry);
+
+    // Lettura fallita: si riparte da cio' che abbiamo, come faceva la versione
+    // precedente. Meglio una scrittura potenzialmente stantia che perdere del
+    // tutto la modifica dell'utente.
+    const base = remote.ok ? remote.value ?? cache.get(cacheKey) : cache.get(cacheKey);
+
+    let next: unknown = base;
+    for (const op of ops) next = op(next);
+
+    const now = new Date().toISOString();
+    const { error } = entry.perUser
+      ? await supabase.from('user_state').upsert(
+          { user_id: entry.scopeId, key: entry.key, value: next, updated_at: now },
+          { onConflict: 'user_id,key' }
+        )
+      : await supabase.from('app_state').upsert(
+          {
+            organization_id: entry.scopeId,
+            key: entry.key,
+            value: next,
+            updated_at: now,
+            updated_by: entry.userId,
+          },
+          { onConflict: 'organization_id,key' }
+        );
+
+    if (error) {
+      console.error(`[useKV] scrittura fallita per "${entry.key}":`, error.message);
+      return;
+    }
+
+    // Il risultato riconciliato torna all'interfaccia: se il server aveva
+    // qualcosa che non avevamo, ora compare senza aspettare un reload.
+    broadcast(cacheKey, next);
+  })();
+
+  entry.running = run;
+
+  try {
+    await run;
+  } finally {
+    entry.running = null;
+    if (entry.ops.length === 0 && !entry.timer) pending.delete(cacheKey);
+  }
+}
+
 /** Forza subito tutte le scritture ancora in attesa del debounce. */
 export async function flushKVWrites() {
-  const writes = Array.from(pendingWrites.values());
-  pendingWrites.clear();
-  await Promise.all(writes.map((w) => w()));
+  await Promise.all(Array.from(pending.keys()).map((k) => flushKey(k)));
 }
 
 /** Svuota lo store: chiamata al logout da AuthContext. */
 export function resetKVCache() {
   cache.clear();
   loaded.clear();
-  pendingWrites.clear();
+  pending.forEach((entry) => entry.timer && clearTimeout(entry.timer));
+  pending.clear();
   listeners.forEach((set) => set.forEach((fn) => fn(undefined)));
 }
 
+/**
+ * Rilegge dal server le chiavi montate.
+ *
+ * Senza questo, una scheda lasciata aperta restava ferma alla fotografia del
+ * primo caricamento (`loaded` impedisce la rilettura) e mostrava dati vecchi
+ * di ore: e' la stessa staleness che produceva i doppi completamenti.
+ */
+async function revalidateActive() {
+  await Promise.all(
+    Array.from(active.entries()).map(async ([cacheKey, target]) => {
+      // Con modifiche non ancora salvate la risposta del server e' piu'
+      // vecchia di cio' che ha in mano l'utente: sovrascriverlo gliele
+      // cancellerebbe sotto le dita.
+      if (pending.has(cacheKey)) return;
+
+      const remote = await readRemote(target);
+      if (!remote.ok || remote.value === undefined) return;
+      if (pending.has(cacheKey)) return;
+
+      if (JSON.stringify(remote.value) !== JSON.stringify(cache.get(cacheKey))) {
+        broadcast(cacheKey, remote.value);
+      }
+    })
+  );
+}
+
 // Una modifica fatta e subito seguita dalla chiusura della scheda andrebbe
-// persa: il debounce di 400ms non fa in tempo a scadere. `pagehide` copre
-// chiusura, reload e navigazione; `visibilitychange` copre il passaggio in
-// background su mobile, dove `pagehide` non sempre arriva.
+// persa: il debounce non fa in tempo a scadere. `pagehide` copre chiusura,
+// reload e navigazione; `visibilitychange` copre il passaggio in background su
+// mobile, dove `pagehide` non sempre arriva. Al ritorno in primo piano si
+// rilegge, perche' nel frattempo puo' aver scritto qualcun altro.
 if (typeof window !== 'undefined') {
-  const flushOnLeave = () => {
+  window.addEventListener('pagehide', () => {
     void flushKVWrites();
-  };
-  window.addEventListener('pagehide', flushOnLeave);
+  });
   window.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') flushOnLeave();
+    if (document.visibilityState === 'hidden') void flushKVWrites();
+    else void revalidateActive();
+  });
+  window.addEventListener('focus', () => {
+    void revalidateActive();
   });
 }
 
@@ -129,7 +297,6 @@ export function useKV<T = string>(
     cacheKey && cache.has(cacheKey) ? (cache.get(cacheKey) as T) : initialValue
   );
 
-  const writeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef<T | undefined>(value);
   latest.current = value;
 
@@ -139,43 +306,33 @@ export function useKV<T = string>(
     return subscribe(cacheKey, (v) => setValue(v as T | undefined));
   }, [cacheKey]);
 
+  // Registro delle chiavi montate, usato dalla rivalidazione al rientro.
+  useEffect(() => {
+    if (!cacheKey || !scopeId) return;
+    active.set(cacheKey, { scopeId, key, perUser });
+    return () => {
+      active.delete(cacheKey);
+    };
+  }, [cacheKey, scopeId, key, perUser]);
+
   // Caricamento iniziale dal database
   useEffect(() => {
     if (!scopeId || !cacheKey || loaded.has(cacheKey)) return;
     let cancelled = false;
 
     (async () => {
-      const query = perUser
-        ? supabase
-            .from('user_state')
-            .select('value')
-            .eq('user_id', scopeId)
-            .eq('key', key)
-            .maybeSingle()
-        : supabase
-            .from('app_state')
-            .select('value')
-            .eq('organization_id', scopeId)
-            .eq('key', key)
-            .maybeSingle();
-
-      const { data, error } = await query;
-      if (cancelled) return;
-
-      if (error) {
-        console.error(`[useKV] lettura fallita per "${key}":`, error.message);
-        return;
-      }
+      const remote = await readRemote({ scopeId, key, perUser });
+      if (cancelled || !remote.ok) return;
 
       loaded.add(cacheKey);
 
       // Se nel frattempo l'utente ha gia' modificato qualcosa, il valore letto
       // dal server e' vecchio: sovrascriverlo cancellerebbe una modifica non
       // ancora salvata.
-      if (pendingWrites.has(cacheKey)) return;
+      if (pending.has(cacheKey)) return;
 
-      if (data && data.value !== null && data.value !== undefined) {
-        broadcast(cacheKey, data.value as T);
+      if (remote.value !== undefined) {
+        broadcast(cacheKey, remote.value as T);
       } else if (initialRef.current !== undefined && !cache.has(cacheKey)) {
         // Nessun valore salvato: teniamo il default in memoria senza scrivere,
         // cosi' non creiamo righe inutili finche' l'utente non modifica nulla.
@@ -188,72 +345,79 @@ export function useKV<T = string>(
     };
   }, [key, cacheKey, scopeId, perUser]);
 
-  const persist = useCallback(
-    (next: T) => {
+  /**
+   * Mette in coda l'OPERAZIONE, non il risultato.
+   *
+   * E' la scelta che rende possibile la fusione con lo stato del server: al
+   * momento del salvataggio l'updater viene rieseguito sul valore fresco. Un
+   * valore costante resta invece una sostituzione, che e' la semantica attesa
+   * da `setX(valore)`.
+   */
+  const enqueue = useCallback(
+    (op: Op) => {
       if (!scopeId || !cacheKey) return;
 
-      const write = async () => {
-        pendingWrites.delete(cacheKey);
-        const now = new Date().toISOString();
+      let entry = pending.get(cacheKey);
+      if (!entry) {
+        entry = {
+          scopeId,
+          key,
+          perUser,
+          ops: [],
+          timer: null,
+          running: null,
+          userId: user?.id ?? null,
+        };
+        pending.set(cacheKey, entry);
+      }
 
-        const { error } = perUser
-          ? await supabase.from('user_state').upsert(
-              { user_id: scopeId, key, value: next, updated_at: now },
-              { onConflict: 'user_id,key' }
-            )
-          : await supabase.from('app_state').upsert(
-              {
-                organization_id: scopeId,
-                key,
-                value: next,
-                updated_at: now,
-                updated_by: user?.id ?? null,
-              },
-              { onConflict: 'organization_id,key' }
-            );
+      entry.userId = user?.id ?? null;
+      entry.ops.push(op);
 
-        if (error) {
-          console.error(`[useKV] scrittura fallita per "${key}":`, error.message);
-        }
-      };
-
-      if (writeTimer.current) clearTimeout(writeTimer.current);
-      pendingWrites.set(cacheKey, write);
-      writeTimer.current = setTimeout(() => {
-        writeTimer.current = null;
-        void write();
-      }, 400);
+      if (entry.timer) clearTimeout(entry.timer);
+      entry.timer = setTimeout(() => {
+        const current = pending.get(cacheKey);
+        if (current) current.timer = null;
+        void flushKey(cacheKey);
+      }, WRITE_DEBOUNCE_MS);
     },
-    [key, cacheKey, scopeId, perUser, user?.id]
+    [cacheKey, scopeId, key, perUser, user?.id]
   );
 
   const update = useCallback(
     (newValue: T | ((oldValue?: T) => T)) => {
+      if (!cacheKey) return;
+
       // L'updater funzionale DEVE partire dallo store di modulo, non da
       // `latest.current`: quest'ultimo si aggiorna solo al render successivo,
       // quindi due update consecutivi nello stesso handler leggerebbero
       // entrambi il valore precedente e il secondo annullerebbe il primo.
       // Succedeva davvero: completando un task, addActivity() sovrascriveva
       // il cambio di stato appena applicato e il task restava "not-started".
-      const base =
-        cacheKey && cache.has(cacheKey) ? (cache.get(cacheKey) as T) : latest.current;
+      const base = cache.has(cacheKey) ? (cache.get(cacheKey) as T) : latest.current;
 
-      const resolved =
-        typeof newValue === 'function'
-          ? (newValue as (oldValue?: T) => T)(base)
-          : newValue;
-
-      if (cacheKey) broadcast(cacheKey, resolved);
-      persist(resolved);
+      if (typeof newValue === 'function') {
+        const updater = newValue as (oldValue?: T) => T;
+        // Anteprima immediata in interfaccia; la versione che finisce sul
+        // server sara' ricalcolata sul valore fresco dentro flushKey.
+        broadcast(cacheKey, updater(base));
+        enqueue((previous) => updater(previous as T | undefined));
+      } else {
+        broadcast(cacheKey, newValue);
+        enqueue(() => newValue);
+      }
     },
-    [cacheKey, persist]
+    [cacheKey, enqueue]
   );
 
   const remove = useCallback(() => {
     if (!scopeId || !cacheKey) return;
     broadcast(cacheKey, undefined);
     loaded.delete(cacheKey);
-    pendingWrites.delete(cacheKey);
+
+    const entry = pending.get(cacheKey);
+    if (entry?.timer) clearTimeout(entry.timer);
+    pending.delete(cacheKey);
 
     void (perUser
       ? supabase.from('user_state').delete().eq('user_id', scopeId).eq('key', key)
@@ -265,14 +429,10 @@ export function useKV<T = string>(
   }, [key, cacheKey, scopeId, perUser]);
 
   // Smontando il componente il debounce verrebbe semplicemente annullato e la
-  // modifica persa (cambiare tab entro 400ms bastava). Qui lo si forza invece.
+  // modifica persa (cambiare tab entro il debounce bastava). Qui lo si forza.
   useEffect(
     () => () => {
-      if (writeTimer.current) {
-        clearTimeout(writeTimer.current);
-        writeTimer.current = null;
-        void flushKVWrites();
-      }
+      void flushKVWrites();
     },
     []
   );

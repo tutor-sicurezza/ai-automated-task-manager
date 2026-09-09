@@ -51,10 +51,16 @@ export const fetch = withErrors(async (request: Request) => {
 
     const body = await request.json().catch(() => ({}));
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
-    const role =
-      body.role === 'owner' || body.role === 'admin' || body.role === 'member'
-        ? body.role
-        : 'member';
+
+    // La lista deve coprire TUTTI i ruoli del vincolo CHECK di
+    // organization_members (0004), non solo tre: con 'manager' e 'viewer'
+    // fuori dalla lista, l'interfaccia poteva chiedere quei ruoli e l'utente
+    // finiva silenziosamente 'member', cioe' con piu' permessi di quelli
+    // scelti nel caso di 'viewer'.
+    const ROLES = ['owner', 'admin', 'manager', 'member', 'viewer'] as const;
+    const role: (typeof ROLES)[number] = ROLES.includes(body.role)
+      ? body.role
+      : 'member';
 
     // Solo il proprietario puo' conferire la proprieta'. Senza questo controllo
     // un 'admin' poteva assegnare 'owner' a se stesso e poi declassare il vero
@@ -84,6 +90,18 @@ export const fetch = withErrors(async (request: Request) => {
 
     let memberId = profile?.id;
     let createdPassword: string | null = null;
+
+    // Campi di profilo che l'interfaccia raccoglie nello stesso form della
+    // creazione. Vivono su profiles perche' e' da li' che useSyncEmployees li
+    // rilegge a ogni avvio: se restassero solo nello stato applicativo,
+    // sarebbero invisibili a chi non ha ancora quella copia in cache.
+    const jobTitle =
+      typeof body.jobTitle === 'string' && body.jobTitle.trim()
+        ? body.jobTitle.trim()
+        : null;
+    const departments = Array.isArray(body.departments)
+      ? body.departments.filter((d: unknown): d is string => typeof d === 'string')
+      : null;
 
     if (!profile) {
       // L'utente non esiste ancora: lo crea l'amministratore.
@@ -130,10 +148,26 @@ export const fetch = withErrors(async (request: Request) => {
         email,
         full_name: fullName,
         avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(memberId)}`,
+        ...(jobTitle ? { job_title: jobTitle } : {}),
+        ...(departments ? { departments } : {}),
       });
 
       if (insertProfileError) {
         return jsonResponse({ error: insertProfileError.message }, { status: 500 });
+      }
+    } else if (jobTitle || departments) {
+      // Profilo gia' esistente: si aggiorna solo cio' che e' stato passato,
+      // per non azzerare campi che il chiamante non ha nemmeno inviato.
+      const { error: updateProfileError } = await admin
+        .from('profiles')
+        .update({
+          ...(jobTitle ? { job_title: jobTitle } : {}),
+          ...(departments ? { departments } : {}),
+        })
+        .eq('id', memberId);
+
+      if (updateProfileError) {
+        return jsonResponse({ error: updateProfileError.message }, { status: 500 });
       }
     }
 

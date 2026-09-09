@@ -93,7 +93,14 @@ export function useSyncEmployees() {
             email: p.email ?? undefined,
             role: p.job_title ?? previous?.role ?? 'Membro del team',
             userRole: mapOrgRole(row.role),
-            departments: p.departments ?? previous?.departments ?? [],
+            // `profiles.departments` e' NOT NULL DEFAULT '{}', quindi non e'
+            // mai null: il vecchio `??` non scattava mai e un array vuoto sul
+            // database azzerava a ogni avvio i dipartimenti impostati
+            // dall'interfaccia. Vuoto qui significa "il database non ha
+            // un'opinione", non "nessun dipartimento".
+            departments: p.departments?.length
+              ? p.departments
+              : previous?.departments ?? [],
             status: p.status === 'inactive' ? 'inactive' : 'active',
             teamLead: p.team_lead ?? previous?.teamLead ?? false,
             joinedDate: p.joined_date ?? previous?.joinedDate ?? new Date().toISOString(),
