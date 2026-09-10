@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, FunnelSimple, ArrowsDownUp, CheckCircle, CheckSquare, Square, Trash, X, PlayCircle, Circle, ChartBar, ListChecks, Sparkle, Users, Buildings, House, Rocket } from '@phosphor-icons/react';
+import { Plus, FunnelSimple, ArrowsDownUp, CheckCircle, CheckSquare, Square, Trash, X, PlayCircle, Circle, ChartBar, ListChecks, Sparkle, Users, Buildings, House, Rocket, CalendarBlank } from '@phosphor-icons/react';
 import { TaskCard } from '@/components/TaskCard';
 import { CreateTaskDialog } from '@/components/CreateTaskDialog';
 import { EditTaskDialog } from '@/components/EditTaskDialog';
@@ -43,6 +43,7 @@ import { DesktopNotificationSettings } from '@/components/DesktopNotificationSet
 import { canPerformAction } from '@/lib/permissions';
 import { newId } from '@/lib/utils';
 import { traduci, linguaIniziale } from '@/lib/i18n';
+import { VistaCalendario } from '@/components/VistaCalendario';
 import { inviaEmailNotifica } from '@/lib/taskEmail';
 import { trovaMenzioni } from '@/lib/menzioni';
 import { upsertOrgMember, removeOrgMember, resetMemberPassword } from '@/lib/orgMembers';
@@ -347,7 +348,7 @@ function App() {
         (profile?.custom_permissions as Employee['customPermissions']) ?? undefined,
     };
   }, [user, profile, orgRole, employees, currentUser]);
-  const [viewMode, setViewMode] = useState<'dashboard' | 'tasks' | 'analytics'>('dashboard');
+  const [viewMode, setViewMode] = useState<'dashboard' | 'tasks' | 'calendario' | 'analytics'>('dashboard');
   const [analyticsView, setAnalyticsView] = useState<'team' | 'departments'>('team');
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
   const [welcomeGuideOpen, setWelcomeGuideOpen] = useState(false);
@@ -1830,6 +1831,18 @@ function App() {
                 >
                   <ListChecks className="mr-2 h-4 w-4" weight={viewMode === 'tasks' ? 'fill' : 'regular'} />{t('Tasks')}</Button>
                 <Button
+                  variant={viewMode === 'calendario' ? 'default' : 'ghost'}
+                  onClick={() => setViewMode('calendario')}
+                  className="rounded-none"
+                  size="sm"
+                >
+                  <CalendarBlank
+                    className="mr-2 h-4 w-4"
+                    weight={viewMode === 'calendario' ? 'fill' : 'regular'}
+                  />
+                  {t('Calendar')}
+                </Button>
+                <Button
                   variant={viewMode === 'analytics' ? 'default' : 'ghost'}
                   onClick={() => setViewMode('analytics')}
                   className="rounded-l-none"
@@ -2020,6 +2033,19 @@ function App() {
               </>
             )}
           </>
+        ) : viewMode === 'calendario' ? (
+          /*
+            Il calendario riceve TUTTI i task filtrati per assegnatario e
+            stato, non solo la pagina visibile: la paginazione serve
+            all'elenco, dove il costo e' il numero di schede renderizzate.
+            Qui il punto e' vedere come il lavoro si distribuisce nel mese, e
+            mostrarne solo cento darebbe un mese incompleto senza dirlo.
+          */
+          <VistaCalendario
+            tasks={filteredAndSortedTasks}
+            employees={listaEmployees}
+            onViewTask={handleViewDetails}
+          />
         ) : viewMode === 'analytics' ? (
           <>
             {aiAvailable && canPerformAction(currentEmployee, 'ai_features', 'get_insights') && (

@@ -231,13 +231,40 @@ export interface NotificationPreferences {
     task_priority_changed: boolean;
     mention: boolean;
   };
-  // Qui stavano `notificationFrequency` e il blocco `emailSchedule` (digest
-  // giornaliero/settimanale, raggruppamento per task, tetto di voci per
-  // digest). Nessun invio li ha mai consultati: non esiste un lavoro
-  // programmato che accumuli notifiche, quindi ogni email partiva comunque
-  // subito, qualunque cosa scegliesse l'utente. Il selettore era anche
-  // incoerente col tipo — offriva "realtime" e "batched", valori che questa
-  // unione non ha mai contemplato.
+  /**
+   * Riepilogo giornaliero al posto delle email evento per evento.
+   *
+   * Tre campi, e non i sette di prima. Il blocco `emailSchedule`
+   * (`digestFrequency`, `digestDays`, `includeOnlyUnread`, `groupByTask`,
+   * `maxNotificationsPerDigest`) e' stato tolto perche' nessun invio lo
+   * consultava: l'utente sceglieva "digest giornaliero" e continuava a ricevere
+   * un'email per ogni evento. Ora il lavoro che li implementa esiste
+   * (`api/cron/digest.ts`), ma implementa questi tre e basta — rimettere un
+   * campo che non pilota nulla sarebbe di nuovo lo stesso errore.
+   *
+   * `digestEnabled` falso e' il predefinito e significa "email immediate",
+   * cioe' il comportamento di oggi. Lo legge il server in due punti:
+   * `api/_lib/digest.ts` per scegliere chi servire, e
+   * `api/_lib/preferenzeNotifiche.ts` per smettere di spedire evento per
+   * evento a chi ha acceso il riepilogo — senza quel secondo filtro il
+   * riepilogo sarebbe posta in PIU', non in meno.
+   *
+   * Le notifiche in applicazione restano immediate in ogni caso: il riepilogo
+   * riguarda solo la posta.
+   */
+  digestEnabled: boolean;
+  /** L'ora locale del riepilogo, "HH:MM". Solo ore intere: il lavoro pianificato si sveglia una volta all'ora. */
+  digestTime: string;
+  /**
+   * Il fuso in cui leggere `digestTime`, come identificativo IANA
+   * ("Europe/Rome"). Non e' un selettore da compilare: il browser lo sa gia' e
+   * l'interfaccia lo salva da solo, mostrando quale ha rilevato. Serve perche'
+   * il lavoro pianificato gira in UTC mentre l'ora scelta e' quella di casa di
+   * chi la sceglie — e un nome IANA, a differenza di uno scostamento fisso,
+   * segue l'ora legale senza che nessuno debba correggere niente due volte
+   * l'anno.
+   */
+  digestTimezone: string;
   quietHours: {
     enabled: boolean;
     startTime: string;
