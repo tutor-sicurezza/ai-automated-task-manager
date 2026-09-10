@@ -1,4 +1,10 @@
-export type TaskStatus = 'not-started' | 'in-progress' | 'completed';
+/**
+ * `blocked` non e' uno stato terminale: un task bloccato puo' essere anche in
+ * ritardo, e i conteggi devono continuare a dirlo. Serve a distinguere "fermo
+ * perche' nessuno ci lavora" da "fermo perche' non si puo' procedere", che a
+ * chi guarda un elenco sembrano la stessa cosa.
+ */
+export type TaskStatus = 'not-started' | 'in-progress' | 'blocked' | 'completed';
 export type TaskPriority = 'low' | 'medium' | 'high';
 export type ActivityType = 'created' | 'status_changed' | 'priority_changed' | 'assignee_changed' | 'due_date_changed' | 'title_changed' | 'description_changed' | 'comment_added' | 'attachment_added' | 'attachment_removed';
 
@@ -108,6 +114,23 @@ export interface TaskAttachment {
   uploadedAt: string;
 }
 
+/**
+ * Come si ripete un task.
+ *
+ * Un oggetto e non colonne separate perche' le regole hanno forme diverse — a
+ * intervallo, mensile lo stesso giorno, settimanale in certi giorni — e
+ * appiattirle darebbe una colonna vuota per ogni forma non in uso.
+ */
+export interface RegolaRicorrenza {
+  tipo: 'giorni' | 'settimane' | 'mesi';
+  /** Ogni quanti giorni/settimane/mesi. */
+  ogni: number;
+  /** Solo per `settimane`: 0 = domenica. Vuoto significa "lo stesso giorno". */
+  giorniSettimana?: number[];
+  /** Data oltre la quale la serie non si rinnova piu'. */
+  fine?: string | null;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -115,8 +138,28 @@ export interface Task {
   assigneeId: string | null;
   priority: TaskPriority;
   status: TaskStatus;
-  dueDate: string;
+  /**
+   * Facoltativa. Era obbligatoria, e chi non aveva una scadenza vera se ne
+   * inventava una: quella data finta faceva poi scattare promemoria e conteggi
+   * di ritardo su lavori che in ritardo non erano.
+   */
+  dueDate?: string | null;
   createdAt: string;
+  /** Il reparto del LAVORO, non di chi lo esegue. */
+  department?: string | null;
+  labels?: string[];
+  estimateMinutes?: number | null;
+  spentMinutes?: number | null;
+  /** Chi vuole essere avvisato pur non essendo l'assegnatario. */
+  watchers?: string[];
+  recurrence?: RegolaRicorrenza | null;
+  /** La prima occorrenza della serie, per le occorrenze successive. */
+  recurrenceParent?: string | null;
+  /** Archiviato non e' cancellato: esce dalle viste correnti, resta nei conti. */
+  archivedAt?: string | null;
+  requiresApproval?: boolean;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
   comments?: TaskComment[];
   activities?: TaskActivity[];
   attachments?: TaskAttachment[];
