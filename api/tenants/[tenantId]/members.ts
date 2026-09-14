@@ -1,6 +1,10 @@
 export const runtime = 'edge';
 
 import { createSupabaseAdminClient, ensureTenantAdmin, ensureTenantMembership, getAuthenticatedUser, jsonResponse, withErrors } from '../../_lib/supabase.js';
+import {
+  normalizzaPermessiPersonalizzati,
+  type PermessiPersonalizzati,
+} from '../../_lib/permessiPersonalizzati.js';
 
 export const fetch = withErrors(async (request: Request) => {
   const user = await getAuthenticatedUser(request);
@@ -212,6 +216,20 @@ export const fetch = withErrors(async (request: Request) => {
     const phone = typeof body.phone === 'string' ? body.phone.trim() : null;
     const location = typeof body.location === 'string' ? body.location.trim() : null;
 
+    // Le deroghe ai permessi del ruolo. Prima vivevano solo nell'array
+    // `employees` di app_state, che ogni membro puo' riscrivere: chiunque
+    // poteva darsene. Qui finiscono su profiles.custom_permissions, che il
+    // trigger della 0018 rende non modificabile dal proprio profilo e che il
+    // client si limita a leggere. Assente = non toccare; null = togliere.
+    let customPermissions: PermessiPersonalizzati | null | undefined;
+    if (body && typeof body === 'object' && 'customPermissions' in body) {
+      const esito = normalizzaPermessiPersonalizzati(body.customPermissions);
+      if (!esito.ok) {
+        return jsonResponse({ error: esito.errore }, { status: 400 });
+      }
+      customPermissions = esito.valore;
+    }
+
     const campiProfilo = {
       ...(jobTitle ? { job_title: jobTitle } : {}),
       ...(departments ? { departments } : {}),
@@ -220,6 +238,7 @@ export const fetch = withErrors(async (request: Request) => {
       ...(teamLead !== null ? { team_lead: teamLead } : {}),
       ...(phone !== null ? { phone } : {}),
       ...(location !== null ? { location } : {}),
+      ...(customPermissions !== undefined ? { custom_permissions: customPermissions } : {}),
     };
 
     if (!profile) {
