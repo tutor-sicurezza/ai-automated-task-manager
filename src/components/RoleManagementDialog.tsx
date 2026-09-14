@@ -10,8 +10,8 @@ import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ShieldCheck, Lock, Eye, User } from '@phosphor-icons/react';
-import { Employee, UserRole, Permission } from '@/lib/types';
-import { DEFAULT_ROLES } from '@/lib/permissions';
+import { DeroghePermessi, Employee, UserRole, Permission } from '@/lib/types';
+import { DEFAULT_ROLES, fondiPermessi } from '@/lib/permissions';
 import { upsertOrgMember } from '@/lib/orgMembers';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -89,7 +89,7 @@ export function RoleManagementDialog({
 }: RoleManagementDialogProps) {
   const { t } = useTranslation();
   const [selectedRole, setSelectedRole] = useState<UserRole>(employee.userRole || 'member');
-  const [customPermissions, setCustomPermissions] = useState<Partial<Permission>>(
+  const [customPermissions, setCustomPermissions] = useState<DeroghePermessi>(
     employee.customPermissions || {}
   );
   const [useCustomPermissions, setUseCustomPermissions] = useState(!!employee.customPermissions);
@@ -198,8 +198,16 @@ export function RoleManagementDialog({
     setUseCustomPermissions(!!employee.customPermissions);
   };
 
+  /*
+    L'anteprima deve mostrare cio' che varra' davvero, cioe' la stessa fusione
+    che fa `getEmployeePermissions`. Con lo spread degli oggetti, una deroga su
+    una sola voce sostituiva l'INTERA categoria: toccando "modifica qualunque
+    attivita'" tutte le altre voci della scheda comparivano spente, mentre a
+    runtime restavano quelle del ruolo. Il pannello dei permessi diceva il
+    falso proprio dove si decide chi puo' fare cosa.
+  */
   const currentPermissions = useCustomPermissions
-    ? { ...DEFAULT_ROLES[selectedRole].permissions, ...customPermissions }
+    ? fondiPermessi(DEFAULT_ROLES[selectedRole].permissions, customPermissions)
     : DEFAULT_ROLES[selectedRole].permissions;
 
   const getRoleIcon = (role: UserRole) => {

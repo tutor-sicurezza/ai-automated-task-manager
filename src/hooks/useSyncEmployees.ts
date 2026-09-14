@@ -2,7 +2,8 @@ import { useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useKV } from '@/hooks/useKV';
-import type { Employee, UserRole } from '@/lib/types';
+import type { Employee } from '@/lib/types';
+import { derogheDalProfilo, ruoloInterfaccia } from '@/lib/dipendenteCorrente';
 
 /**
  * Allinea la lista `employees` dell'app con i membri reali dell'organizzazione.
@@ -20,21 +21,6 @@ import type { Employee, UserRole } from '@/lib/types';
  * database, perche' la copia in app_state la puo' scrivere chiunque.
  */
 
-/** Il database ha un ruolo 'owner' in piu' rispetto al tipo UserRole della UI. */
-function mapOrgRole(role: string | null | undefined): UserRole {
-  switch (role) {
-    case 'owner':
-    case 'admin':
-      return 'admin';
-    case 'manager':
-      return 'manager';
-    case 'viewer':
-      return 'viewer';
-    default:
-      return 'member';
-  }
-}
-
 interface MemberRow {
   role: string;
   user_id: string;
@@ -50,18 +36,6 @@ interface MemberRow {
     joined_date: string | null;
     custom_permissions: unknown;
   } | null;
-}
-
-/**
- * Le deroghe ai permessi, cosi' come stanno sul database.
- *
- * Il valore e' jsonb e potrebbe contenere qualunque cosa: si accetta solo un
- * oggetto, tutto il resto vale come "nessuna deroga". La forma fine la
- * garantisce la rotta che scrive (api/_lib/permessiPersonalizzati.ts).
- */
-export function derogheDalProfilo(valore: unknown): Employee['customPermissions'] {
-  if (!valore || typeof valore !== 'object' || Array.isArray(valore)) return undefined;
-  return Object.keys(valore).length > 0 ? (valore as Employee['customPermissions']) : undefined;
 }
 
 export function useSyncEmployees() {
@@ -107,7 +81,7 @@ export function useSyncEmployees() {
               `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(p.id)}`,
             email: p.email ?? undefined,
             role: p.job_title ?? previous?.role ?? 'Membro del team',
-            userRole: mapOrgRole(row.role),
+            userRole: ruoloInterfaccia(row.role),
             // `profiles.departments` e' NOT NULL DEFAULT '{}', quindi non e'
             // mai null: il vecchio `??` non scattava mai e un array vuoto sul
             // database azzerava a ogni avvio i dipartimenti impostati

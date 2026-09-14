@@ -82,17 +82,61 @@ dell'account, cioè esattamente ciò che PostgREST fa con un token.
 | Mario (manager) assegna a Lucia e registra a nome di qa.user | — | passa |
 | Mario assegna a un utente di un'altra organizzazione | — | **rifiutato** |
 
-In produzione la rotta nuova è viva: `POST /api/tasks` senza token risponde
-401, la `GET` tolta risponde 405, e il pacchetto servito da `main` contiene la
-creazione via rotta e la lettura di `custom_permissions`.
+Poi **riprovate con un token vero**, contro la produzione. Per non toccare le
+credenziali di collaudo esistenti è stato creato un account `member` usa e
+getta nell'organizzazione QA, usato per accedere davvero e cancellato al
+termine — con lui le tre attività create e la copia di sicurezza dell'elenco
+dipendenti. Il database è stato ricontrollato dopo: nessuna traccia.
 
-**Non verificato, e va fatto con le credenziali di collaudo** (che stanno in
-`.env.local`, non in un ambiente remoto): le stesse tre varianti via
-`POST /api/tasks` con il token di un dipendente, e la scrittura di
-`customPermissions` in `app_state['employees']`, che deve restare possibile
-ma **non deve più avere effetto** dopo un ricaricamento. Il ripristino di un
-backup rifiuta una riga nuova assegnata a chi ha lasciato l'organizzazione: è
-voluto, ma va saputo.
+| Prova, token vero di un `member` | `POST /api/tasks` | PostgREST diretto |
+| --- | --- | --- |
+| Attività assegnata a una collega | **403**, "solo manager, admin o owner" | **403** (42501) |
+| Firma con l'id dell'amministratore | scritta **a nome di chi chiama** | **403** (42501) |
+| Assegnatario di un'altra organizzazione | **403**, "non appartiene" | **403** (42501) |
+| Creazione senza firmarsi | — (la firma la mette la rotta) | **403** (42501) |
+| Attività per se stesso (controllo positivo) | **201** | **201** |
+
+La firma falsa merita una nota: la rotta non rifiuta la richiesta, **ignora**
+il campo e mette l'id di chi chiama. È lo stesso esito — nessuno può attribuire
+ad altri un'attività — per la via che al database non arriva nemmeno.
+
+Sui permessi personalizzati, con lo stesso token:
+
+- scrivere `customPermissions` dentro `app_state['employees']` **riesce
+  ancora** (204), ed è voluto: quella chiave è lavoro quotidiano e serve a
+  tutti;
+- scrivere `profiles.custom_permissions`, la colonna che ora conta, è
+  **rifiutato** dal trigger della 0018: *"I permessi non sono modificabili dal
+  proprio profilo"*.
+
+**Cosa non è stato verificato a schermo, e perché.** La prova finale — entrare
+con quel dipendente e vedere che la riga avvelenata non cambia più nulla — non
+è stata fatta: in questo ambiente remoto il browser non attraversa il proxy di
+rete verso nessun host. Al suo posto, la decisione che quella schermata prende
+è stata **tolta da `src/App.tsx` e messa in `src/lib/dipendenteCorrente.ts`**,
+dove ha i suoi test, costruiti sulla riga avvelenata scritta davvero in
+produzione. Restava sepolta in un `useMemo` dentro un componente da tremila
+righe, ed era proprio la riga in cui stava la falla.
+
+Nemmeno la rotta dei membri è stata provata da qui: le chiamate che concedono
+permessi vengono bloccate dal controllo di sicurezza della sessione. Il
+validatore è coperto dai test.
+
+Il ripristino di un backup rifiuta una riga nuova assegnata a chi ha lasciato
+l'organizzazione: è voluto, ma va saputo.
+
+**Due difetti trovati verificando**, entrambi nello stesso meccanismo:
+
+- Il tipo `customPermissions` diceva `Partial<Permission>`: categorie
+  facoltative, ma ognuna **intera**. Il prodotto invece concede un permesso
+  alla volta, e `getEmployeePermissions` fonde per voce. Ogni chiamante
+  aggirava il tipo con un cast. Ora c'è `DeroghePermessi`, che dice la verità.
+- L'anteprima del pannello ruoli faceva `{...ruolo, ...deroghe}`: con una
+  categoria parziale **sostituiva** la categoria invece di fonderla, quindi
+  toccando un permesso tutti gli altri della stessa scheda comparivano spenti,
+  mentre a runtime restavano quelli del ruolo. Il pannello dei permessi diceva
+  il falso proprio dove si decide chi può fare cosa. Ora usa `fondiPermessi`,
+  la stessa fusione del runtime.
 
 Cosa è cambiato:
 
@@ -102,10 +146,10 @@ Cosa è cambiato:
   (`api/_lib/permessiPersonalizzati.ts`, allineato a `Permission` da un test) e
   li scrive in `profiles.custom_permissions`, la colonna che la 0018 rende
   non modificabile dal proprio profilo. `useSyncEmployees` li rilegge da lì a
-  ogni avvio **sovrascrivendo** la copia in app_state, e `currentEmployee` in
-  App.tsx prende quelli di chi guarda dal profilo caricato all'accesso, non
-  dall'array `employees`. La copia in app_state resta scrivibile, ma nessuno
-  la ascolta più.
+  ogni avvio **sovrascrivendo** la copia in app_state, e `dipendenteCorrente`
+  prende quelli di chi guarda dal profilo caricato all'accesso, non dall'array
+  `employees`. La copia in app_state resta scrivibile, ma nessuno la ascolta
+  più.
 - **La creazione passa da `api/tasks`.** `useTasks.applica` chiama
   `creaTaskSulServer` (`src/lib/creazioneTask.ts`) invece di `insert`. La rotta
   (`api/_lib/nuovoTask.ts`, con test) rifiuta ciò che un task non può essere
