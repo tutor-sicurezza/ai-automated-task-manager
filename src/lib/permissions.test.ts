@@ -1,6 +1,28 @@
 import { describe, it, expect } from 'vitest';
-import { canPerformAction } from '@/lib/permissions';
+import { DEFAULT_ROLES, canPerformAction } from '@/lib/permissions';
 import type { Employee, UserRole } from '@/lib/types';
+import { CATALOGO_PERMESSI } from '../../api/_lib/permessiPersonalizzati';
+
+/**
+ * Il server conosce la forma dei permessi per conto suo (api/ non puo'
+ * importare da src/). Se qualcuno aggiunge una voce qui e non li', la rotta
+ * dei membri rifiuta di salvarla e il pannello dei ruoli smette di funzionare
+ * per quella voce, senza un errore che dica perche'.
+ */
+describe('CATALOGO_PERMESSI lato server', () => {
+  it('coincide voce per voce con la matrice dei ruoli del client', () => {
+    const dalClient = Object.fromEntries(
+      Object.entries(DEFAULT_ROLES.admin.permissions).map(([categoria, voci]) => [
+        categoria,
+        Object.keys(voci).sort(),
+      ])
+    );
+    const dalServer = Object.fromEntries(
+      Object.entries(CATALOGO_PERMESSI).map(([categoria, voci]) => [categoria, [...voci].sort()])
+    );
+    expect(dalServer).toEqual(dalClient);
+  });
+});
 
 /**
  * Matrice dei permessi per ruolo.

@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ShieldCheck, Lock, Eye, User } from '@phosphor-icons/react';
 import { Employee, UserRole, Permission } from '@/lib/types';
 import { DEFAULT_ROLES } from '@/lib/permissions';
-import { updateOrgMemberRole } from '@/lib/orgMembers';
+import { upsertOrgMember } from '@/lib/orgMembers';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
@@ -128,8 +128,13 @@ export function RoleManagementDialog({
    * quindi puramente decorativa e, per giunta, temporanea — useSyncEmployees
    * rilegge il ruolo dal database a ogni avvio e la sovrascriveva.
    *
-   * I permessi personalizzati restano invece nello stato applicativo: non
-   * hanno un equivalente nel database e valgono solo per l'interfaccia.
+   * Anche i permessi personalizzati vanno sul database, e per la stessa
+   * ragione. Restavano nello stato applicativo — l'array `employees` di
+   * app_state — che ogni membro puo' riscrivere per intero con il proprio
+   * token: chiunque poteva darsi `tasks.edit_any` da solo, e l'interfaccia
+   * gli credeva. Ora stanno in profiles.custom_permissions, che scrive solo
+   * la rotta dei membri (da amministratore) e che useSyncEmployees rilegge a
+   * ogni avvio sovrascrivendo qualunque copia locale.
    */
   const handleSave = async () => {
     if (!canManageRoles) {
@@ -154,14 +159,25 @@ export function RoleManagementDialog({
     setSaving(true);
     try {
       const roleChanged = (employee.userRole || 'member') !== selectedRole;
+      // Una deroga senza voci non e' una deroga: si salva come "nessuna", che
+      // e' anche cio' che il server ne farebbe.
+      const deroghe =
+        useCustomPermissions && Object.keys(customPermissions).length > 0
+          ? customPermissions
+          : null;
 
-      if (roleChanged) {
-        await updateOrgMemberRole(organization.id, employee.email, selectedRole);
-      }
+      // Una chiamata sola, con ruolo (se cambiato) e deroghe: il server le
+      // scrive rispettivamente su organization_members e su profiles.
+      await upsertOrgMember({
+        tenantId: organization.id,
+        email: employee.email,
+        role: roleChanged ? selectedRole : undefined,
+        customPermissions: deroghe,
+      });
 
       onUpdateEmployee(employee.id, {
         userRole: selectedRole,
-        customPermissions: useCustomPermissions ? customPermissions : undefined,
+        customPermissions: deroghe ?? undefined,
       });
 
       toast.success(t('Role and permissions updated successfully'));

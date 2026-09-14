@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { creaTaskSulServer } from '@/lib/creazioneTask';
 import type { Task, TaskAttachment, TaskPriority, TaskStatus } from '@/lib/types';
 
 /**
@@ -18,6 +19,13 @@ import type { Task, TaskAttachment, TaskPriority, TaskStatus } from '@/lib/types
  * Con una riga per task valgono finalmente le policy della 0008: crea chi puo'
  * scrivere, modifica l'autore o l'assegnatario o un manager, cancella l'autore
  * o un manager. Il database rifiuta il resto, senza dipendere dall'interfaccia.
+ *
+ * La CREAZIONE non scrive sulla tabella ma passa da POST /api/tasks: la
+ * policy di insert non guardava il contenuto della riga, e un membro poteva
+ * assegnare a un collega o firmarsi con l'id di un altro. La rotta (e la
+ * policy della 0024, per chi la rotta la salta) decide autore e organizzazione
+ * e verifica assegnatario, osservatori e dipendenze. Modifiche e cancellazioni
+ * restano scritture dirette, sotto le policy.
  *
  * L'hook espone di proposito la STESSA firma di useKV — `[tasks, setTasks]`
  * con updater sull'array — cosi' i diciannove punti di App.tsx che modificano
@@ -196,7 +204,7 @@ function perDataDiCreazione(a: Task, b: Task): number {
 }
 
 export function useTasks() {
-  const { user, organization } = useAuth();
+  const { organization } = useAuth();
   const [tasks, setTasksState] = useState<Task[]>([]);
 
   /*
@@ -497,15 +505,20 @@ export function useTasks() {
       for (const id of toccati) scritturePendenti.current.add(id);
 
       try {
+        // La creazione passa da POST /api/tasks e non dalla tabella: e' la
+        // rotta a decidere autore e organizzazione, a verificare che
+        // l'assegnatario sia un membro e che un 'member' assegni solo a se
+        // stesso (vedi src/lib/creazioneTask.ts). La riga che torna e' quella
+        // vera — con `created_at` e `created_by` del server — e sostituisce
+        // l'anteprima ottimistica, cosi' lo stato non aspetta la rilettura.
         for (const t of aggiunti) {
-          const { error } = await supabase.from('tasks').insert({
-            id: t.id,
-            organization_id: organization.id,
-            created_by: user?.id ?? null,
-            created_at: t.createdAt,
-            ...taskToRow(t),
-          });
-          if (error) errori.push(`creazione "${t.title}": ${error.message}`);
+          try {
+            const riga = await creaTaskSulServer(organization.id, t);
+            applicaRiga(riga as unknown as TaskRow);
+          } catch (e) {
+            const messaggio = e instanceof Error ? e.message : String(e);
+            errori.push(`creazione "${t.title}": ${messaggio}`);
+          }
         }
 
         for (const t of modificati) {
@@ -555,7 +568,7 @@ export function useTasks() {
         await reload();
       }
     },
-    [organization?.id, user?.id, reload, reloadConDebounce, unisciAllegati]
+    [organization?.id, reload, reloadConDebounce, unisciAllegati, applicaRiga]
   );
 
   /**

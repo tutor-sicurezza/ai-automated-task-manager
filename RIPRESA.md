@@ -1,7 +1,7 @@
 # Da dove riprendere
 
 Documento per riaprire il lavoro in una sessione nuova, senza rileggere tutto.
-Aggiornato al 10 settembre 2026, dopo l'audit finale.
+Aggiornato al 14 settembre 2026, dopo la chiusura delle due falle di permessi.
 
 ## Cos'è TaskFlow
 
@@ -61,34 +61,61 @@ PWA installabile su computer.
 Cinque lavori pianificati su Vercel: promemoria, pulizia, digest (orario),
 manutenzione, ricorrenze.
 
+## Chiuso nel codice, da applicare e verificare (14 settembre 2026)
+
+Le due falle di permessi che stavano in cima all'elenco qui sotto sono chiuse
+nel codice del branch `claude/permessi-architettura-muzmxi`. **Non sono ancora
+verificate in produzione**, e una parte va applicata a mano:
+
+1. **Migrazione 0024** (`0024_creazione_task_confini.sql`), con il comando
+   consueto `supabase db query --linked -f ...`. Riscrive la policy di insert
+   su `tasks`: chi crea si firma (`created_by = auth.uid()`, libero solo per i
+   responsabili), assegna ad altri solo se responsabile, e solo a membri
+   dell'organizzazione. Senza questa, la rotta chiude il percorso
+   dell'interfaccia ma non quello di chi chiama PostgREST direttamente.
+2. **Riprovare con curl, con l'account di un dipendente**, le tre varianti:
+   task assegnato a un collega, `created_by` con l'id dell'amministratore,
+   `assignee_id` di un utente di un'altra organizzazione. Tutte da rifiutare,
+   sia via `POST /api/tasks` sia via PostgREST. E riprovare la scrittura di
+   `customPermissions` in `app_state['employees']`: deve restare possibile
+   (la chiave è di lavoro quotidiano) ma **non deve più avere effetto** dopo
+   un ricaricamento, perché il client legge le deroghe da
+   `profiles.custom_permissions`.
+3. **Ripristino backup**: con la 0024, una riga nuova assegnata a chi ha
+   lasciato l'organizzazione viene rifiutata. È voluto, ma va saputo.
+
+Cosa è cambiato:
+
+- **Permessi personalizzati letti lato server.** Il pannello dei ruoli li manda
+  a `POST /api/tenants/<id>/members` (campo `customPermissions`, `null` per
+  toglierli), che li valida contro un catalogo
+  (`api/_lib/permessiPersonalizzati.ts`, allineato a `Permission` da un test) e
+  li scrive in `profiles.custom_permissions`, la colonna che la 0018 rende
+  non modificabile dal proprio profilo. `useSyncEmployees` li rilegge da lì a
+  ogni avvio **sovrascrivendo** la copia in app_state, e `currentEmployee` in
+  App.tsx prende quelli di chi guarda dal profilo caricato all'accesso, non
+  dall'array `employees`. La copia in app_state resta scrivibile, ma nessuno
+  la ascolta più.
+- **La creazione passa da `api/tasks`.** `useTasks.applica` chiama
+  `creaTaskSulServer` (`src/lib/creazioneTask.ts`) invece di `insert`. La rotta
+  (`api/_lib/nuovoTask.ts`, con test) rifiuta ciò che un task non può essere
+  alla nascita — approvato, archiviato, completato, occorrenza di una serie —
+  pretende che commenti, cronologia e allegati siano firmati da chi crea, e
+  verifica sul database assegnatario, osservatori e dipendenze. La `GET` di
+  quella rotta, mai chiamata, è stata tolta. Modifiche e cancellazioni restano
+  scritture dirette sotto le policy.
+- **Conseguenza in sviluppo locale:** con `npm run dev` le rotte `api/` non
+  rispondono, quindi la creazione di attività fallisce (come già la gestione
+  dei membri). Serve `vercel dev`.
+
 ## Aperto, in ordine di gravità
 
-### 1. Un membro può darsi i permessi da solo — GRAVE, pre-esistente
-`app_state['employees']` non è fra le chiavi riservate ai responsabili
-(migrazione 0011), quindi qualunque membro può riscriverla via PostgREST
-mettendosi `customPermissions: { tasks: { edit_any: true } }`. `permissions.ts`
-fonde i permessi personalizzati **sopra** quelli del ruolo, e
-`useSyncEmployees` risincronizza solo `userRole`, non i permessi.
+### 1. `api/notifications/index.ts` è pubblicata e mai usata
+Nessuna schermata la chiama. Accetta scritture che scavalcano le regole del
+client. Va tolta o messa in uso — non lasciata lì. (`api/tasks` è ora in uso,
+vedi sopra.)
 
-Con questo, il trigger di approvazione della 0023 si può aggirare diventando
-"responsabile". **Va chiuso prima di dare il prodotto a clienti veri.** Due
-strade: mettere `employees` fra le chiavi amministrative, oppure smettere di
-fidarsi di `customPermissions` letto dal client e leggerlo lato server.
-
-### 2. La creazione di attività non passa dai controlli — GRAVE, pre-esistente
-Il client scrive direttamente su Supabase (`useTasks.ts`), non dalla rotta
-`api/tasks` che i controlli ce li ha. Conseguenze: un membro può creare
-un'attività assegnata a un collega (dovrebbe essere da responsabile in su), può
-scrivere `created_by` con l'id di un altro, e `assignee_id` non è vincolato ai
-membri dell'organizzazione. Serve un trigger, o far passare la creazione dalla
-rotta.
-
-### 3. Due rotte pubblicate e mai usate
-`api/notifications/index.ts` e `api/tasks/index.ts` sono deployate ma nessuna
-schermata le chiama. Accettano scritture che scavalcano approvazione e
-dipendenze. Vanno tolte o messe in uso — non lasciate lì.
-
-### 4. Cron: tetti di lettura e recuperi mancanti
+### 2. Cron: tetti di lettura e recuperi mancanti
 - I promemoria leggono 2000 attività ordinate per scadenza: superata quella
   soglia di scaduti, le nuove scadenze non escono più. Il tetto va messo sui
   candidati esaminati, non sulle email uscite.
@@ -99,12 +126,12 @@ dipendenze. Vanno tolte o messe in uso — non lasciate lì.
   per organizzazione.
 - Le preferenze per tipo non valgono dentro il riepilogo.
 
-### 5. Le ore di silenzio non toccano le email
+### 3. Le ore di silenzio non toccano le email
 `quietHours` esiste solo nel client, per suono e notifica desktop. Di notte le
 email partono lo stesso. E sono valutate sull'ora locale del browser, mentre il
 riepilogo usa il fuso salvato: due nozioni di orario nella stessa schermata.
 
-### 6. Prestazioni
+### 4. Prestazioni
 - `TaskCard` riceve `tuttiITask`, la cui identità cambia a ogni modifica:
   il memo salta per tutte le schede. Risolvibile passando i bloccanti già
   risolti. Sotto le ~200 attività non si nota.
@@ -115,23 +142,23 @@ riepilogo usa il fuso salvato: due nozioni di orario nella stessa schermata.
 - ~153 kB di componenti da amministratore potrebbero essere caricati a
   richiesta.
 
-### 7. Icone
+### 5. Icone
 `@phosphor-icons/react` pesa **360 kB misurati** per 119 icone, perché ognuna
 porta sei tratti. Passare a lucide (già presente) ne recupera ~340, ma ridisegna
 119 icone in 49 file: **è una scelta estetica, decide il proprietario.**
 
-### 8. Quattro collegamenti rapidi tolti dal cruscotto
+### 6. Quattro collegamenti rapidi tolti dal cruscotto
 Erano cablati a `() => {}`. Per ricollegarli servono dialoghi controllati
 (UsersManagement, DepartmentManagement, AnnouncementsDialog, AIAutoAssign).
 
-### 9. Notifiche quando l'applicazione è chiusa
+### 7. Notifiche quando l'applicazione è chiusa
 Suoni e notifiche desktop **ci sono già** e funzionano mentre l'applicazione è
 aperta (anche installata). Per avvisare a finestra chiusa serve Web Push:
 chiavi VAPID, tabella delle sottoscrizioni, invio dal server e gestore `push`
 nel service worker. Il service worker ormai c'è, quindi è la strada naturale —
 ma le chiavi VAPID le deve generare e configurare il proprietario.
 
-### 10. Da fare a mano nella dashboard Vercel
+### 8. Da fare a mano nella dashboard Vercel
 Controllare i **Cron Jobs**: sono cinque e uno è orario, che richiede il piano
 Pro. Aggiungere `CRON_SECRET` e `APP_URL` a `.env.example` (in produzione ci
 sono già, manca solo la riga di documentazione).

@@ -73,7 +73,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PaperPlaneTilt, Megaphone, SignOut } from '@phosphor-icons/react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTranslation } from '@/contexts/LanguageContext';
-import { useSyncEmployees } from '@/hooks/useSyncEmployees';
+import { useSyncEmployees, derogheDalProfilo } from '@/hooks/useSyncEmployees';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useTasks } from '@/hooks/useTasks';
 import { useAIAvailability } from '@/lib/ai';
@@ -397,8 +397,15 @@ function App() {
   const currentEmployee = useMemo<Employee | null>(() => {
     if (!user || !currentUser) return null;
 
+    // Le deroghe ai permessi di CHI GUARDA vengono dal profilo letto
+    // all'accesso, non dalla copia in app_state: quella la puo' riscrivere
+    // chiunque, questa solo un amministratore (0018). useSyncEmployees fa lo
+    // stesso per tutti i colleghi, ma arriva dopo il primo render, e fino ad
+    // allora la copia locale sarebbe l'unica voce ascoltata.
+    const deroghe = derogheDalProfilo(profile?.custom_permissions);
+
     const existing = (employees || []).find(e => e.id === user.id);
-    if (existing) return existing;
+    if (existing) return { ...existing, customPermissions: deroghe };
 
     return {
       id: user.id,
@@ -412,8 +419,7 @@ function App() {
       status: profile?.status ?? 'active',
       joinedDate: user.created_at ?? new Date().toISOString(),
       teamLead: profile?.team_lead ?? false,
-      customPermissions:
-        (profile?.custom_permissions as Employee['customPermissions']) ?? undefined,
+      customPermissions: deroghe,
     };
   }, [user, profile, orgRole, employees, currentUser]);
   /**
