@@ -11,7 +11,7 @@ import { supabase } from '@/lib/supabase';
   messaggio da `t()`: le chiavi note vengono tradotte, e tutto il resto (gli
   errori di Supabase, per esempio) attraversa immutato.
 */
-import type { Permission, UserRole } from '@/lib/types';
+import type { DeroghePermessi, UserRole } from '@/lib/types';
 import { chiamataAutenticata } from '@/lib/apiClient';
 
 /**
@@ -67,7 +67,7 @@ interface UpsertMemberArgs {
    * service role e dopo aver verificato che chi chiama e' amministratore,
    * l'unica a poterle scrivere.
    */
-  customPermissions?: Partial<Permission> | null;
+  customPermissions?: DeroghePermessi | null;
 }
 
 /** Nome storico, mantenuto: la funzione condivisa sta in apiClient.ts. */

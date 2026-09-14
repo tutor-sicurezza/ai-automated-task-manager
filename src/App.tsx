@@ -42,7 +42,7 @@ import { LaunchCelebration } from '@/components/LaunchCelebration';
 import { FeedbackDialog } from '@/components/FeedbackDialog';
 import { FeedbackBoard } from '@/components/FeedbackBoard';
 import { LaunchAnnouncement } from '@/components/LaunchAnnouncement';
-import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment, Sottoattivita, RegolaRicorrenza, Announcement, TaskNotification, NotificationPreferences as NotificationPreferencesType, FeedbackItem, UserRole, SystemSettings, NotificationType } from '@/lib/types';
+import { Task, Employee, TaskStatus, TaskPriority, TaskActivity, TaskComment, TaskAttachment, Sottoattivita, RegolaRicorrenza, Announcement, TaskNotification, NotificationPreferences as NotificationPreferencesType, FeedbackItem, SystemSettings, NotificationType } from '@/lib/types';
 import { playNotificationSound } from '@/lib/notificationSounds';
 import { desktopNotificationManager } from '@/lib/desktopNotifications';
 import { DesktopNotificationSettings } from '@/components/DesktopNotificationSettings';
@@ -73,30 +73,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PaperPlaneTilt, Megaphone, SignOut } from '@phosphor-icons/react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTranslation } from '@/contexts/LanguageContext';
-import { useSyncEmployees, derogheDalProfilo } from '@/hooks/useSyncEmployees';
+import { useSyncEmployees } from '@/hooks/useSyncEmployees';
+import { dipendenteCorrente, ruoloInterfaccia } from '@/lib/dipendenteCorrente';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useTasks } from '@/hooks/useTasks';
 import { useAIAvailability } from '@/lib/ai';
 import { confrontaScadenze, dataScadenza, eInRitardo } from '@/lib/scadenze';
-
-/**
- * Il database ha un ruolo `owner` in piu' rispetto al tipo `UserRole` usato
- * dalla UI: lo mappiamo su `admin`, che ne e' l'equivalente lato interfaccia.
- */
-function mapOrgRoleToUserRole(orgRole: string | null | undefined): UserRole {
-  switch (orgRole) {
-    case 'owner':
-    case 'admin':
-      return 'admin';
-    case 'manager':
-      return 'manager';
-    case 'viewer':
-      return 'viewer';
-    case 'member':
-    default:
-      return 'member';
-  }
-}
 
 /**
  * Avvisa che un'email di notifica non e' partita.
@@ -394,33 +376,26 @@ function App() {
     };
   }, [user, profile]);
 
+  /*
+    Chi guarda, e con quali permessi. La composizione sta in
+    `lib/dipendenteCorrente` e non qui: da cio' che restituisce dipendono i
+    comandi che compaiono a schermo, ed e' proprio la riga in cui stava la
+    falla — i permessi personalizzati letti dall'array `employees`, che ogni
+    membro puo' riscrivere. Fuori di qui e' verificabile, e ha i suoi test.
+  */
   const currentEmployee = useMemo<Employee | null>(() => {
     if (!user || !currentUser) return null;
 
-    // Le deroghe ai permessi di CHI GUARDA vengono dal profilo letto
-    // all'accesso, non dalla copia in app_state: quella la puo' riscrivere
-    // chiunque, questa solo un amministratore (0018). useSyncEmployees fa lo
-    // stesso per tutti i colleghi, ma arriva dopo il primo render, e fino ad
-    // allora la copia locale sarebbe l'unica voce ascoltata.
-    const deroghe = derogheDalProfilo(profile?.custom_permissions);
-
-    const existing = (employees || []).find(e => e.id === user.id);
-    if (existing) return { ...existing, customPermissions: deroghe };
-
-    return {
-      id: user.id,
-      name: currentUser.name,
+    return dipendenteCorrente({
+      userId: user.id,
+      nome: currentUser.name,
       avatar: currentUser.avatar,
-      role: profile?.job_title || 'User',
-      userRole: mapOrgRoleToUserRole(orgRole),
-      email: profile?.email ?? user.email ?? undefined,
-      departments: profile?.departments ?? [],
-      department: profile?.departments?.[0],
-      status: profile?.status ?? 'active',
-      joinedDate: user.created_at ?? new Date().toISOString(),
-      teamLead: profile?.team_lead ?? false,
-      customPermissions: deroghe,
-    };
+      emailAccesso: user.email,
+      profilo: profile,
+      orgRole,
+      employees,
+      creatoIl: user.created_at,
+    });
   }, [user, profile, orgRole, employees, currentUser]);
   /**
    * La vista di partenza, che le scorciatoie dell'applicazione installata
@@ -1797,7 +1772,7 @@ function App() {
       const newEmployee: Employee = {
         ...employeeData,
         id: result.userId,
-        userRole: mapOrgRoleToUserRole(result.role),
+        userRole: ruoloInterfaccia(result.role),
         status: employeeData.status || 'active',
         joinedDate: employeeData.joinedDate || new Date().toISOString(),
       };

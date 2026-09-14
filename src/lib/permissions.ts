@@ -1,4 +1,4 @@
-import { UserRole, Permission, RoleDefinition, Employee } from './types';
+import { UserRole, Permission, RoleDefinition, Employee, DeroghePermessi } from './types';
 
 export const DEFAULT_ROLES: Record<UserRole, RoleDefinition> = {
   admin: {
@@ -199,10 +199,17 @@ export function getEmployeePermissions(employee: Employee | null): Permission {
     return basePermissions;
   }
 
-  return mergePermissions(basePermissions, employee.customPermissions);
+  return fondiPermessi(basePermissions, employee.customPermissions);
 }
 
-function mergePermissions(base: Permission, custom: Partial<Permission>): Permission {
+/**
+ * I permessi del ruolo con sopra le deroghe, voce per voce.
+ *
+ * Cio' che la deroga non nomina resta quello del ruolo: e' una fusione e non
+ * una sostituzione, ed e' il motivo per cui le categorie possono essere
+ * parziali.
+ */
+export function fondiPermessi(base: Permission, custom: DeroghePermessi): Permission {
   return {
     tasks: { ...base.tasks, ...(custom.tasks || {}) },
     employees: { ...base.employees, ...(custom.employees || {}) },
