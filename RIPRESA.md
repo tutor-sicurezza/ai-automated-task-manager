@@ -61,28 +61,38 @@ PWA installabile su computer.
 Cinque lavori pianificati su Vercel: promemoria, pulizia, digest (orario),
 manutenzione, ricorrenze.
 
-## Chiuso nel codice, da applicare e verificare (14 settembre 2026)
+## Le due falle di permessi: chiuse, applicate, verificate (14 settembre 2026)
 
-Le due falle di permessi che stavano in cima all'elenco qui sotto sono chiuse
-nel codice del branch `claude/permessi-architettura-muzmxi`. **Non sono ancora
-verificate in produzione**, e una parte va applicata a mano:
+Le due voci che stavano in cima all'elenco qui sotto sono chiuse nel codice
+(PR #6, unita in `main` e pubblicata). La **migrazione 0024 è applicata** al
+database di produzione, con il contenuto identico al file, senza registrarla
+nella cronologia delle migrazioni (come `db query -f`).
 
-1. **Migrazione 0024** (`0024_creazione_task_confini.sql`), con il comando
-   consueto `supabase db query --linked -f ...`. Riscrive la policy di insert
-   su `tasks`: chi crea si firma (`created_by = auth.uid()`, libero solo per i
-   responsabili), assegna ad altri solo se responsabile, e solo a membri
-   dell'organizzazione. Senza questa, la rotta chiude il percorso
-   dell'interfaccia ma non quello di chi chiama PostgREST direttamente.
-2. **Riprovare con curl, con l'account di un dipendente**, le tre varianti:
-   task assegnato a un collega, `created_by` con l'id dell'amministratore,
-   `assignee_id` di un utente di un'altra organizzazione. Tutte da rifiutare,
-   sia via `POST /api/tasks` sia via PostgREST. E riprovare la scrittura di
-   `customPermissions` in `app_state['employees']`: deve restare possibile
-   (la chiave è di lavoro quotidiano) ma **non deve più avere effetto** dopo
-   un ricaricamento, perché il client legge le deroghe da
-   `profiles.custom_permissions`.
-3. **Ripristino backup**: con la 0024, una riga nuova assegnata a chi ha
-   lasciato l'organizzazione viene rifiutata. È voluto, ma va saputo.
+Verificato sul database reale, con lo stesso metodo delle sessioni precedenti
+ma dentro un blocco che annulla l'inserimento alla fine (nessuna riga scritta):
+`set local role authenticated` più `request.jwt.claims` con l'id
+dell'account, cioè esattamente ciò che PostgREST fa con un token.
+
+| Prova, con l'account `qa.user` (member) | Prima della 0024 | Dopo |
+| --- | --- | --- |
+| Task assegnato alla collega Lucia | passava | **rifiutato** (42501) |
+| `created_by` con l'id dell'amministratore | passava | **rifiutato** |
+| `assignee_id` di un utente di un'altra organizzazione | passava | **rifiutato** |
+| Task per se stesso, firmato da sé (controllo positivo) | passava | passa |
+| Mario (manager) assegna a Lucia e registra a nome di qa.user | — | passa |
+| Mario assegna a un utente di un'altra organizzazione | — | **rifiutato** |
+
+In produzione la rotta nuova è viva: `POST /api/tasks` senza token risponde
+401, la `GET` tolta risponde 405, e il pacchetto servito da `main` contiene la
+creazione via rotta e la lettura di `custom_permissions`.
+
+**Non verificato, e va fatto con le credenziali di collaudo** (che stanno in
+`.env.local`, non in un ambiente remoto): le stesse tre varianti via
+`POST /api/tasks` con il token di un dipendente, e la scrittura di
+`customPermissions` in `app_state['employees']`, che deve restare possibile
+ma **non deve più avere effetto** dopo un ricaricamento. Il ripristino di un
+backup rifiuta una riga nuova assegnata a chi ha lasciato l'organizzazione: è
+voluto, ma va saputo.
 
 Cosa è cambiato:
 
