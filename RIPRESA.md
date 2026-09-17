@@ -162,6 +162,64 @@ Cosa è cambiato:
   rispondono, quindi la creazione di attività fallisce (come già la gestione
   dei membri). Serve `vercel dev`.
 
+## Aggiornare lo stato da riga di comando (17 settembre 2026)
+
+`node scripts/taskflow.mjs` serve a dire "questa l'ho fatta, ecco cosa ho
+fatto" senza aprire il browser.
+
+```
+node scripts/taskflow.mjs elenco
+node scripts/taskflow.mjs stato <id> completata "cosa ho fatto"
+node scripts/taskflow.mjs nota  <id> "testo"
+```
+
+L'`<id>` sono le prime lettere che mostra `elenco`: bastano finché individuano
+una sola attività, altrimenti il comando si ferma invece di indovinare.
+Credenziali in `TASKFLOW_EMAIL` e `TASKFLOW_PASSWORD`, nell'ambiente o in
+`.env.local`; con più organizzazioni si sceglie con `TASKFLOW_ORG`. Il token
+resta in memoria e non viene mai scritto su disco.
+
+**Non passa da una rotta in `api/`, ed è la decisione che conta.** Le rotte
+serverless girano con il service role: scavalcano le policy e per loro
+`auth.uid()` è nullo, quindi ogni regola andrebbe riscritta lì dentro e una
+dimenticanza sarebbe un buco. Il comando accede invece come l'utente e parla a
+PostgREST con il **suo** token: valgono le stesse policy e gli stessi trigger
+dell'interfaccia. Chi non può fare una cosa dal browser non la può fare
+nemmeno da qui, e non perché lo controlli lo script.
+
+### Migrazione 0025: due regole del cambio di stato scendono nel database
+
+Perché il punto sopra regga, due regole che vivevano solo nel client sono
+diventate un trigger (`0025_stato_regole_lato_server.sql`):
+
+1. non si porta a "completata" un'attività che ne aspetta altre;
+2. il cambio di stato azzera il visto precedente, altrimenti un lavoro
+   approvato, riaperto e richiuso resta approvato dalla volta prima.
+
+Erano in `handleStatusChange` dentro `src/App.tsx`, cioè in codice che gira sul
+computer di chi le deve rispettare: bastava una PATCH a PostgREST per saltarle
+entrambe. Stessa forma delle falle chiuse dalla 0023 e dalla 0024.
+
+Non sono autorizzazioni ma invarianti sui dati, quindi valgono **anche per il
+service role**, a differenza dei trigger della 0018 e della 0023. Verificato
+che nessun lavoro pianificato scrive `status` (i cron toccano solo
+`archived_at`). Conseguenza da sapere, come per la 0024: il ripristino di un
+backup che rimettesse un'attività completata mentre ciò che la blocca risulta
+ancora aperto viene rifiutato.
+
+### Cosa il comando fa e cosa non fa
+
+Scrive la riga di cronologia e le notifiche, così un'attività chiusa da qui è
+indistinguibile da una chiusa dal browser. **Un'approssimazione da conoscere:**
+per avvisare chi deve approvare usa i ruoli (`owner`, `admin`, `manager`),
+mentre l'interfaccia usa `puoApprovare`, che tiene conto anche di una deroga
+personale su `tasks.edit_any`. Un membro con quella deroga non riceve la
+notifica dal comando. Si sbaglia per difetto, mai per eccesso.
+
+Aggiungere un commento è una lettura-modifica-scrittura sulla colonna
+`comments`: due note scritte nello stesso istante da persone diverse possono
+sovrapporsi. È lo stesso limite dell'interfaccia.
+
 ## Aperto, in ordine di gravità
 
 ### 1. `api/notifications/index.ts` è pubblicata e mai usata
