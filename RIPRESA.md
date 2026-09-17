@@ -476,6 +476,139 @@ letti dal browser.
   51. **Erano zero.** Vedi «Le traduzioni erano già complete» più sotto: nessuna
   delle tre misure era giusta, e nessuna era difficile da fare bene.
 
+## Un P1 di Codex, letto con sette ore di ritardo (17 settembre 2026)
+
+**Questo repository ha un revisore automatico** (`chatgpt-codex-connector`) che
+parte quando una PR esce dalla bozza. Oggi ho mergiato ogni PR pochi secondi
+dopo averla tolta dalla bozza — su #14 esattamente **sei secondi** — quindi non
+l'ho mai lasciato finire. Su #11 aveva lasciato un rilievo **P1**, e l'ho letto
+solo a sera, cercando altro.
+
+Aveva ragione, e la conseguenza era peggiore di come la descriveva.
+
+### Il difetto
+
+`POST /api/tenants/:id/members` faceva, in quest'ordine:
+
+1. `upsert` su `organization_members` — **l'appartenenza viene creata**;
+2. se la persona appartiene anche altrove, `403`.
+
+Il flusso normale dell'interfaccia manda **sempre** `fullName`, quindi non era
+un caso limite: invitando qualcuno che lavora anche per un'altra azienda,
+l'amministratrice vedeva un errore — e intanto quella persona era già membro,
+col ruolo richiesto.
+
+E poi il colpo che Codex non nomina: ricevendo un errore, `handleAddEmployee`
+non aggiornava il proprio elenco. Quindi il nuovo membro **non compariva a
+schermo**, e non lo si poteva nemmeno togliere. Un accesso che nessuno sa di
+aver dato non lo revoca nessuno.
+
+È la terza volta in un giorno che questa rotta sbaglia la stessa cosa: un
+controllo che arriva dopo la scrittura che dovrebbe impedire. Le prime due
+lasciavano passare una scrittura; questa lasciava passare **una concessione di
+accesso** e la dichiarava fallita.
+
+### La correzione
+
+L'appartenenza altrui si legge **prima** dell'upsert — dopo non si può più,
+perché l'upsert stesso crea la riga che si sta cercando. La decisione sta in
+`api/_lib/scritturaProfilo.ts`, con sei test.
+
+Invitare resta possibile: appartenenza e ruolo vivono su
+`organization_members`, cioè dentro questa organizzazione. I campi anagrafici
+no, perché `profiles` non ha una colonna per organizzazione. E la risposta ora
+**lo dice** — `201` con un `avviso` — invece di fingere un fallimento.
+
+### La correzione stava per creare lo stesso difetto un livello più su
+
+`handleEditEmployee` manda **solo** campi anagrafici. Con il `403` di prima
+mostrava un errore e non toccava nulla: sbagliato nel messaggio, giusto
+nell'effetto. Con il `201` nuovo avrebbe mostrato *«Team member updated
+successfully!»* e applicato i valori in locale — **senza che nulla fosse stato
+scritto**, e alla ricarica successiva `useSyncEmployees` li avrebbe riportati
+indietro.
+
+Trovato rileggendo i tre chiamanti di `upsertOrgMember` prima di committare.
+Ora quel percorso mostra l'avviso ed esce senza toccare lo stato locale.
+
+Per la stessa ragione il testo dell'avviso parla **solo del profilo** e non dice
+né «aggiunto» né «aggiornato»: la stessa rotta serve due gesti, e un avviso che
+ne nominasse uno mentirebbe sull'altro. A dire cosa è riuscito pensa chi chiama.
+
+### Cosa NON è stato verificato
+
+**La rotta non è stata riesercitata via HTTP.** Le prove di stamattina usavano
+gli account di collaudo, le cui password sono state poi sostituite con valori
+casuali che nessuno conosce, e da questo contenitore non c'è la chiave di
+servizio per rimetterle. Il difetto è coperto da test sulla funzione pura e
+dalla rilettura dei tre chiamanti, **non** da una richiesta vera.
+
+### E aspettarlo è servito subito: due P2 sulla correzione stessa
+
+Sulla PR #15 ho atteso il revisore invece di mergiare. Ha trovato **due P2**,
+entrambi veri.
+
+**Il primo smonta un mio commento.** Avevo spostato la lettura «appartiene
+altrove?» *prima* dell'upsert, scrivendo che dopo non si potesse più — «l'upsert
+crea l'appartenenza, quindi la troverà sempre». Falso: la query esclude questa
+organizzazione con `.neq`, quindi la riga appena scritta non la vede.
+
+E metterla prima apriva una corsa: due organizzazioni che invitano
+contemporaneamente lo stesso account senza appartenenze, entrambe le letture non
+trovano nulla, entrambe decidono di scrivere il profilo condiviso. Leggendo
+**dopo**, chi arriva secondo vede il primo e si ferma; nel peggior caso si
+fermano entrambi, che è il verso giusto in cui sbagliare.
+
+**Il secondo è una cosa che avevo visto e liquidato.** Nel percorso di aggiunta,
+`setEmployees` gira *prima* del ramo dell'avviso, quindi fondeva in elenco i
+valori rifiutati. Mi ero detto «li corregge `useSyncEmployees` alla ricarica».
+Codex fa notare che **non rilegge** solo perché quell'array è cambiato: quei
+valori inventati sarebbero rimasti a schermo per tutta la sessione. Ora la rotta
+restituisce il profilo vero insieme all'avviso, e l'elenco mostra quello.
+
+### Il secondo giro: altri due P2, e la migrazione 0032
+
+Chiesta la ri-revisione, ne ha trovati altri due. Anche questi veri.
+
+**«Non ripiegare sui valori rifiutati».** Avevo scritto `p.full_name ??
+employeeData.name`. Ma `full_name`, `job_title`, `phone` e `location` sono
+**nullabili**: su un profilo che li ha vuoti, il ripiego rimetteva a schermo
+esattamente ciò che il server aveva rifiutato — cioè il difetto che quel ramo
+doveva chiudere. Ora il vuoto resta vuoto, perché è l'informazione giusta.
+
+**«La finestra non è chiusa».** La lettura dopo l'upsert riduceva la corsa ma
+non la eliminava: A fa l'upsert, A legge e non vede nessuno, B fa l'upsert, A
+scrive. La finestra era fra la *lettura* e la *scrittura*, non prima.
+
+Da qui la **migrazione 0032**: il `not exists` è entrato nel `where` dello
+stesso `update`, dentro `aggiorna_profilo_se_solo_nostro`. Provata sul database
+di produzione in una transazione annullata, quattro casi — scrive solo i campi
+presenti e lascia gli altri, non scrive più appena entra una seconda
+organizzazione, vale in entrambe le direzioni, e su una persona inesistente
+risponde `false` senza esplodere.
+
+**Il limite che resta, scritto in testa alla migrazione:** in `read committed`
+la sotto-query vede l'istantanea presa all'inizio dell'istruzione, quindi la
+garanzia è «si scrive solo se, quando la scrittura è cominciata, quella persona
+era soltanto nostra». Per la serializzazione piena servirebbe che anche
+l'upsert dell'appartenenza stesse nella stessa funzione, con un
+`pg_advisory_xact_lock` sull'id della persona. **Non fatto stasera**, e non per
+dimenticanza: è un rifacimento di una rotta che oggi ho già rotto due volte, e
+da qui non posso esercitarla via HTTP. Va fatto potendola provare.
+
+`decidiScritturaProfilo` è stata tolta: la decisione è scesa nel database, e
+una funzione con i suoi test che nessuno chiama più è peggio di niente — chi
+legge crede che sia lei a decidere.
+
+### La lezione di processo
+
+Il revisore automatico esisteva da prima di oggi e non l'ho mai aspettato.
+Su #13 il suo controllo risulta addirittura **fallito** e non me ne sono
+accorto. Prima di mergiare va guardato: costa un minuto, e questo P1 è stato
+in produzione per sette ore. La prima volta che l'ho aspettato ha trovato altri
+due difetti nella correzione stessa, uno dei quali contraddiceva il commento con
+cui l'avevo giustificata.
+
 ## Le traduzioni erano già complete (17 settembre 2026)
 
 Avevo annunciato «il buco più grosso rimasto»: **1.359 chiavi mancanti in
