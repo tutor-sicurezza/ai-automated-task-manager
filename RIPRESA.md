@@ -280,14 +280,10 @@ deroghe, né su `profiles` né su `organization_members`, quindi quell'UPDATE no
 ha copiato niente. Resta vero come difetto del *codice* della migrazione, per
 un'installazione che invece ne avesse.
 
-### L'accessibilità: mai guardata prima
-Un rilievo **bloccante** (il pulsante «Importa backup» non è raggiungibile da
-tastiera: `Button asChild` produce uno `<span>`, e l'input è `display:none`) e
-tre trasversali: l'anello di fuoco a 2,31:1 quando ne servono 3, le targhette di
-priorità a 2,15:1 con testo `"HIGH"`/`"MEDIUM"`/`"LOW"` in inglese, e il
-calendario in inglese perché nessuno passa `locale` a `DayPicker` — con
-`initialFocus` che nella versione 9 esiste nei tipi ma non nel runtime. **Non
-ancora affrontati.**
+### L'accessibilità: mai guardata prima — **chiusa il 17 settembre**
+Un rilievo **bloccante** (il pulsante «Importa backup» non raggiungibile da
+tastiera) e tre trasversali. Tutti e quattro corretti: sotto, la sezione
+«L'accessibilità, quattro rilievi chiusi».
 
 ## Gli advisor di prestazioni, mai letti prima (17 settembre 2026)
 
@@ -331,6 +327,146 @@ verifica della 0026 e della 0027 **rieseguite dopo**.
   proprio più profili dei colleghi su `profiles`.
 - **`is_org_owner` eseguibile da `anon`**: per un anonimo `auth.uid()` è nullo,
   quindi risponde sempre falso. Come le altre `is_org_*`.
+
+## L'accessibilità, quattro rilievi chiusi (17 settembre 2026)
+
+Tutti e quattro si vedevano solo a schermo: nessuno era intercettabile da `tsc`
+o da `eslint`, e per tre di essi il codice sbagliato era codice **valido**.
+Adesso ognuno ha un test che fallisce se qualcuno lo riapre.
+
+### 1. «Importa backup» si raggiungeva solo col mouse — bloccante
+
+`<label htmlFor>` con dentro `<Button asChild><span>`, e l'`<input type="file">`
+in `display:none`. Uno `<span>` non è interattivo: non entra nell'ordine di
+tabulazione e non risponde a Invio o Spazio. Il `<label>` rendeva l'area
+**cliccabile**, che è un'altra cosa da **raggiungibile**.
+
+Ora è un `<button>` vero che chiama `.click()` sull'input. L'input resta
+`hidden` — con un pulsante che lo comanda, `display:none` è giusto: lo toglie
+del tutto dall'albero di accessibilità, quindi non diventa una tappa muta né un
+campo senza etichetta annunciato dal lettore di schermo. Porta anche
+`tabIndex={-1}`, che in un browser è ridondante: serve perché la garanzia resti
+**verificabile**, dato che jsdom non compila Tailwind e per lui `class="hidden"`
+non toglie niente dalla tabulazione.
+
+### 2. L'anello di fuoco a 2,31:1 (ne servono 3)
+
+`focus-visible:ring-ring/50` in 16 punti, ereditato dal modello di shadcn dove
+`--ring` è un grigio chiaro. Qui `--ring` è `oklch(0.45 0.12 210)`: pieno misura
+6,48:1, ma a metà opacità su fondo chiaro scende a 2,31:1, sotto il minimo di
+WCAG 2.2 SC 1.4.11. Portato a `/70` → **3,43:1**. Cambiare il token invece
+dell'opacità avrebbe scurito anche il bordo, che usa `--ring` pieno ed era già
+a posto.
+
+**Il test di questo rilievo è nato sbagliato**, e vale la pena dirlo: mescolava
+il colore dell'anello con il fondo in spazio **lineare**, mentre la composizione
+con alfa avviene sui valori codificati in gamma. Dava 2,45:1 e bocciava una
+correzione giusta. Il numero del calcolo fatto a parte non tornava, ed è così
+che l'errore è saltato fuori.
+
+### 3. Le targhette di priorità: illeggibili e in inglese
+
+Due difetti nella stessa riga. `TaskCard` mostrava `task.priority.toUpperCase()`
+— cioè `"HIGH"`/`"MEDIUM"`/`"LOW"` **a tutti, italiani compresi** — con colori a
+2,15:1 (`bg-amber-500` su bianco) e 2,56:1 (`bg-slate-400`), meno della metà del
+4,5:1 che serve.
+
+L'audit diceva «2,15:1» per tutte e tre: **non era esatto**. La targhetta `high`
+usava `bg-accent` e stava a 5,13:1, cioè passava. Misurate tutte e tre prima di
+toccarle.
+
+`TaskDetailsDialog` aveva lo stesso difetto e una tavolozza diversa: la stessa
+attività cambiava parola e colore a seconda di dove la si guardava. E una riga
+più sotto, `task.status.replace('-', ' ').toUpperCase()` produceva `"NOT
+STARTED"`, che non è nemmeno una chiave del dizionario.
+
+Ora c'è `src/lib/scaleTask.ts` con le due scale chiuse — priorità e stato — in
+un posto solo: chiavi di traduzione e colori, questi ultimi presi da
+`TaskDetailsDialog` perché erano già gli unici leggibili (5,30 / 6,37 / 9,45:1).
+
+`ETICHETTA_STATO_CRONOLOGIA` resta separata dentro `TaskDetailsDialog`: deve
+leggere anche le righe vecchie del registro attività, scritte con lo spazio
+invece del trattino. Fonderle vorrebbe dire o perdere quelle righe o sporcare la
+scala con valori che nessuno può più assegnare.
+
+**Mancavano due traduzioni italiane.** `'Medium'` e `'Low'` non erano in
+`TESTI_IT` — c'erano in francese, tedesco e spagnolo. Senza, il badge tradotto
+avrebbe mostrato «Medium» in italiano: stesso risultato di prima, per un'altra
+strada. Aggiunte con lo script di unione, non a mano.
+
+### 4. Il calendario parlava inglese
+
+Nessuno passava `locale` a `DayPicker`, che senza quella prop usa l'inglese:
+«September 2026», iniziali «Su Mo Tu», settimana che parte di domenica. `locale`
+è opzionale, quindi ometterla è codice valido.
+
+E `initialFocus`, passato in tre punti, **non fa niente**: verificato che nella
+9.11.3 compare solo nei file `.d.ts`, marcato `@deprecated`, e in nessun file
+JavaScript eseguibile. È la stessa trappola dei nomi di classe della versione 8
+già documentata in `ui/calendar.tsx`. Sostituito con `autoFocus`.
+
+**Un errore mio, trovato dalla build.** Avevo messo le cinque localizzazioni
+`date-fns` in `CalendarioPigro.tsx`, scrivendo nel commento che restavano fuori
+dal pacchetto iniziale. Non era vero: `CalendarioPigro` è importato
+**staticamente** da tre pannelli, solo il componente interno sta dietro il
+confine pigro. I ~25 kB finivano nell'avvio — visto cercando la stringa
+«maggio» dentro `dist/assets/index-*.js`. Ora stanno in
+`CalendarioLocalizzato.tsx`, oltre il confine, e `CalendarioPigro` passa solo il
+codice della lingua. Pacchetto iniziale tornato a 1.350.563 byte.
+
+### Finalmente guardata in un browser
+
+**Il limite dichiarato per giorni — «nessuno ha aperto l'applicazione» — non
+vale più**, ed era in parte pigrizia mia: dicevo che da qui non era
+raggiungibile senza averci provato.
+
+L'anteprima Vercel non si apre, questo sì: Chromium non ha la CA del proxy nel
+suo archivio e `certutil` non è installato, e disattivare la verifica TLS non è
+un'opzione. Ma il **pacchetto costruito** si serve in locale e si apre, e per
+quello che va guardato qui è la stessa cosa.
+
+| Verifica | Esito |
+| --- | --- |
+| L'applicazione si avvia, nessun errore JavaScript | sì (l'unico è la chiamata a Supabase, senza proxy nel browser) |
+| Ordine di tabulazione sull'accesso | completo: lingua → email → password → Accedi → password dimenticata |
+| Anello di fuoco su campo e pulsante | `0 0 0 3px oklab(0.45 … / 0.7)`, **visibile nello screenshot** |
+| Bordo a fuoco | passa a `--ring` pieno su entrambi |
+| Contrasto delle targhette, sul foglio compilato | alta 5,27 · media 6,36 · bassa 9,45 |
+| Le coppie di prima, stesso metodo | 2,13 e 2,63 — **bocciate** |
+
+**Due misure sbagliate, prima di quella giusta.** Vale la pena scriverle.
+
+La prima: ho fotografato e misurato l'anello **subito dopo il Tab**, mentre la
+transizione `transition-[color,box-shadow]` era appena partita. Risultato: alone
+a larghezza zero, e la conclusione — sbagliata — che l'anello non venisse
+disegnato affatto. Aspettando i 150 ms della transizione compare intero.
+
+La seconda: leggevo `getComputedStyle`, che qui restituisce `oklch(…)`, e
+prendevo i primi tre numeri come se fossero RGB 0-255. Dava 1,01:1 per una
+coppia perfettamente leggibile e 19,26:1 per una illeggibile — cioè i valori
+esatti al contrario. Rifatto facendo convertire il colore al browser, dipinto
+su un canvas e riletto dal pixel.
+
+**Un effetto collaterale utile:** Tailwind 4 spedisce la tavolozza in `oklch`,
+non negli esadecimali della 3 che avevo scritto nel test. I verdetti non
+cambiavano, ma il test misurava colori che nessuno vede. Ora contiene quelli
+letti dal browser.
+
+### Cosa NON è stato toccato
+
+- **La modalità scura.** `main.css` ha un blocco `.dark` e i componenti hanno
+  decine di varianti `dark:`, ma **nessuno mette la classe `dark` sul
+  documento**: non si attivano mai. In più `index.css` è importato dopo
+  `main.css` e ridefinisce gli stessi token con la stessa specificità, quindi
+  vincerebbe comunque. Le varianti `dark:` nuove sono scritte corrette, ma
+  accendere il tema è una decisione di prodotto, non una correzione.
+- **La striscia colorata a sinistra delle schede** (`borderColors`): è
+  decorativa e ridondante rispetto alla targhetta, e cambiarla è una scelta
+  estetica.
+- **1.359 chiavi mancanti in `TESTI_IT`.** L'italiano ha 203 voci contro le
+  1.562 delle altre tre lingue: tutto il resto ripiega sulla chiave, cioè
+  sull'inglese. È un buco vero e grosso, ma è preesistente e di tutt'altra
+  taglia rispetto a questi quattro rilievi. **Da affrontare a parte.**
 
 ## Gli advisor di sicurezza, letti fino in fondo — 0031 (17 settembre 2026)
 
