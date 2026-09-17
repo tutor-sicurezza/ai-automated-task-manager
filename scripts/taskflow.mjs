@@ -228,7 +228,11 @@ async function trovaAttivita(cfg, sessione, org, pezzo) {
 
   if (candidate.length === 0) throw new ErroreUtente(`Nessuna attivita' che inizi per "${pezzo}"`);
   if (candidate.length > 1) {
-    const elenco = candidate.map((t) => `  ${t.id.slice(0, 12)}  ${t.title}`).join('\n');
+    // L'identificativo INTERO, non il troncato che mostra `elenco`: qui sono
+    // ambigui proprio perche' iniziano uguali, e stamparne dodici caratteri
+    // darebbe due righe identiche fra cui non si puo' scegliere. Visto
+    // provando, con due attivita' create apposta.
+    const elenco = candidate.map((t) => `  ${t.id}  ${t.title}`).join('\n');
     throw new ErroreUtente(`"${pezzo}" corrisponde a piu' attivita':\n${elenco}`);
   }
   return candidate[0];
