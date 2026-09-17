@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { creaTaskSulServer } from '@/lib/creazioneTask';
 import type { Task, TaskAttachment, TaskPriority, TaskStatus } from '@/lib/types';
+import { fondiPerId, taskToRow } from '@/lib/scritturaTask';
 
 /**
  * I task, letti e scritti sulla tabella public.tasks, una riga per task.
@@ -137,50 +138,6 @@ function rowToTask(row: TaskRow): Task {
   }
 
   return task;
-}
-
-/**
- * Campi scrivibili. `organization_id` e `created_by` li mette solo l'insert.
- *
- * `attachments` viene incluso SOLO se il task ne porta una versione
- * effettivamente letta dal database. Se e' `undefined` la chiave non compare
- * nell'oggetto, quindi PostgREST genera un UPDATE che quella colonna non la
- * nomina e Postgres la lascia esattamente com'e'. E' cosi' che cambiare il
- * titolo di un task di cui non si sono mai letti gli allegati non li cancella:
- * la garanzia non sta in un controllo, sta nel fatto che la colonna non entra
- * mai nella query.
- */
-function taskToRow(task: Task): Record<string, unknown> {
-  const riga: Record<string, unknown> = {
-    title: task.title,
-    description: task.description ?? '',
-    assignee_id: task.assigneeId || null,
-    priority: task.priority,
-    status: task.status,
-    // `?? null` e non `|| null`: la scadenza e' facoltativa, e una stringa
-    // vuota deve diventare NULL invece di finire nel database come data.
-    due_date: task.dueDate || null,
-    comments: task.comments ?? [],
-    activities: task.activities ?? [],
-    department: task.department ?? null,
-    labels: task.labels ?? [],
-    subtasks: task.subtasks ?? [],
-    blocked_by: task.blockedBy ?? [],
-    estimate_minutes: task.estimateMinutes ?? null,
-    spent_minutes: task.spentMinutes ?? null,
-    watchers: task.watchers ?? [],
-    recurrence: task.recurrence ?? null,
-    recurrence_parent: task.recurrenceParent ?? null,
-    archived_at: task.archivedAt ?? null,
-    requires_approval: task.requiresApproval ?? false,
-    approved_by: task.approvedBy ?? null,
-    approved_at: task.approvedAt ?? null,
-    updated_at: new Date().toISOString(),
-  };
-
-  if (task.attachments !== undefined) riga.attachments = task.attachments;
-
-  return riga;
 }
 
 /**
@@ -522,15 +479,65 @@ export function useTasks() {
         }
 
         for (const t of modificati) {
-          const riga = taskToRow(t);
+          const prima = primaPerId.get(t.id);
+          const riga = taskToRow(t, prima);
 
           // Allegati cambiati partendo da un elenco mai letto: non si scrive
           // quell'array, si fonde con quello vero. Vedi `unisciAllegati`.
-          if (t.attachments !== undefined && primaPerId.get(t.id)?.attachments === undefined) {
+          if (t.attachments !== undefined && prima?.attachments === undefined) {
             const uniti = await unisciAllegati(t);
             if (uniti) riga.attachments = uniti;
             else delete riga.attachments;
           }
+
+          /*
+            Commenti e cronologia cambiati: si rilegge la colonna e ci si
+            riapplica sopra la differenza, invece di sovrascriverla con la
+            copia locale. Vedi `fondiPerId` per il perche'.
+
+            Si paga una lettura in piu', ma solo quando queste due colonne
+            cambiano davvero — cioe' quando si commenta o si registra un
+            passaggio, non a ogni modifica.
+          */
+          if (prima && ('comments' in riga || 'activities' in riga)) {
+            const { data, error } = await supabase
+              .from('tasks')
+              .select('comments, activities')
+              .eq('id', t.id)
+              .maybeSingle();
+
+            if (error) {
+              /*
+                Non si riesce a leggere lo stato vero. Scrivere alla cieca
+                cancellerebbe cio' che non si e' letto, quindi queste due
+                colonne si lasciano stare — e lo si DICE, perche' un commento
+                che non viene salvato in silenzio e' peggio di uno che non
+                viene salvato.
+              */
+              delete riga.comments;
+              delete riga.activities;
+              errori.push(`commento su "${t.title}": rilettura fallita, non salvato`);
+            } else {
+              if ('comments' in riga) {
+                riga.comments = fondiPerId(
+                  (data?.comments as Task['comments']) ?? [],
+                  prima.comments ?? [],
+                  t.comments ?? []
+                );
+              }
+              if ('activities' in riga) {
+                riga.activities = fondiPerId(
+                  (data?.activities as Task['activities']) ?? [],
+                  prima.activities ?? [],
+                  t.activities ?? []
+                );
+              }
+            }
+          }
+
+          // Puo' restare solo `updated_at`, se la differenza era tutta in
+          // colonne non scrivibili: in quel caso non c'e' niente da scrivere.
+          if (Object.keys(riga).length <= 1) continue;
 
           /*
             Il `.select('id')` non serve a rileggere: serve a CONTARE.

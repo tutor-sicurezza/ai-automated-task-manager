@@ -203,6 +203,40 @@ PostgREST con il **suo** token: valgono le stesse policy e gli stessi trigger
 dell'interfaccia. Chi non può fare una cosa dal browser non la può fare
 nemmeno da qui, e non perché lo controlli lo script.
 
+## La scrittura di un task non è più a riga intera (17 settembre 2026)
+
+`useTasks` mandava in UPDATE **tutte** le colonne, con i valori che il browser
+aveva in memoria. Sembrava innocuo: erano i valori giusti. Il punto è che erano
+i valori giusti *per lui*.
+
+Due persone sulla stessa attività, o una sola con una scheda rimasta aperta
+mentre la rete cadeva, e il commento scritto da un collega nel frattempo veniva
+riscritto via — senza errori, e la rilettura confermava che sul database non
+c'era più. Il caso peggiore non erano i commenti: se la copia locale era
+antecedente a un'approvazione, partivano `approved_by: null` e
+`approved_at: null`, e **nessun trigger li ferma** (la 0023 non controlla un
+visto che viene *tolto*, perché riaprire è legittimo; la 0026 azzera solo se
+cambia lo stato). Bastava correggere un titolo: la cronologia diceva
+"approvato" e la riga non aveva più un approvatore.
+
+Due difese, in `src/lib/scritturaTask.ts` (modulo nuovo, logica pura, 10 test):
+
+1. **`taskToRow(task, precedente)`** mette nell'UPDATE solo le colonne il cui
+   valore è davvero cambiato. È la stessa garanzia che già valeva per
+   `attachments`, estesa a tutte: non sta in un controllo, sta nel fatto che la
+   colonna non entra nella query.
+2. **`fondiPerId`** per `comments` e `activities`, che sono cumulative e quindi
+   non bastava non toccarle: chi *aggiunge* un commento manda comunque l'array
+   intero. Quando cambiano si rilegge la colonna e ci si riapplica sopra la
+   differenza — aggiunto, modificato, tolto. È quello che fa già `flushKey` in
+   `useKV`: la base è sempre lo stato del server, mai la copia locale. Se la
+   rilettura fallisce quelle due colonne non si scrivono, e lo si dice.
+
+Restano fuori `subtasks`, `labels` e `watchers`: la difesa 1 protegge chi non
+li tocca, la 2 non è stata estesa perché si modificano come insieme e non per
+accumulo. Se un giorno due persone li modificheranno insieme, la sede è la
+stessa.
+
 ## Migrazioni 0026 e 0027 (17 settembre 2026)
 
 Nate da un audit in quattro parti. Ogni buco è stato **prima riprodotto** sul
