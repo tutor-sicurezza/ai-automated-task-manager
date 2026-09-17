@@ -22,8 +22,7 @@ export const fetch = withErrors(async (request: Request) => {
   const segments = url.pathname.split('/').filter(Boolean);
   const tenantId =
     url.searchParams.get('tenantId') ??
-    (segments.length >= 2 ? segments[segments.length - 2] : '') ??
-    '';
+    (segments.length >= 2 ? segments[segments.length - 2] : '');
 
   if (!tenantId) {
     return jsonResponse({ error: 'tenantId mancante' }, { status: 400 });
@@ -71,8 +70,8 @@ export const fetch = withErrors(async (request: Request) => {
      * garantito, inviarla per email sarebbe una garanzia solo apparente.
      */
     if (body.action === 'reset-password') {
-      await ensureTenantAdmin(user.id, tenantId);
-
+      // `callerMembership` viene gia' da `ensureTenantAdmin` poche righe
+      // sopra: ripeterlo qui non aggiungeva nulla se non una query.
       if (!email) {
         return jsonResponse({ error: 'Email is required' }, { status: 400 });
       }
@@ -104,6 +103,45 @@ export const fetch = withErrors(async (request: Request) => {
       if (!membership) {
         return jsonResponse(
           { error: 'Questo utente non appartiene alla tua organizzazione' },
+          { status: 403 }
+        );
+      }
+
+      /*
+        E non deve appartenere a NESSUN'ALTRA organizzazione.
+
+        Il controllo qui sotto guardava il ruolo del bersaglio solo dentro
+        questo tenant, e bastava a scavalcarlo: Bob e' proprietario di "Beta" e
+        semplice membro di "Acme"; Carla, amministratrice di Acme, gli
+        reimposta la password, la legge in chiaro nella risposta, entra come
+        Bob e si ritrova proprietaria di Beta. Il ruolo letto diceva 'member' e
+        i due controlli passavano entrambi.
+
+        Non basta escludere i ruoli privilegiati altrove: anche entrare come un
+        semplice membro di un'altra organizzazione ne apre i dati. Un'identita'
+        che vale in piu' posti non e' amministrabile da uno solo di quei posti.
+
+        Chi e' in questa condizione recupera la password da se', per email:
+        e' l'unico percorso che non passa dalle mani di nessuno.
+      */
+      const { data: altreAppartenenze, error: altreError } = await admin
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', target.id)
+        .neq('organization_id', tenantId)
+        .limit(1);
+
+      if (altreError) {
+        return jsonResponse({ error: altreError.message }, { status: 500 });
+      }
+
+      if (altreAppartenenze && altreAppartenenze.length > 0 && target.id !== user.id) {
+        return jsonResponse(
+          {
+            error:
+              'Questo utente appartiene anche ad altre organizzazioni: ' +
+              'la password puo reimpostarla solo lui, dal recupero via email',
+          },
           { status: 403 }
         );
       }
@@ -241,6 +279,31 @@ export const fetch = withErrors(async (request: Request) => {
       ...(customPermissions !== undefined ? { custom_permissions: customPermissions } : {}),
     };
 
+    /*
+      Il controllo viene PRIMA di ogni scrittura, ed e' il punto.
+
+      Stava dopo l'aggiornamento del profilo. Risultato: un'amministratrice
+      mandava `{email: <proprietario>, status: "inactive"}`, si vedeva
+      rispondere `403 Solo il proprietario puo modificare il proprio ruolo`, e
+      intanto il proprietario era gia' disattivato e le sue eventuali deroghe
+      cancellate. Il messaggio diceva che l'operazione era stata rifiutata;
+      meta' operazione era passata. Cio' che il controllo proteggeva davvero
+      era solo la riga in organization_members.
+    */
+    const { data: targetMembership } = await admin
+      .from('organization_members')
+      .select('role')
+      .eq('organization_id', tenantId)
+      .eq('user_id', memberId)
+      .maybeSingle();
+
+    if (targetMembership?.role === 'owner' && callerMembership.role !== 'owner') {
+      return jsonResponse(
+        { error: 'Solo il proprietario puo modificare il proprio ruolo' },
+        { status: 403 }
+      );
+    }
+
     if (!profile) {
       // L'utente non esiste ancora: lo crea l'amministratore.
       // Questo e' l'UNICO percorso di creazione account previsto — la
@@ -292,37 +355,6 @@ export const fetch = withErrors(async (request: Request) => {
       if (insertProfileError) {
         return jsonResponse({ error: insertProfileError.message }, { status: 500 });
       }
-    } else if (Object.keys(campiProfilo).length > 0) {
-      // Profilo gia' esistente: si aggiorna solo cio' che e' stato passato,
-      // per non azzerare campi che il chiamante non ha nemmeno inviato.
-      const { error: updateProfileError } = await admin
-        .from('profiles')
-        .update(campiProfilo)
-        .eq('id', memberId);
-
-      if (updateProfileError) {
-        return jsonResponse({ error: updateProfileError.message }, { status: 500 });
-      }
-    }
-
-    // L'upsert aggiorna una membership esistente: senza questo controllo un
-    // 'admin' potrebbe declassare il proprietario, che perderebbe i privilegi
-    // e non potrebbe piu' annullare la modifica.
-    const { data: targetMembership } = await admin
-      .from('organization_members')
-      .select('role')
-      .eq('organization_id', tenantId)
-      .eq('user_id', memberId)
-      .maybeSingle();
-
-    if (
-      targetMembership?.role === 'owner' &&
-      callerMembership.role !== 'owner'
-    ) {
-      return jsonResponse(
-        { error: 'Solo il proprietario puo modificare il proprio ruolo' },
-        { status: 403 }
-      );
     }
 
     // Ruolo effettivo: quello richiesto se c'e', altrimenti quello che il
@@ -346,6 +378,35 @@ export const fetch = withErrors(async (request: Request) => {
 
     if (error) {
       return jsonResponse({ error: error.message }, { status: 500 });
+    }
+
+    /*
+      Il profilo di una persona che gia' esisteva si aggiorna DOPO
+      l'appartenenza, non prima.
+
+      Non e' solo questione di ordine rispetto ai controlli. `profiles` non ha
+      una colonna per organizzazione: `status`, `team_lead`,
+      `custom_permissions` valgono ovunque quella persona sia. Scriverli prima
+      di sapere se e' gente nostra significava che l'amministratore di Acme,
+      indovinando l'indirizzo email di un dipendente di Beta, poteva
+      disattivarlo o cambiargli i permessi in Beta.
+
+      Qui sopra la riga in organization_members e' appena stata scritta: da
+      questo punto in poi la persona appartiene a questa organizzazione, e
+      amministrarla e' esattamente cio' che questa rotta deve permettere.
+
+      (Che quelle tre colonne siano globali resta un difetto di forma: la loro
+      sede giusta e' organization_members. E' annotato in RIPRESA.md.)
+    */
+    if (profile && Object.keys(campiProfilo).length > 0) {
+      const { error: updateProfileError } = await admin
+        .from('profiles')
+        .update(campiProfilo)
+        .eq('id', memberId);
+
+      if (updateProfileError) {
+        return jsonResponse({ error: updateProfileError.message }, { status: 500 });
+      }
     }
 
     // temporaryPassword compare solo quando l'account e' stato appena creato.

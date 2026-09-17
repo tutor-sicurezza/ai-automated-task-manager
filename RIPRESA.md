@@ -203,6 +203,41 @@ PostgREST con il **suo** token: valgono le stesse policy e gli stessi trigger
 dell'interfaccia. Chi non può fare una cosa dal browser non la può fare
 nemmeno da qui, e non perché lo controlli lo script.
 
+## `members.ts`: due falle nella stessa rotta (17 settembre 2026)
+
+**1. Scalata fra organizzazioni via reimpostazione password.** Il controllo
+guardava il ruolo del bersaglio **solo dentro questo tenant**. Bob è
+proprietario di "Beta" e semplice membro di "Acme"; Carla, amministratrice di
+Acme, gli reimposta la password, la legge in chiaro nella risposta, entra come
+Bob e si ritrova proprietaria di Beta. Il ruolo letto diceva `member` e i due
+controlli passavano entrambi.
+
+Ora la reimpostazione è rifiutata se il bersaglio appartiene a **qualunque**
+altra organizzazione. Non basta escludere i ruoli privilegiati altrove: entrare
+come semplice membro di un'altra organizzazione ne apre comunque i dati.
+Un'identità che vale in più posti non è amministrabile da uno solo di quei
+posti — chi è in quella condizione recupera la password da sé, per email.
+
+**2. La scrittura veniva prima del controllo.** Mandando
+`{email: <proprietario>, status: "inactive"}` si riceveva
+`403 Solo il proprietario puo modificare il proprio ruolo`, e intanto il
+proprietario era già disattivato e le sue deroghe cancellate. Il controllo
+proteggeva davvero solo la riga in `organization_members`.
+
+Ora l'ordine è: controllo → appartenenza → profilo. L'aggiornamento del profilo
+sta **dopo** l'upsert dell'appartenenza, non solo dopo il controllo: `profiles`
+non ha una colonna per organizzazione, quindi `status`, `team_lead` e
+`custom_permissions` valgono ovunque quella persona sia, e scriverli prima di
+sapere se è gente nostra permetteva all'amministratore di Acme — indovinando un
+indirizzo email — di disattivare un dipendente di Beta.
+
+> Che quelle tre colonne siano **globali** resta un difetto di forma, non
+> chiuso: una deroga concessa in Acme vale anche in Beta. La sede giusta è
+> `organization_members.custom_permissions`. È il rovescio del lavoro fatto
+> spostandole da `app_state` (per-organizzazione ma scrivibile da chiunque) a
+> `profiles` (protetto ma globale): ha chiuso una falla e ne ha aperta una di
+> forma diversa.
+
 ## La scrittura di un task non è più a riga intera (17 settembre 2026)
 
 `useTasks` mandava in UPDATE **tutte** le colonne, con i valori che il browser
