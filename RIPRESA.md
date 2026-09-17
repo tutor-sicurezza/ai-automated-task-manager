@@ -203,6 +203,183 @@ PostgREST con il **suo** token: valgono le stesse policy e gli stessi trigger
 dell'interfaccia. Chi non può fare una cosa dal browser non la può fare
 nemmeno da qui, e non perché lo controlli lo script.
 
+## Tre audit sul lavoro del 17 settembre — e due falle introdotte quel giorno
+
+I quattro audit del mattino erano su `783af90`, cioè **prima** di tutto il
+lavoro di quella giornata. Le ~3200 righe scritte dopo le aveva riviste solo
+chi le aveva scritte. Riviste da tre agenti, hanno trovato questo.
+
+### Due falle fra organizzazioni, introdotte lo stesso giorno
+
+Entrambe avevano in cima al file **un commento che dichiarava la difesa che il
+codice non faceva.** È la parte peggiore: chi le avesse rilette si sarebbe
+fermato al commento.
+
+**`restore.ts` spostava i task altrui nella propria organizzazione.**
+`upsert(… onConflict: 'id')` non guarda a chi appartiene la riga che aggiorna, e
+`organization_id` era forzato al tenant di chi chiama — la riga messa apposta
+per impedire il contrario. Bastava conoscere un uuid. Riprodotto sul database:
+
+```
+organizzazione dopo: 99999999-…  (QA)
+era di TaskFlow?     f
+i commenti sono sopravvissuti?  [{"id": "c1", "content": "commento riservato"}]
+```
+
+`task_campi_immutabili` non aiutava: esce quando `auth.uid()` è nullo, cioè
+esattamente nel caso del service role. Ora si leggono gli id esistenti e si
+rifiuta **l'intero blocco** (409) se anche uno appartiene altrove — verificato
+via HTTP sull'anteprima.
+
+**`members.ts` scriveva il profilo globale di un dipendente altrui.** Spostare
+la scrittura dopo l'upsert dell'appartenenza non bastava: **l'upsert non
+verifica l'appartenenza, la crea.** Ora i dati di profilo non si toccano se la
+persona appartiene anche altrove — la stessa regola della reimpostazione
+password, per la stessa ragione.
+
+### 0030: le colonne di sistema erano immutabili solo in creazione
+
+La 0026 chiudeva `recurrence_parent` e `archived_at` in INSERT e le lasciava
+aperte in UPDATE. Nessuna policy e nessun trigger le guardava, e il client le
+manda. Il danno è quello che la 0026 dichiarava di impedire: un membro crea un
+task suo, legge l'id della capostipite di una serie — è visibile a tutti — e
+con una PATCH si dichiara sua figlia. Al giro dopo il cron trova una «figlia
+aperta» e **smette di rigenerare quel controllo periodico**, rispondendo 200.
+
+Verificato dopo la correzione:
+
+```
+1) membro si dichiara figlio della serie .. RIFIUTATO
+2) membro archivia a mano ................ RIFIUTATO
+3) membro rinomina e cambia stato ........ 1 riga (deve 1)
+```
+
+Chiude anche un oracolo minore: la chiave esterna di `recurrence_parent` non è
+limitata per organizzazione, quindi scriverci un uuid distingueva «esiste da
+qualche parte» da «non esiste».
+
+Più due cose minori: `is_org_owner` non era stata revocata da `public`/`anon`
+come le sorelle (non era una scalata — per un anonimo risponde sempre falso —
+ma era una deviazione silenziosa da una regola che il progetto si era dato), e
+il `restore` non verificava che gli assegnatari del backup fossero membri, il
+che permetteva di far arrivare i promemoria a un estraneo.
+
+### Cosa gli attacchi NON hanno scalfito
+
+Auto-promozione ad `owner` via DELETE+INSERT (il delete toglie subito
+`is_org_admin`, e l'insert di un `owner` richiede `is_org_owner`) · degradare o
+cancellare il proprietario · ricorsione o menzogna di `is_org_owner` ·
+assegnatario cambiato in due scritture `X→NULL→Y` (ogni statement è rivalutato
+contro lo stato presente) · l'oracolo sui titoli della 0026 · la lettura
+per-organizzazione delle deroghe della 0028.
+
+### Un rilievo che si è rivelato nullo
+L'agente segnalava che il travaso della 0028 avrebbe replicato le deroghe
+globali in ogni organizzazione. **Verificato: zero righe** — nessuno aveva
+deroghe, né su `profiles` né su `organization_members`, quindi quell'UPDATE non
+ha copiato niente. Resta vero come difetto del *codice* della migrazione, per
+un'installazione che invece ne avesse.
+
+### L'accessibilità: mai guardata prima
+Un rilievo **bloccante** (il pulsante «Importa backup» non è raggiungibile da
+tastiera: `Button asChild` produce uno `<span>`, e l'input è `display:none`) e
+tre trasversali: l'anello di fuoco a 2,31:1 quando ne servono 3, le targhette di
+priorità a 2,15:1 con testo `"HIGH"`/`"MEDIUM"`/`"LOW"` in inglese, e il
+calendario in inglese perché nessuno passa `locale` a `DayPicker` — con
+`initialFocus` che nella versione 9 esiste nei tipi ma non nel runtime. **Non
+ancora affrontati.**
+
+## Gli advisor di prestazioni, mai letti prima (17 settembre 2026)
+
+Gli advisor di **sicurezza** li avevamo guardati. Quelli di **prestazioni** no,
+mai. Dentro c'erano due cose vere.
+
+### Sette chiavi esterne senza indice — chiuso con la 0029
+
+Le due che contano davvero:
+
+- **`organization_members.user_id`** è il percorso di **accesso**:
+  `AuthContext` legge le appartenenze a ogni avvio, e da oggi lo fa anche la
+  guardia sulla reimpostazione password. Erano scansioni complete.
+- **`tasks.created_by`** sta dentro la `using` della policy di UPDATE, quindi
+  viene valutata **per ogni riga toccata** — un'operazione in blocco su
+  cinquanta attività la valuta cinquanta volte.
+
+Le altre cinque contano per la cancellazione di una persona: senza indice,
+Postgres deve scandire ogni tabella che la referenzia.
+
+### `auth_rls_initplan` su 14 policy — NON applicato, di proposito
+
+`auth.uid()` viene rivalutata riga per riga invece di `(select auth.uid())`. Il
+rilievo è giusto e a regime conta.
+
+Non l'ho fatto perché significherebbe **riscrivere le policy di sicurezza
+appena chiuse** (0024, 0026, 0027) per un guadagno che si vede da qualche
+migliaio di righe in su — e riscrivere una policy è esattamente il gesto con
+cui si reintroduce un buco. Va fatto come cambiamento a sé, con le sonde di
+verifica della 0026 e della 0027 **rieseguite dopo**.
+
+### Cosa NON è un problema, per non riaprirlo ogni volta
+
+- **`unused_index` su quattro indici** (`tasks_blocked_by_idx`,
+  `tasks_promemoria_due_date_idx`, `notifications_lette_created_at_idx`,
+  `email_delivery_logs_created_at_idx`): non sono inutili, sono **nuovi**.
+  Servono a lavori pianificati che hanno girato poco. Toglierli sarebbe un
+  errore.
+- **`multiple_permissive_policies`**: le coppie segnalate sono volute —
+  bootstrap del proprietario più admin su `organization_members`, profilo
+  proprio più profili dei colleghi su `profiles`.
+- **`is_org_owner` eseguibile da `anon`**: per un anonimo `auth.uid()` è nullo,
+  quindi risponde sempre falso. Come le altre `is_org_*`.
+
+## Le rotte `api/` sono state esercitate via HTTP (17 settembre 2026)
+
+Era il limite dichiarato in fondo alla PR #10: tutto verificato al livello del
+database, niente al livello HTTP. Chiuso, con account di collaudo veri
+dell'organizzazione **TaskFlow QA** e token veri, contro la **produzione**.
+
+| Prova | Esito |
+| --- | --- |
+| `POST /restore` — elenco vuoto | `{"ripristinati":0}` |
+| `POST /restore` — senza `tasks` | `400 Serve un elenco di task` |
+| `POST /restore` — altra organizzazione | `403 You do not belong to this tenant` |
+| **`POST /restore` — riga approvata + archiviata + `attachments_count`** | `{"ripristinati":1}` |
+| `POST /api/tasks` — member assegna a un collega | `403 Solo manager, admin o owner…` |
+| `POST /api/tasks` — member assegna a sé | creata |
+| `POST /api/notifications` | `task_ref` **popolato**, `task_id` nullo |
+| `POST /members` reset password — utente multi-organizzazione | `403` col messaggio nuovo |
+| `POST /members` reset password — utente di questa sola | riuscito |
+| `POST /api/ai/complete` — da `viewer` | `403 Richiede il ruolo 'member'…` |
+| `PATCH /rest/v1/tasks` — `viewer` sulla propria attività | `[]`, zero righe |
+| `GET /api/ai/complete` | `{"available":true}` |
+
+**La prova che vale di più è la quarta.** Il payload conteneva di proposito
+l'`organization_id` di un'**altra** organizzazione: la riga è atterrata in QA,
+non là. La rotta sovrascrive quel campo, e `attachments_count` è stato scartato
+e ricalcolato a 0 invece dei 3 inviati. È esattamente ciò per cui la rotta
+esiste — e con il token di un utente quella riga era irricevibile, per tre
+difese diverse.
+
+`GET /api/ai/complete` risponde `{"available":true}`: **`ANTHROPIC_API_KEY` è
+configurata in produzione e funziona.** Era una domanda aperta.
+
+Anche i cinque cron rispondono `401` e non `503`: **`CRON_SECRET` è
+configurato**, quindi i lavori pianificati sono armati.
+
+### Cosa è stato toccato, e rimesso a posto
+Password usa-e-getta su `qa.admin`, `qa.mario`, `qa.user`, poi sostituita con
+una casuale che nessuno conosce. Un'organizzazione di prova creata e
+cancellata. `qa.user` messo a `viewer` e rimesso a `member`. Task e notifiche di
+prova cancellati. Ricontrollato dopo: 2 organizzazioni, 6 appartenenze, 8 task,
+zero residui.
+
+**`qa.lucia` ha una password nuova** che non conosco: è il risultato della prova
+di reimpostazione legittima, e non l'ho stampata. Si recupera via email.
+
+### Cosa resta NON verificato
+**L'interfaccia.** Nessuno ha ancora aperto l'applicazione in un browser dopo
+le modifiche del 17 settembre, e da questo ambiente non è raggiungibile.
+
 ## La tabella delle migrazioni ora corrisponde ai file (17 settembre 2026)
 
 `supabase_migrations.schema_migrations` registrava **otto** migrazioni mentre
