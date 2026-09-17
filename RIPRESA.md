@@ -332,6 +332,63 @@ verifica della 0026 e della 0027 **rieseguite dopo**.
 - **`is_org_owner` eseguibile da `anon`**: per un anonimo `auth.uid()` è nullo,
   quindi risponde sempre falso. Come le altre `is_org_*`.
 
+## Gli advisor di sicurezza, letti fino in fondo — 0031 (17 settembre 2026)
+
+Due rilievi restavano aperti sul database. Nessuno dei due era una falla: erano
+**margini**, cose che non fanno danno oggi per ragioni che non erano scritte da
+nessuna parte, e che una modifica futura può cancellare in silenzio.
+
+### Otto funzioni di trigger pubblicate come RPC
+
+Vivono in `public`, quindi PostgREST le esponeva su `/rest/v1/rpc/<nome>` **a
+chiunque, anche senza accesso**, e sono `security definer`.
+
+Non facevano danno perché una funzione di trigger chiamata fuori da un trigger
+fallisce: `new` e `old` non esistono. È una difesa che viene dal linguaggio e
+copre il codice di oggi — se domani una di queste prende un ramo che non tocca
+`new`, sparisce senza che nessuno se ne accorga.
+
+**La revoca non spegne i trigger.** In PostgreSQL il permesso `execute` su una
+funzione di trigger si controlla quando il trigger viene **creato**, non quando
+scatta. Non l'ho dato per scontato: misurato su questo database con una tabella
+e un trigger usa-e-getta, agendo come `authenticated` senza `execute` — il
+trigger è scattato lo stesso.
+
+Il primo tentativo di prova **non provava niente**: girando come `postgres`,
+`auth.uid()` è nullo e i trigger escono subito per disegno, quindi "l'update è
+passato" non diceva nulla sulla revoca. Riscritto con `set local role
+authenticated` e `request.jwt.claims`.
+
+Verificato dopo via HTTP con la chiave anonima: le quattro provate rispondono
+`PGRST202`, cioè PostgREST non le espone più.
+
+### Due funzioni con `search_path` mutabile
+
+`app_state_key_amministrativa` e `app_state_key_riservata` decidono, dentro le
+policy di `app_state`, se una chiave è riservata ai manager. Nel corpo non c'è
+nessun oggetto: solo un `in` su stringhe. L'unica cosa dirottabile era
+l'operatore `=` fra text, e per farlo serve `create` su uno schema del percorso:
+**verificato che né `anon` né `authenticated` ce l'hanno su nessuno schema.**
+
+Il costo è reale e va detto: una funzione SQL con una clausola `SET` non è più
+incorporabile dal planner, quindi diventa una chiamata per riga. Su `app_state`
+ci sono **7 righe**. Si sceglie il margine.
+
+### Cosa resta segnalato, di proposito
+
+- **Le sei `is_org_*` eseguibili da `authenticated`.** Non si revocano: le
+  policy RLS sono valutate con i privilegi di chi fa la richiesta, quindi senza
+  `execute` su `is_org_member` ogni policy che la usa fallisce e l'applicazione
+  si ferma. Da `anon` sono già revocate.
+- **`email_promemoria_inviati` con RLS attiva e zero policy** (livello INFO).
+  È esattamente il disegno, scritto nella 0014: la scrivono solo i lavori
+  pianificati col service role. Poter cancellare una riga qui significherebbe
+  far rispedire un'email; poterne inserire una, zittire il promemoria di un
+  collega.
+
+Dopo la 0031 l'advisor di sicurezza non segnala più nulla sul database. Restano
+**solo i due interruttori della console**, in fondo a questo documento.
+
 ## Le rotte `api/` sono state esercitate via HTTP (17 settembre 2026)
 
 Era il limite dichiarato in fondo alla PR #10: tutto verificato al livello del
@@ -835,17 +892,29 @@ Controllare i **Cron Jobs**: sono cinque e uno è orario, che richiede il piano
 Pro. (`CRON_SECRET` e `APP_URL` sono ora documentate in `.env.example`,
 insieme a `SENDGRID_API_KEY`, ai tetti AI e alle `TASKFLOW_*`.)
 
-**Due interruttori restano da toccare a mano**, e non c'è modo di farlo da
-qui — non esiste uno strumento per la configurazione auth, la CLI non è
-installata, e le chiavi `config.toml` corrispondenti non sono confermate dalla
-documentazione (scriverle alla cieca, in un file che dichiara di rappresentare
-lo stato *completo* di `[auth]`, è più rischioso che lasciarle stare):
+### 9. Da fare a mano in Supabase — l'elenco completo
 
-- **Protezione password compromesse** (confronto con HaveIBeenPwned),
-- **MFA / TOTP**, oggi con troppo pochi metodi attivi.
+Dopo la 0031, **tutto ciò che si poteva chiudere dal database è chiuso**. Quello
+che resta non si tocca da qui: non esiste uno strumento per la configurazione
+auth, la CLI non è installata, e le chiavi `config.toml` corrispondenti non sono
+confermate dalla documentazione (scriverle alla cieca, in un file che dichiara
+di rappresentare lo stato *completo* di `[auth]`, è più rischioso che lasciarle
+stare).
 
-Entrambi in Supabase → Authentication → Policies. Li segnala l'advisor di
-sicurezza del progetto.
+Console: <https://supabase.com/dashboard/project/ibjlfamnoewpixfnowvd>
+
+1. **Protezione password compromesse** — Authentication → Policies. Confronta le
+   password con HaveIBeenPwned al momento della registrazione e del cambio.
+   Oggi **disattivata**; la segnala l'advisor di sicurezza.
+2. **MFA / TOTP** — stessa pagina. Oggi con **troppo pochi metodi attivi**;
+   stesso advisor.
+3. **La password del proprietario.** È stata esposta durante il lavoro del 17
+   settembre ed è stato inviato il messaggio di recupero. Finché non si completa
+   il cambio, **la vecchia password vale ancora**.
+
+Questi tre sono gli unici punti in sospeso su Supabase. Il resto — policy,
+trigger, indici, revoche, `search_path` — è applicato e verificato in
+produzione, e la tabella delle migrazioni ha **31 righe per 31 file**.
 
 ### I due domini di produzione sono lo stesso deploy
 `supabase/config.toml` ha `site_url = employee-task-m-last-dodalo.vercel.app`
