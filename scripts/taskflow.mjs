@@ -322,6 +322,43 @@ async function apriSessione(cfg) {
 const rest = (cfg, sessione, percorso, opzioni = {}) =>
   chiamata(cfg, `/rest/v1${percorso}`, { ...opzioni, token: sessione.token });
 
+/**
+ * Scrive su un'attivita' e VERIFICA che abbia toccato una riga.
+ *
+ * Questa funzione esiste per un motivo solo, e vale la pena scriverlo per
+ * intero. Una scrittura che le regole del database non lasciano passare NON
+ * e' un errore: PostgREST non trova nessuna riga da aggiornare e risponde
+ * senza lamentarsi. Con `return=minimal` non torna nemmeno un corpo da
+ * guardare, quindi "rifiutata" e "riuscita" arrivano qui identiche.
+ *
+ * Il file dichiara in testa di subire le regole del database. Le subiva solo
+ * quando il database rispondeva con un errore: quando si limitava a non
+ * trovare la riga, il comando stampava "fatto" e — peggio — spediva le
+ * notifiche. Chi osservava quel lavoro riceveva "Mario ha messo lo stato su
+ * completed" per un cambio mai avvenuto.
+ *
+ * Con `return=representation` la riga aggiornata torna indietro, e un array
+ * vuoto e' la risposta a "mi hai lasciato scrivere?".
+ */
+async function scriviTask(cfg, sessione, task, modifiche) {
+  const righe = await rest(cfg, sessione, `/tasks?id=eq.${task.id}`, {
+    method: 'PATCH',
+    headers: { prefer: 'return=representation' },
+    body: JSON.stringify(modifiche),
+  });
+
+  if (!Array.isArray(righe) || righe.length === 0) {
+    throw new ErroreUtente(
+      `"${task.title}": il database non ha lasciato passare la modifica.\n` +
+        'Di solito significa che non sei ne\' l\'assegnatario ne\' chi l\'ha\n' +
+        'creata, e non sei un responsabile. Le regole sono le stesse\n' +
+        "dell'interfaccia."
+    );
+  }
+
+  return righe[0];
+}
+
 /* -------------------------------------------------------------------------- */
 /* Dati                                                                       */
 /* -------------------------------------------------------------------------- */
@@ -605,11 +642,9 @@ async function comandoStato(cfg, sessione, org, [pezzo, statoGrezzo, nota]) {
   if (task.status !== nuovo) modifiche.status = nuovo;
   if (nota) modifiche.comments = commenti;
 
-  await rest(cfg, sessione, `/tasks?id=eq.${task.id}`, {
-    method: 'PATCH',
-    headers: { prefer: 'return=minimal' },
-    body: JSON.stringify(modifiche),
-  });
+  // Le notifiche partono DOPO, e solo se la riga e' stata toccata davvero:
+  // e' l'ordine che conta, perche' una notifica non si ritira.
+  await scriviTask(cfg, sessione, task, modifiche);
 
   const osservatori = Array.isArray(task.watchers) ? task.watchers : [];
   const diventaChiusa = nuovo === 'completed' && task.status !== 'completed';
@@ -669,10 +704,10 @@ async function comandoNota(cfg, sessione, org, [pezzo, ...resto]) {
   const cronologia = Array.isArray(task.activities) ? [...task.activities] : [];
   cronologia.push(voceCronologia(io, task, 'comment_added'));
 
-  await rest(cfg, sessione, `/tasks?id=eq.${task.id}`, {
-    method: 'PATCH',
-    headers: { prefer: 'return=minimal' },
-    body: JSON.stringify({ comments: commenti, activities: cronologia, updated_at: adesso() }),
+  await scriviTask(cfg, sessione, task, {
+    comments: commenti,
+    activities: cronologia,
+    updated_at: adesso(),
   });
 
   const destinatari = new Set([

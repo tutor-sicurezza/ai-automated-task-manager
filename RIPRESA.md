@@ -203,6 +203,50 @@ PostgREST con il **suo** token: valgono le stesse policy e gli stessi trigger
 dell'interfaccia. Chi non può fare una cosa dal browser non la può fare
 nemmeno da qui, e non perché lo controlli lo script.
 
+## Migrazioni 0026 e 0027 (17 settembre 2026)
+
+Nate da un audit in quattro parti. Ogni buco è stato **prima riprodotto** sul
+database di produzione dentro un blocco che si annulla da solo, poi chiuso, poi
+riprovato con la stessa sonda. Sei su sei erano reali; uno stampava in chiaro il
+titolo di un'attività di un'altra organizzazione.
+
+### 0026 — confini di creazione e dipendenze
+
+1. **La sottoquery della 0025 non si fermava al confine dell'organizzazione.**
+   Il trigger è `security definer`, quindi vedeva *tutti* i task del progetto,
+   mentre il client considera "riferimento rotto, non blocca" qualunque id non
+   suo. Chi conosceva un uuid altrui se lo metteva fra i propri `blocked_by`
+   (nessuno valida quella colonna in UPDATE) e si portava a casa il messaggio
+   `Prima vanno chiuse: <titolo altrui>`. Oracolo ripetibile. Chiuso con
+   `and b.organization_id = new.organization_id`.
+2. **La regola dei bloccanti valeva solo in UPDATE.** Il trigger passa a
+   `before insert or update`: si poteva nascere già `completed` con dipendenze
+   aperte.
+3. **La 0024 non guardava `recurrence_parent` né `archived_at`.** Un membro si
+   dichiarava figlio di una serie ricorrente e il cron, trovando una "figlia
+   aperta", **smetteva di rigenerare quel controllo periodico** — rispondendo
+   200, senza errori per nessuno.
+
+### 0027 — appartenenze e assegnazioni
+
+1. **Un `admin` poteva prendersi l'organizzazione.** `organization_members`
+   aveva una sola policy di scrittura (`for all` con `is_org_admin`) e nessun
+   trigger: bastava una PATCH per mettersi `owner`, degradare il proprietario o
+   cancellarlo. Ora tre policy separate più un trigger: nessuno cambia il
+   proprio ruolo, la proprietà la conferisce solo chi ce l'ha, un'appartenenza
+   non cambia persona né organizzazione. Nuova funzione `is_org_owner`.
+2. **Un'attività si assegnava a chiunque, anche fuori organizzazione** (e il
+   cron dei promemoria poi gli mandava l'email). Il confine sta in un trigger e
+   non in una `with check` perché deve scattare **solo quando l'assegnatario
+   cambia**: altrimenti un'attività il cui assegnatario ha lasciato l'azienda
+   diventerebbe immodificabile per sempre.
+3. **Un `viewer` assegnatario poteva scrivere:** la policy di update non
+   consultava mai `is_org_writer`. Ora sì.
+
+Applicate con `mcp__Supabase__execute_sql` (il binario `supabase` non c'è
+nell'ambiente remoto; il file resta la fonte di verità in
+`supabase/migrations/`).
+
 ### Migrazione 0025: due regole del cambio di stato scendono nel database
 
 Perché il punto sopra regga, due regole che vivevano solo nel client sono

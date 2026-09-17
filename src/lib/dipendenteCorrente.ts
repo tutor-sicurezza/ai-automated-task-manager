@@ -89,7 +89,36 @@ export function dipendenteCorrente({
   const deroghe = derogheDalProfilo(profilo?.custom_permissions);
 
   const esistente = (employees || []).find((e) => e.id === userId);
-  if (esistente) return { ...esistente, customPermissions: deroghe };
+  if (esistente) {
+    /*
+      Non basta sostituire le deroghe: anche `userRole` e `status` devono
+      venire dalla fonte attendibile, non dall'array.
+
+      La prima versione di questo ramo sostituiva le sole `customPermissions`
+      e lasciava passare il resto della riga. Ma `userRole` e' proprio il
+      campo su cui `getEmployeePermissions` costruisce tutta la matrice, e
+      `status` decide se l'account e' attivo: entrambi arrivavano da
+      `app_state.employees`, cioe' da una chiave che ogni membro puo'
+      riscrivere per intero con il proprio token. Chi si metteva
+      `"userRole": "admin"` nella propria riga si vedeva comparire i pannelli
+      amministrativi — non i dati, che le policy continuano a negare, ma i
+      comandi si'. `useSyncEmployees` rimargina l'array poco dopo, e proprio
+      per questo il buco era difficile da vedere: dura una frazione di
+      secondo, tranne quando la lettura dei membri fallisce, e allora dura
+      tutta la sessione.
+
+      Dell'array resta cio' per cui esiste: l'anagrafica (nome, reparto,
+      competenze, immagine). Delle autorizzazioni non ha voce, come per le
+      deroghe.
+    */
+    return {
+      ...esistente,
+      userRole: ruoloInterfaccia(orgRole),
+      status: profilo?.status ?? esistente.status,
+      teamLead: profilo?.team_lead ?? false,
+      customPermissions: deroghe,
+    };
+  }
 
   return {
     id: userId,

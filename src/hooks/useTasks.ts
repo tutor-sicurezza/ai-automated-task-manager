@@ -532,16 +532,43 @@ export function useTasks() {
             else delete riga.attachments;
           }
 
-          // Nessun .select(): il RETURNING passa dalla policy di lettura e non
-          // serve a nulla qui. Una modifica rifiutata dalle policy non e' un
-          // errore del programma: e' un permesso mancante, e va detto.
-          const { error } = await supabase.from('tasks').update(riga).eq('id', t.id);
+          /*
+            Il `.select('id')` non serve a rileggere: serve a CONTARE.
+
+            Una scrittura che la policy di update non lascia passare non e' un
+            errore. PostgREST non trova nessuna riga da aggiornare e risponde
+            senza lamentarsi: `error` e' null, e "rifiutata" e "riuscita"
+            diventano indistinguibili. Il risultato lo vedeva l'utente: toast
+            verde, coriandoli, la scheda che passa a completata — e alla prima
+            rilettura tutto com'era prima, senza che nulla avesse avvisato.
+
+            Qui il RETURNING e' un segnale affidabile perche' la policy di
+            LETTURA e' piu' larga di quella di scrittura (chiunque sia membro
+            dell'organizzazione legge il task): se la riga e' stata toccata,
+            torna indietro. Zero righe significa una cosa sola.
+          */
+          const { data: aggiornate, error } = await supabase
+            .from('tasks')
+            .update(riga)
+            .eq('id', t.id)
+            .select('id');
           if (error) errori.push(`modifica "${t.title}": ${error.message}`);
+          else if (!aggiornate || aggiornate.length === 0) {
+            errori.push(`modifica "${t.title}": non hai il permesso di modificarla`);
+          }
         }
 
         for (const t of rimossi) {
-          const { error } = await supabase.from('tasks').delete().eq('id', t.id);
+          // Stesso ragionamento del blocco sopra.
+          const { data: eliminate, error } = await supabase
+            .from('tasks')
+            .delete()
+            .eq('id', t.id)
+            .select('id');
           if (error) errori.push(`eliminazione "${t.title}": ${error.message}`);
+          else if (!eliminate || eliminate.length === 0) {
+            errori.push(`eliminazione "${t.title}": non hai il permesso di eliminarla`);
+          }
         }
       } finally {
         for (const id of toccati) scritturePendenti.current.delete(id);
@@ -556,10 +583,13 @@ export function useTasks() {
 
       if (errori.length > 0) {
         console.error('[useTasks]', errori.join(' | '));
+        // Si DICONO quali: "3 operazioni non consentite" manda a indovinare
+        // su un'azione in blocco di cinquanta, e i nomi sono gia' qui.
         toast.error(
           errori.length === 1
             ? `Operazione non consentita: ${errori[0]}`
-            : `${errori.length} operazioni non consentite sui task`
+            : `${errori.length} operazioni non consentite: ${errori.slice(0, 3).join('; ')}` +
+              (errori.length > 3 ? ` e altre ${errori.length - 3}` : '')
         );
         // Lo stato ottimistico non rispecchia piu' il database: si rilegge,
         // cosi' l'utente vede la realta' invece di una modifica che crede
