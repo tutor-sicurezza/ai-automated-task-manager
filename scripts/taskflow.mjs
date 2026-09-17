@@ -401,8 +401,23 @@ async function organizzazione(cfg, sessione) {
 }
 
 const COLONNE =
-  'id,title,status,due_date,assignee_id,watchers,blocked_by,requires_approval,' +
+  'id,title,status,due_date,updated_at,assignee_id,watchers,blocked_by,requires_approval,' +
   'approved_by,approved_at,comments,activities';
+
+/**
+ * Chiuso DAVVERO, come lo intende il resto del prodotto.
+ *
+ * Completato non basta: se il lavoro richiede un visto e non ce l'ha, e'
+ * consegnato ma non concluso. E' la definizione di `eChiusoDavvero` in
+ * src/lib/approvazione.ts, ripetuta qui perche' questo file e' uno script a
+ * se' e non importa nulla dal resto del progetto. Se una delle due cambia,
+ * cambiano entrambe.
+ */
+function eChiusaDavvero(task) {
+  if (task.status !== 'completed') return false;
+  if (task.requires_approval !== true) return true;
+  return Boolean(task.approved_by && task.approved_at);
+}
 
 async function mieAttivita(cfg, sessione, org) {
   return rest(
@@ -432,7 +447,27 @@ async function trovaAttivita(cfg, sessione, org, pezzo) {
   );
   const candidate = tutte.filter((t) => t.id.toLowerCase().startsWith(cercato));
 
-  if (candidate.length === 0) throw new ErroreUtente(`Nessuna attivita' che inizi per "${pezzo}"`);
+  if (candidate.length === 0) {
+    /*
+      Prima si diceva "nessuna attivita'", e non era vero: la lettura sopra
+      esclude le archiviate, quindi un identificativo giusto di un lavoro
+      archiviato riceveva la stessa risposta di uno inventato. Chi lo cercava
+      pensava di aver sbagliato a copiare.
+    */
+    const archiviate = await rest(
+      cfg,
+      sessione,
+      `/tasks?organization_id=eq.${org.id}&archived_at=not.is.null&select=id,title`
+    );
+    const trovata = archiviate.find((t) => t.id.toLowerCase().startsWith(cercato));
+    if (trovata) {
+      throw new ErroreUtente(
+        `"${trovata.title}" e' archiviata: non si modifica da qui.\n` +
+          "Le attivita' archiviate si riaprono dall'interfaccia."
+      );
+    }
+    throw new ErroreUtente(`Nessuna attivita' che inizi per "${pezzo}"`);
+  }
   if (candidate.length > 1) {
     // L'identificativo INTERO, non il troncato che mostra `elenco`: qui sono
     // ambigui proprio perche' iniziano uguali, e stamparne dodici caratteri
@@ -493,12 +528,70 @@ const adesso = () => new Date().toISOString();
  */
 const bloccoMinuto = () => adesso().slice(0, 16);
 
-function identita(sessione) {
+/**
+ * Chi sono, come lo vede il resto del prodotto.
+ *
+ * `user_metadata` e' la copia scritta al momento della registrazione e non
+ * cambia piu': l'interfaccia legge `profiles.full_name`, che e' quello che si
+ * modifica dal pannello. Prendendo la prima, chi aveva cambiato nome si
+ * ritrovava i commenti scritti da terminale firmati col nome vecchio, accanto
+ * a quelli del browser firmati col nuovo.
+ *
+ * Il profilo puo' non rispondere (rete, permessi): in quel caso si ricade sui
+ * metadati, che e' peggio che giusto ma meglio che fermarsi.
+ */
+async function identita(cfg, sessione) {
   const meta = sessione.utente.user_metadata ?? {};
-  return {
+  const ripiego = {
     id: sessione.utente.id,
     nome: meta.full_name || sessione.utente.email || 'Utente',
     avatar: meta.avatar_url || '',
+  };
+
+  try {
+    const righe = await rest(
+      cfg,
+      sessione,
+      `/profiles?id=eq.${sessione.utente.id}&select=full_name,avatar_url`
+    );
+    const p = righe?.[0];
+    if (!p) return ripiego;
+    return {
+      id: sessione.utente.id,
+      nome: p.full_name || ripiego.nome,
+      avatar: p.avatar_url || ripiego.avatar,
+    };
+  } catch {
+    return ripiego;
+  }
+}
+
+/**
+ * Rilegge gli elenchi cumulativi un istante prima di riscriverli.
+ *
+ * `comments` e `activities` sono colonne jsonb che crescono, e questo comando
+ * le rimanda indietro INTERE. Fra la lettura iniziale e la scrittura passano
+ * l'accesso, la lettura dell'organizzazione e quella di tutte le attivita':
+ * secondi, non millisecondi. Un commento scritto dal browser in quella
+ * finestra spariva, e spariva anche dalla cronologia, quindi senza lasciare
+ * traccia da nessuna parte.
+ *
+ * Rileggere qui non chiude la finestra, la riduce a una manciata di
+ * millisecondi. Chiuderla del tutto vorrebbe dire una scrittura condizionata
+ * sul valore letto, e per due colonne jsonb non e' una cosa che PostgREST
+ * offra in modo pulito: questo e' il compromesso, ed e' scritto perche' chi
+ * legge sappia che c'e'.
+ */
+async function rileggiElenchi(cfg, sessione, task) {
+  const righe = await rest(
+    cfg,
+    sessione,
+    `/tasks?id=eq.${task.id}&select=comments,activities`
+  );
+  const fresca = righe?.[0] ?? {};
+  return {
+    commenti: Array.isArray(fresca.comments) ? fresca.comments : [],
+    cronologia: Array.isArray(fresca.activities) ? fresca.activities : [],
   };
 }
 
@@ -580,16 +673,40 @@ async function comandoElenco(cfg, sessione, org) {
     console.log('Nessuna attivita\' assegnata a te.');
     return;
   }
-  const aperte = mie.filter((t) => t.status !== 'completed');
-  const chiuse = mie.filter((t) => t.status === 'completed');
+  /*
+    "Aperte" comprende cio' che aspetta un visto.
+
+    Prima il taglio era `status !== 'completed'`, quindi un lavoro consegnato e
+    in attesa di approvazione spariva dalle aperte e compariva fra le chiuse.
+    Chi la mattina dopo eseguiva `elenco` per sapere cosa gli restava non lo
+    vedeva piu' e lo dimenticava — che e' il modo esatto in cui un flusso di
+    approvazione diventa un intralcio invece che un controllo.
+  */
+  const aperte = mie.filter((t) => !eChiusaDavvero(t));
+  const chiuse = mie
+    .filter(eChiusaDavvero)
+    // `mieAttivita` ordina per scadenza crescente, che per un elenco di cose
+    // CHIUSE e' l'ordine sbagliato: prendendone dieci si sarebbero prese le
+    // dieci con la scadenza piu' vecchia, cioe' le meno recenti possibili,
+    // sotto un titolo che dice "di recente".
+    .sort((a, b) => String(b.updated_at ?? '').localeCompare(String(a.updated_at ?? '')));
 
   console.log(`\nAperte (${aperte.length}):`);
   if (!aperte.length) console.log('  nessuna');
   for (const t of aperte) console.log(riga(t));
 
   if (chiuse.length) {
-    console.log(`\nChiuse di recente (${chiuse.length}):`);
-    for (const t of chiuse.slice(0, 10)) console.log(riga(t));
+    const MOSTRATE = 10;
+    const mostrate = chiuse.slice(0, MOSTRATE);
+    // Si dice quante se ne stanno vedendo, non solo quante ce ne sono: prima
+    // l'intestazione diceva "(47)" e sotto comparivano dieci righe, senza
+    // nessun accenno alle altre trentasette.
+    const intestazione =
+      chiuse.length > MOSTRATE
+        ? `Chiuse di recente (${mostrate.length} di ${chiuse.length}):`
+        : `Chiuse di recente (${chiuse.length}):`;
+    console.log(`\n${intestazione}`);
+    for (const t of mostrate) console.log(riga(t));
   }
   console.log('');
 }
@@ -597,15 +714,15 @@ async function comandoElenco(cfg, sessione, org) {
 async function comandoStato(cfg, sessione, org, [pezzo, statoGrezzo, nota]) {
   const task = await trovaAttivita(cfg, sessione, org, pezzo);
   const nuovo = statoCanonico(statoGrezzo);
-  const io = identita(sessione);
+  const io = await identita(cfg, sessione);
 
   if (task.status === nuovo && !nota) {
     console.log(`"${task.title}" e' gia' ${nuovo}. Niente da fare.`);
     return;
   }
 
-  const cronologia = Array.isArray(task.activities) ? [...task.activities] : [];
-  const commenti = Array.isArray(task.comments) ? [...task.comments] : [];
+  // Riletti adesso, non quelli di `trovaAttivita`: vedi `rileggiElenchi`.
+  const { commenti, cronologia } = await rileggiElenchi(cfg, sessione, task);
 
   if (task.status !== nuovo) {
     cronologia.push(
@@ -689,9 +806,10 @@ async function comandoNota(cfg, sessione, org, [pezzo, ...resto]) {
   if (!testo) throw new ErroreUtente('Scrivi il testo della nota');
 
   const task = await trovaAttivita(cfg, sessione, org, pezzo);
-  const io = identita(sessione);
+  const io = await identita(cfg, sessione);
 
-  const commenti = Array.isArray(task.comments) ? [...task.comments] : [];
+  // Riletti adesso, non quelli di `trovaAttivita`: vedi `rileggiElenchi`.
+  const { commenti, cronologia } = await rileggiElenchi(cfg, sessione, task);
   commenti.push({
     id: `com-${randomUUID()}`,
     taskId: task.id,
@@ -701,7 +819,6 @@ async function comandoNota(cfg, sessione, org, [pezzo, ...resto]) {
     content: testo,
     createdAt: adesso(),
   });
-  const cronologia = Array.isArray(task.activities) ? [...task.activities] : [];
   cronologia.push(voceCronologia(io, task, 'comment_added'));
 
   await scriviTask(cfg, sessione, task, {
