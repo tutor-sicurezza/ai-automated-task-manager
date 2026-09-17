@@ -203,6 +203,57 @@ PostgREST con il **suo** token: valgono le stesse policy e gli stessi trigger
 dell'interfaccia. Chi non può fare una cosa dal browser non la può fare
 nemmeno da qui, e non perché lo controlli lo script.
 
+## I due "backup" (17 settembre 2026)
+
+Esistevano due percorsi con lo stesso nome e semantiche **opposte**: uno
+cancellava, l'altro non funzionava.
+
+### `DataManagement` — cancellava, senza dirlo
+
+`handleImportData` faceva `setTasks(data.tasks)`, e sembrava un ripristino. Non
+lo era: `setTasks` calcola una differenza, e tutto ciò che non compariva nel
+file diventava un **DELETE vero**. Importare un backup di due settimane fa
+cancellava ogni attività creata da allora — senza conferma (mentre "Clear All
+Data", che fa un danno minore, una conferma ce l'aveva), senza dire quante, e
+nel momento in cui lo si usa, che è sempre un momento di panico.
+
+E la metà costruttiva non funzionava nemmeno: il server rifiuta in creazione i
+commenti non firmati da chi importa (`elencoFirmato`), e un backup vero
+contiene i commenti dei colleghi. **Bilancio netto: le attività nuove
+cancellate, quelle vecchie non tornate.**
+
+Ora è una fusione per id — ciò che sta nel file aggiorna ciò che c'è, il resto
+resta dov'è — con una conferma che dice quante attività ci sono nel file e che
+niente verrà cancellato. Tre chiavi nuove, tradotte in tutte e cinque le
+lingue.
+
+### `SuperAdminSettings` — non poteva funzionare, e per tre motivi
+
+Provato sul database, con gli errori veri:
+
+1. **`attachments_count` è una colonna `generated always`** (0017). Il backup fa
+   `select('*')`, quindi se la porta dentro, e Postgres risponde
+   `cannot insert a non-DEFAULT value into column "attachments_count"`. Bastava
+   questo a far fallire l'intero blocco.
+2. Il trigger della **0023** rifiuta ogni riga nuova già approvata, quando chi
+   scrive è una persona. Un backup di chi usa le approvazioni ne contiene
+   sempre.
+3. Le policy della **0024** e della **0026** non lasciano nascere una riga
+   archiviata o figlia di una serie ricorrente.
+
+Nessuna delle tre va allentata: descrivono ciò che una *persona* non può
+fabbricarsi a mano. Un ripristino non è quello. Ora passa da
+`POST /api/tenants/<id>/restore`, col service role, a blocchi di 25 — verificato
+che una riga approvata+archiviata+figlia di serie passa, e che l'invariante
+della 0026 **continua a mordere anche lì**: un backup che dice "completata"
+mentre ciò che la bloccava risulta aperto viene rifiutato, col nome
+dell'attività.
+
+E i task si ripristinano **per primi**. Non ci sono transazioni fra chiamate:
+facendoli per ultimi, un guasto lasciava le impostazioni del backup sopra i
+task di prima — lo stato peggiore, perché è incoerente e non se ne accorge
+nessuno. Per primi, un guasto lascia tutto com'era.
+
 ## I quattro lavori pianificati che si spegnevano da soli (17 settembre 2026)
 
 `supabase-js` manda i `select` come GET con i filtri nella query string, e un

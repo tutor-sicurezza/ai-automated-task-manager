@@ -785,6 +785,12 @@ export const TESTI_DE: Record<string, string> = {
   'Reset to Default': 'Auf den Standardwert zurücksetzen',
   'Reset to Defaults': 'Auf die Standardwerte zurücksetzen',
   'Restore': 'Wiederherstellen',
+  'Updates the tasks contained in the file. Nothing is deleted.':
+    'Aktualisiert die im Datei enthaltenen Aufgaben. Es wird nichts geloescht.',
+  '{count} tasks in the file. Those already here will be updated, the rest added. Nothing will be deleted.':
+    '{count} Aufgaben in der Datei. Bereits vorhandene werden aktualisiert, die uebrigen hinzugefuegt. Es wird nichts geloescht.',
+  'Confirm import':
+    'Import bestaetigen',
   'Restore from a previous backup file':
     'Aus einer früheren Sicherungsdatei wiederherstellen',
   'Restore system data from a previously exported backup file.':

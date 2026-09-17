@@ -173,6 +173,12 @@ export const PARTE_3: Record<string, string> = {
   'Reset to Default': 'Riporta al valore predefinito',
   'Reset to Defaults': 'Riporta ai valori predefiniti',
   'Restore': 'Ripristina',
+  'Updates the tasks contained in the file. Nothing is deleted.':
+    'Aggiorna le attivita\' contenute nel file. Non cancella nulla.',
+  '{count} tasks in the file. Those already here will be updated, the rest added. Nothing will be deleted.':
+    '{count} attivita\' nel file. Quelle gia\' presenti verranno aggiornate, le altre aggiunte. Niente verra\' cancellato.',
+  'Confirm import':
+    'Conferma l\'importazione',
   'Restore from a previous backup file': 'Ripristina da un file di backup',
   'Restore system data from a previously exported backup file.':
     'Ripristina i dati da un backup esportato in precedenza.',

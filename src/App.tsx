@@ -587,17 +587,47 @@ function App() {
     URL.revokeObjectURL(url);
   }, [tasks, employees, announcements]);
 
+  /**
+   * Importa un backup SENZA cancellare quello che nel file non c'e'.
+   *
+   * Prima era `setTasks(data.tasks)`, e sembrava un ripristino. Non lo era:
+   * `setTasks` calcola una differenza, e tutto cio' che non compariva nel file
+   * diventava un DELETE vero. Quindi importare un backup di due settimane fa
+   * CANCELLAVA ogni attivita' creata da allora — senza conferma, senza dire
+   * quante, e nel momento in cui lo si usa, che e' sempre un momento di
+   * panico.
+   *
+   * E la meta' costruttiva non funzionava nemmeno: il server rifiuta in
+   * creazione i commenti e le voci di cronologia non firmati da chi importa
+   * (`elencoFirmato` in api/_lib/nuovoTask.ts), e un backup vero contiene i
+   * commenti dei colleghi. Bilancio netto: le attivita' nuove cancellate,
+   * quelle vecchie non tornate.
+   *
+   * Ora e' una fusione per id: cio' che sta nel file aggiorna cio' che c'e',
+   * il resto resta dov'e'. Le attivita' del file che qui non esistono piu'
+   * vengono comunque tentate, e se il server le rifiuta l'errore lo si vede
+   * col nome dell'attivita' — meglio di un silenzio.
+   */
   const handleImportData = useCallback(async (dataStr: string) => {
     const data = JSON.parse(dataStr);
-    
-    if (data.tasks) {
-      setTasks(data.tasks);
+
+    const fondiPerId = <T extends { id: string }>(correnti: T[], dalFile: T[]): T[] => {
+      const daFile = new Map(dalFile.map((v) => [v.id, v]));
+      const uniti = correnti.map((v) => daFile.get(v.id) ?? v);
+      const giaCi = new Set(correnti.map((v) => v.id));
+      return [...uniti, ...dalFile.filter((v) => !giaCi.has(v.id))];
+    };
+
+    if (Array.isArray(data.tasks)) {
+      setTasks((correnti) => fondiPerId(correnti, data.tasks as Task[]));
     }
-    if (data.employees) {
-      setEmployees(data.employees);
+    if (Array.isArray(data.employees)) {
+      setEmployees((correnti) => fondiPerId(correnti ?? [], data.employees as Employee[]));
     }
-    if (data.announcements) {
-      setAnnouncements(data.announcements);
+    if (Array.isArray(data.announcements)) {
+      setAnnouncements((correnti) =>
+        fondiPerId(correnti ?? [], data.announcements as Announcement[])
+      );
     }
   }, [setTasks, setEmployees, setAnnouncements]);
 
