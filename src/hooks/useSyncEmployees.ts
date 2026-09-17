@@ -24,6 +24,8 @@ import { derogheDalProfilo, ruoloInterfaccia } from '@/lib/dipendenteCorrente';
 interface MemberRow {
   role: string;
   user_id: string;
+  /** Le deroghe di QUESTA organizzazione, non quelle globali di un tempo. */
+  custom_permissions: unknown;
   profiles: {
     id: string;
     email: string | null;
@@ -34,7 +36,6 @@ interface MemberRow {
     status: string | null;
     team_lead: boolean | null;
     joined_date: string | null;
-    custom_permissions: unknown;
   } | null;
 }
 
@@ -50,7 +51,7 @@ export function useSyncEmployees() {
       const { data, error } = await supabase
         .from('organization_members')
         .select(
-          'role, user_id, profiles(id, email, full_name, avatar_url, job_title, departments, status, team_lead, joined_date, custom_permissions)'
+          'role, user_id, custom_permissions, profiles(id, email, full_name, avatar_url, job_title, departments, status, team_lead, joined_date)'
         )
         .eq('organization_id', organization.id);
 
@@ -94,11 +95,15 @@ export function useSyncEmployees() {
             teamLead: p.team_lead ?? previous?.teamLead ?? false,
             joinedDate: p.joined_date ?? previous?.joinedDate ?? new Date().toISOString(),
             // SEMPRE dal database, mai dalla copia locale: app_state
-            // `employees` la riscrive chiunque, profiles.custom_permissions
-            // solo un amministratore dalla rotta dei membri (0018). Un
-            // valore assente sul database e' "nessuna deroga", anche se la
-            // copia locale ne portava una.
-            customPermissions: derogheDalProfilo(p.custom_permissions),
+            // `employees` la riscrive chiunque,
+            // organization_members.custom_permissions solo un amministratore
+            // dalla rotta dei membri (0027). Un valore assente sul database e'
+            // "nessuna deroga", anche se la copia locale ne portava una.
+            //
+            // E si legge dall'APPARTENENZA, non dal profilo: e' la riga di
+            // QUESTA organizzazione, quindi mostra le deroghe che valgono qui
+            // e non quelle concesse altrove (0028).
+            customPermissions: derogheDalProfilo(row.custom_permissions),
           };
 
           byId.set(p.id, fromDb);

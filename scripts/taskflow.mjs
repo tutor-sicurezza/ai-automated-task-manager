@@ -23,18 +23,25 @@
  * chiusa da qui sia indistinguibile da una chiusa dall'interfaccia.
  *
  * Uso:
+ *   node scripts/taskflow.mjs accedi          (una volta sola)
  *   node scripts/taskflow.mjs elenco
  *   node scripts/taskflow.mjs stato <id> <stato> [nota]
  *   node scripts/taskflow.mjs nota  <id> <testo>
+ *   node scripts/taskflow.mjs esci
  *
- * Credenziali: TASKFLOW_EMAIL e TASKFLOW_PASSWORD nell'ambiente, oppure in
- * `.env.local` accanto a quelle che gia' ci sono. Il token vive in memoria
- * per la durata del comando e non viene mai scritto su disco.
+ * L'accesso si fa una volta: `accedi` chiede email e password, e da li' in poi
+ * i comandi non chiedono piu' niente. Cio' che resta su disco e' il token di
+ * RINNOVO, in un file leggibile solo dal proprietario e fuori dal repository;
+ * il token di accesso, che dura un'ora, viene chiesto al momento e non viene
+ * mai scritto da nessuna parte. Per le esecuzioni automatiche restano
+ * TASKFLOW_EMAIL e TASKFLOW_PASSWORD nell'ambiente.
  */
 
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { resolve, dirname } from 'node:path';
+import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
 const RADICE = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -88,18 +95,125 @@ function configurazione() {
   const password = prendi('TASKFLOW_PASSWORD');
   const org = prendi('TASKFLOW_ORG');
 
-  const mancanti = [];
-  if (!url) mancanti.push('VITE_SUPABASE_URL');
-  if (!chiave) mancanti.push('VITE_SUPABASE_PUBLISHABLE_KEY');
-  if (!email) mancanti.push('TASKFLOW_EMAIL');
-  if (!password) mancanti.push('TASKFLOW_PASSWORD');
-  if (mancanti.length) {
-    throw new Error(
-      `Manca la configurazione: ${mancanti.join(', ')}.\n` +
-        "Mettila nell'ambiente oppure in .env.local."
+  /*
+    Email e password NON sono piu' obbligatorie.
+
+    Prima lo erano, e significava rimetterle nell'ambiente a ogni comando: la
+    strada piu' breve per trovarsele scritte in chiaro in uno script di comodo.
+    Ora il caso normale e' `accedi` una volta, e da li' in poi vale la sessione
+    salvata. Le credenziali nell'ambiente restano utili per due cose: il primo
+    accesso senza digitare, e le esecuzioni automatiche dove non c'e' nessuno a
+    rispondere a una domanda.
+
+    L'indirizzo del progetto e la chiave pubblica, invece, servono sempre: se
+    non sono nell'ambiente si prendono dalla sessione salvata, cosi' il comando
+    funziona anche da una cartella qualunque, fuori dal repository.
+  */
+  const salvata = leggiSessioneSalvata();
+  const urlFinale = url ?? salvata?.url;
+  const chiaveFinale = chiave ?? salvata?.chiave;
+
+  if (!urlFinale || !chiaveFinale) {
+    /*
+      Il messaggio mette per primo `accedi`, non le variabili d'ambiente.
+
+      Si arriva qui in due casi, e uno solo e' un problema di configurazione:
+      chi non ha mai fatto l'accesso, e chi lo ha appena chiuso con `esci`
+      trovandosi fuori dal repository. Per entrambi la cosa da fare e' la
+      stessa, ed e' una sola parola.
+    */
+    throw new ErroreUtente(
+      'Nessuna sessione, e non so a quale progetto collegarmi.\n' +
+        'Esegui "accedi" da dentro il repository, dove c\'e\' .env.local.\n' +
+        'Altrimenti metti VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY\n' +
+        "nell'ambiente."
     );
   }
-  return { url: url.replace(/\/+$/, ''), chiave, email, password, org };
+
+  return { url: urlFinale.replace(/\/+$/, ''), chiave: chiaveFinale, email, password, org };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Sessione salvata                                                           */
+/* -------------------------------------------------------------------------- */
+
+/*
+  Dove vive la sessione, e perche' non nel repository.
+
+  Sta nella cartella di configurazione dell'utente e non accanto al codice per
+  due motivi. Il primo e' che non puo' finire in un commit nemmeno per
+  distrazione. Il secondo e' che cosi' il comando funziona da qualunque
+  cartella, non solo da dentro il progetto.
+
+  Il file contiene il token di RINNOVO, non quello di accesso. E' una
+  differenza che conta: il token di accesso dura un'ora e non serve tenerlo, il
+  token di rinnovo e' invece una credenziale a lunga vita — chi legge quel file
+  puo' agire come te finche' non fai `esci`. Per questo la cartella nasce 700 e
+  il file 600, e per questo `esci` esiste.
+*/
+const CARTELLA_SESSIONE = resolve(
+  process.env.XDG_CONFIG_HOME || resolve(homedir(), '.config'),
+  'taskflow'
+);
+const FILE_SESSIONE = resolve(CARTELLA_SESSIONE, 'sessione.json');
+
+function leggiSessioneSalvata() {
+  try {
+    return JSON.parse(readFileSync(FILE_SESSIONE, 'utf8'));
+  } catch {
+    // File assente o illeggibile: si comporta come "nessuna sessione", che e'
+    // uno stato normale e non un errore.
+    return null;
+  }
+}
+
+function salvaSessione(dati) {
+  mkdirSync(CARTELLA_SESSIONE, { recursive: true, mode: 0o700 });
+  writeFileSync(FILE_SESSIONE, JSON.stringify(dati, null, 2) + '\n', { mode: 0o600 });
+  // Di nuovo, esplicitamente: `mode` in writeFileSync vale solo se il file
+  // viene creato ora. Se esisteva gia' con permessi larghi, resterebbe largo.
+  chmodSync(FILE_SESSIONE, 0o600);
+}
+
+function dimenticaSessione() {
+  try {
+    rmSync(FILE_SESSIONE);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Domande all'utente                                                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Chiede una riga, eventualmente senza mostrarla.
+ *
+ * `nascosto` serve per la password: senza, resterebbe scritta sullo schermo e
+ * nella finestra di chi passa. Il prompt viene stampato a mano PRIMA di aprire
+ * la lettura, e poi ogni eco viene soppressa — `_writeToOutput` e' interno a
+ * Node e non documentato, ma e' il modo con cui questo si fa da sempre, e qui
+ * l'alternativa sarebbe una dipendenza in piu' per quattro righe.
+ */
+function chiedi(domanda, { nascosto = false } = {}) {
+  if (!process.stdin.isTTY) {
+    throw new ErroreUtente(
+      'Serve un terminale per rispondere.\n' +
+        'Per le esecuzioni automatiche usa TASKFLOW_EMAIL e TASKFLOW_PASSWORD.'
+    );
+  }
+  return new Promise((risolvi) => {
+    process.stdout.write(domanda);
+    const lettore = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
+    if (nascosto) lettore._writeToOutput = () => {};
+    lettore.question('', (risposta) => {
+      lettore.close();
+      if (nascosto) process.stdout.write('\n');
+      risolvi(risposta.trim());
+    });
+  });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -141,17 +255,109 @@ async function chiamata(cfg, percorso, opzioni = {}) {
   return corpo;
 }
 
-async function accedi(cfg) {
-  const dati = await chiamata(cfg, '/auth/v1/token?grant_type=password', {
-    method: 'POST',
-    body: JSON.stringify({ email: cfg.email, password: cfg.password }),
-  });
+function daRisposta(dati) {
   if (!dati?.access_token) throw new ErroreUtente('Accesso non riuscito');
-  return { token: dati.access_token, utente: dati.user };
+  return { token: dati.access_token, rinnovo: dati.refresh_token, utente: dati.user };
+}
+
+async function accediConPassword(cfg, email, password) {
+  return daRisposta(
+    await chiamata(cfg, '/auth/v1/token?grant_type=password', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    })
+  );
+}
+
+async function accediConRinnovo(cfg, rinnovo) {
+  return daRisposta(
+    await chiamata(cfg, '/auth/v1/token?grant_type=refresh_token', {
+      method: 'POST',
+      body: JSON.stringify({ refresh_token: rinnovo }),
+    })
+  );
+}
+
+/**
+ * La sessione da usare per questo comando, nell'ordine in cui conviene.
+ *
+ * Prima la sessione salvata, che e' il caso normale dopo `accedi`. Poi le
+ * credenziali nell'ambiente, che servono a chi automatizza. Se non c'e' ne'
+ * l'una ne' le altre, si dice cosa fare invece di dare un errore di rete.
+ */
+async function apriSessione(cfg) {
+  const salvata = leggiSessioneSalvata();
+
+  if (salvata?.rinnovo) {
+    try {
+      const sessione = await accediConRinnovo(cfg, salvata.rinnovo);
+      /*
+        Supabase RUOTA il token di rinnovo a ogni uso: quello vecchio viene
+        speso. Se non si salva subito il nuovo, il comando dopo trova in mano
+        un token gia' consumato e sembra che la sessione sia scaduta da sola.
+      */
+      salvaSessione({ ...salvata, rinnovo: sessione.rinnovo });
+      return sessione;
+    } catch {
+      // Scaduta, revocata, o spesa da un altro comando in parallelo. Non e' un
+      // guasto: si ricade sulle credenziali, e se non ci sono si dice come
+      // rientrare, invece di ripetere il messaggio del server.
+      if (!(cfg.email && cfg.password)) {
+        throw new ErroreUtente(
+          'La sessione salvata non vale piu\'. Esegui di nuovo "accedi".'
+        );
+      }
+    }
+  }
+
+  if (cfg.email && cfg.password) {
+    return accediConPassword(cfg, cfg.email, cfg.password);
+  }
+
+  throw new ErroreUtente(
+    'Nessuna sessione.\nEsegui "node scripts/taskflow.mjs accedi" una volta sola.'
+  );
 }
 
 const rest = (cfg, sessione, percorso, opzioni = {}) =>
   chiamata(cfg, `/rest/v1${percorso}`, { ...opzioni, token: sessione.token });
+
+/**
+ * Scrive su un'attivita' e VERIFICA che abbia toccato una riga.
+ *
+ * Questa funzione esiste per un motivo solo, e vale la pena scriverlo per
+ * intero. Una scrittura che le regole del database non lasciano passare NON
+ * e' un errore: PostgREST non trova nessuna riga da aggiornare e risponde
+ * senza lamentarsi. Con `return=minimal` non torna nemmeno un corpo da
+ * guardare, quindi "rifiutata" e "riuscita" arrivano qui identiche.
+ *
+ * Il file dichiara in testa di subire le regole del database. Le subiva solo
+ * quando il database rispondeva con un errore: quando si limitava a non
+ * trovare la riga, il comando stampava "fatto" e — peggio — spediva le
+ * notifiche. Chi osservava quel lavoro riceveva "Mario ha messo lo stato su
+ * completed" per un cambio mai avvenuto.
+ *
+ * Con `return=representation` la riga aggiornata torna indietro, e un array
+ * vuoto e' la risposta a "mi hai lasciato scrivere?".
+ */
+async function scriviTask(cfg, sessione, task, modifiche) {
+  const righe = await rest(cfg, sessione, `/tasks?id=eq.${task.id}`, {
+    method: 'PATCH',
+    headers: { prefer: 'return=representation' },
+    body: JSON.stringify(modifiche),
+  });
+
+  if (!Array.isArray(righe) || righe.length === 0) {
+    throw new ErroreUtente(
+      `"${task.title}": il database non ha lasciato passare la modifica.\n` +
+        'Di solito significa che non sei ne\' l\'assegnatario ne\' chi l\'ha\n' +
+        'creata, e non sei un responsabile. Le regole sono le stesse\n' +
+        "dell'interfaccia."
+    );
+  }
+
+  return righe[0];
+}
 
 /* -------------------------------------------------------------------------- */
 /* Dati                                                                       */
@@ -195,8 +401,23 @@ async function organizzazione(cfg, sessione) {
 }
 
 const COLONNE =
-  'id,title,status,due_date,assignee_id,watchers,blocked_by,requires_approval,' +
+  'id,title,status,due_date,updated_at,assignee_id,watchers,blocked_by,requires_approval,' +
   'approved_by,approved_at,comments,activities';
+
+/**
+ * Chiuso DAVVERO, come lo intende il resto del prodotto.
+ *
+ * Completato non basta: se il lavoro richiede un visto e non ce l'ha, e'
+ * consegnato ma non concluso. E' la definizione di `eChiusoDavvero` in
+ * src/lib/approvazione.ts, ripetuta qui perche' questo file e' uno script a
+ * se' e non importa nulla dal resto del progetto. Se una delle due cambia,
+ * cambiano entrambe.
+ */
+function eChiusaDavvero(task) {
+  if (task.status !== 'completed') return false;
+  if (task.requires_approval !== true) return true;
+  return Boolean(task.approved_by && task.approved_at);
+}
 
 async function mieAttivita(cfg, sessione, org) {
   return rest(
@@ -226,7 +447,27 @@ async function trovaAttivita(cfg, sessione, org, pezzo) {
   );
   const candidate = tutte.filter((t) => t.id.toLowerCase().startsWith(cercato));
 
-  if (candidate.length === 0) throw new ErroreUtente(`Nessuna attivita' che inizi per "${pezzo}"`);
+  if (candidate.length === 0) {
+    /*
+      Prima si diceva "nessuna attivita'", e non era vero: la lettura sopra
+      esclude le archiviate, quindi un identificativo giusto di un lavoro
+      archiviato riceveva la stessa risposta di uno inventato. Chi lo cercava
+      pensava di aver sbagliato a copiare.
+    */
+    const archiviate = await rest(
+      cfg,
+      sessione,
+      `/tasks?organization_id=eq.${org.id}&archived_at=not.is.null&select=id,title`
+    );
+    const trovata = archiviate.find((t) => t.id.toLowerCase().startsWith(cercato));
+    if (trovata) {
+      throw new ErroreUtente(
+        `"${trovata.title}" e' archiviata: non si modifica da qui.\n` +
+          "Le attivita' archiviate si riaprono dall'interfaccia."
+      );
+    }
+    throw new ErroreUtente(`Nessuna attivita' che inizi per "${pezzo}"`);
+  }
   if (candidate.length > 1) {
     // L'identificativo INTERO, non il troncato che mostra `elenco`: qui sono
     // ambigui proprio perche' iniziano uguali, e stamparne dodici caratteri
@@ -287,12 +528,70 @@ const adesso = () => new Date().toISOString();
  */
 const bloccoMinuto = () => adesso().slice(0, 16);
 
-function identita(sessione) {
+/**
+ * Chi sono, come lo vede il resto del prodotto.
+ *
+ * `user_metadata` e' la copia scritta al momento della registrazione e non
+ * cambia piu': l'interfaccia legge `profiles.full_name`, che e' quello che si
+ * modifica dal pannello. Prendendo la prima, chi aveva cambiato nome si
+ * ritrovava i commenti scritti da terminale firmati col nome vecchio, accanto
+ * a quelli del browser firmati col nuovo.
+ *
+ * Il profilo puo' non rispondere (rete, permessi): in quel caso si ricade sui
+ * metadati, che e' peggio che giusto ma meglio che fermarsi.
+ */
+async function identita(cfg, sessione) {
   const meta = sessione.utente.user_metadata ?? {};
-  return {
+  const ripiego = {
     id: sessione.utente.id,
     nome: meta.full_name || sessione.utente.email || 'Utente',
     avatar: meta.avatar_url || '',
+  };
+
+  try {
+    const righe = await rest(
+      cfg,
+      sessione,
+      `/profiles?id=eq.${sessione.utente.id}&select=full_name,avatar_url`
+    );
+    const p = righe?.[0];
+    if (!p) return ripiego;
+    return {
+      id: sessione.utente.id,
+      nome: p.full_name || ripiego.nome,
+      avatar: p.avatar_url || ripiego.avatar,
+    };
+  } catch {
+    return ripiego;
+  }
+}
+
+/**
+ * Rilegge gli elenchi cumulativi un istante prima di riscriverli.
+ *
+ * `comments` e `activities` sono colonne jsonb che crescono, e questo comando
+ * le rimanda indietro INTERE. Fra la lettura iniziale e la scrittura passano
+ * l'accesso, la lettura dell'organizzazione e quella di tutte le attivita':
+ * secondi, non millisecondi. Un commento scritto dal browser in quella
+ * finestra spariva, e spariva anche dalla cronologia, quindi senza lasciare
+ * traccia da nessuna parte.
+ *
+ * Rileggere qui non chiude la finestra, la riduce a una manciata di
+ * millisecondi. Chiuderla del tutto vorrebbe dire una scrittura condizionata
+ * sul valore letto, e per due colonne jsonb non e' una cosa che PostgREST
+ * offra in modo pulito: questo e' il compromesso, ed e' scritto perche' chi
+ * legge sappia che c'e'.
+ */
+async function rileggiElenchi(cfg, sessione, task) {
+  const righe = await rest(
+    cfg,
+    sessione,
+    `/tasks?id=eq.${task.id}&select=comments,activities`
+  );
+  const fresca = righe?.[0] ?? {};
+  return {
+    commenti: Array.isArray(fresca.comments) ? fresca.comments : [],
+    cronologia: Array.isArray(fresca.activities) ? fresca.activities : [],
   };
 }
 
@@ -374,16 +673,40 @@ async function comandoElenco(cfg, sessione, org) {
     console.log('Nessuna attivita\' assegnata a te.');
     return;
   }
-  const aperte = mie.filter((t) => t.status !== 'completed');
-  const chiuse = mie.filter((t) => t.status === 'completed');
+  /*
+    "Aperte" comprende cio' che aspetta un visto.
+
+    Prima il taglio era `status !== 'completed'`, quindi un lavoro consegnato e
+    in attesa di approvazione spariva dalle aperte e compariva fra le chiuse.
+    Chi la mattina dopo eseguiva `elenco` per sapere cosa gli restava non lo
+    vedeva piu' e lo dimenticava — che e' il modo esatto in cui un flusso di
+    approvazione diventa un intralcio invece che un controllo.
+  */
+  const aperte = mie.filter((t) => !eChiusaDavvero(t));
+  const chiuse = mie
+    .filter(eChiusaDavvero)
+    // `mieAttivita` ordina per scadenza crescente, che per un elenco di cose
+    // CHIUSE e' l'ordine sbagliato: prendendone dieci si sarebbero prese le
+    // dieci con la scadenza piu' vecchia, cioe' le meno recenti possibili,
+    // sotto un titolo che dice "di recente".
+    .sort((a, b) => String(b.updated_at ?? '').localeCompare(String(a.updated_at ?? '')));
 
   console.log(`\nAperte (${aperte.length}):`);
   if (!aperte.length) console.log('  nessuna');
   for (const t of aperte) console.log(riga(t));
 
   if (chiuse.length) {
-    console.log(`\nChiuse di recente (${chiuse.length}):`);
-    for (const t of chiuse.slice(0, 10)) console.log(riga(t));
+    const MOSTRATE = 10;
+    const mostrate = chiuse.slice(0, MOSTRATE);
+    // Si dice quante se ne stanno vedendo, non solo quante ce ne sono: prima
+    // l'intestazione diceva "(47)" e sotto comparivano dieci righe, senza
+    // nessun accenno alle altre trentasette.
+    const intestazione =
+      chiuse.length > MOSTRATE
+        ? `Chiuse di recente (${mostrate.length} di ${chiuse.length}):`
+        : `Chiuse di recente (${chiuse.length}):`;
+    console.log(`\n${intestazione}`);
+    for (const t of mostrate) console.log(riga(t));
   }
   console.log('');
 }
@@ -391,15 +714,15 @@ async function comandoElenco(cfg, sessione, org) {
 async function comandoStato(cfg, sessione, org, [pezzo, statoGrezzo, nota]) {
   const task = await trovaAttivita(cfg, sessione, org, pezzo);
   const nuovo = statoCanonico(statoGrezzo);
-  const io = identita(sessione);
+  const io = await identita(cfg, sessione);
 
   if (task.status === nuovo && !nota) {
     console.log(`"${task.title}" e' gia' ${nuovo}. Niente da fare.`);
     return;
   }
 
-  const cronologia = Array.isArray(task.activities) ? [...task.activities] : [];
-  const commenti = Array.isArray(task.comments) ? [...task.comments] : [];
+  // Riletti adesso, non quelli di `trovaAttivita`: vedi `rileggiElenchi`.
+  const { commenti, cronologia } = await rileggiElenchi(cfg, sessione, task);
 
   if (task.status !== nuovo) {
     cronologia.push(
@@ -436,11 +759,9 @@ async function comandoStato(cfg, sessione, org, [pezzo, statoGrezzo, nota]) {
   if (task.status !== nuovo) modifiche.status = nuovo;
   if (nota) modifiche.comments = commenti;
 
-  await rest(cfg, sessione, `/tasks?id=eq.${task.id}`, {
-    method: 'PATCH',
-    headers: { prefer: 'return=minimal' },
-    body: JSON.stringify(modifiche),
-  });
+  // Le notifiche partono DOPO, e solo se la riga e' stata toccata davvero:
+  // e' l'ordine che conta, perche' una notifica non si ritira.
+  await scriviTask(cfg, sessione, task, modifiche);
 
   const osservatori = Array.isArray(task.watchers) ? task.watchers : [];
   const diventaChiusa = nuovo === 'completed' && task.status !== 'completed';
@@ -485,9 +806,10 @@ async function comandoNota(cfg, sessione, org, [pezzo, ...resto]) {
   if (!testo) throw new ErroreUtente('Scrivi il testo della nota');
 
   const task = await trovaAttivita(cfg, sessione, org, pezzo);
-  const io = identita(sessione);
+  const io = await identita(cfg, sessione);
 
-  const commenti = Array.isArray(task.comments) ? [...task.comments] : [];
+  // Riletti adesso, non quelli di `trovaAttivita`: vedi `rileggiElenchi`.
+  const { commenti, cronologia } = await rileggiElenchi(cfg, sessione, task);
   commenti.push({
     id: `com-${randomUUID()}`,
     taskId: task.id,
@@ -497,13 +819,12 @@ async function comandoNota(cfg, sessione, org, [pezzo, ...resto]) {
     content: testo,
     createdAt: adesso(),
   });
-  const cronologia = Array.isArray(task.activities) ? [...task.activities] : [];
   cronologia.push(voceCronologia(io, task, 'comment_added'));
 
-  await rest(cfg, sessione, `/tasks?id=eq.${task.id}`, {
-    method: 'PATCH',
-    headers: { prefer: 'return=minimal' },
-    body: JSON.stringify({ comments: commenti, activities: cronologia, updated_at: adesso() }),
+  await scriviTask(cfg, sessione, task, {
+    comments: commenti,
+    activities: cronologia,
+    updated_at: adesso(),
   });
 
   const destinatari = new Set([
@@ -521,8 +842,69 @@ async function comandoNota(cfg, sessione, org, [pezzo, ...resto]) {
   console.log(`Nota aggiunta a "${task.title}".`);
 }
 
+async function comandoAccedi(cfg) {
+  // Se le credenziali sono gia' nell'ambiente non si chiede niente: e' il caso
+  // di chi automatizza e fa `accedi` una volta per lasciare la sessione pronta.
+  const email = cfg.email || (await chiedi('Email: '));
+  const password = cfg.password || (await chiedi('Password (non si vede): ', { nascosto: true }));
+  if (!email || !password) throw new ErroreUtente('Servono email e password.');
+
+  const sessione = await accediConPassword(cfg, email, password);
+  if (!sessione.rinnovo) {
+    throw new ErroreUtente(
+      'Il server non ha dato un token di rinnovo: non posso ricordare la sessione.'
+    );
+  }
+
+  salvaSessione({
+    url: cfg.url,
+    chiave: cfg.chiave,
+    email: sessione.utente.email,
+    utente: sessione.utente.id,
+    rinnovo: sessione.rinnovo,
+  });
+
+  console.log(`\nAccesso riuscito come ${sessione.utente.email}.`);
+  console.log(`Sessione salvata in ${FILE_SESSIONE}, leggibile solo da te.`);
+  console.log('Da ora i comandi non chiedono piu\' niente. Per dimenticarla: "esci".\n');
+}
+
+/**
+ * Chiude la sessione, qui e sul server.
+ *
+ * Cancellare il file da solo non basterebbe: il token di rinnovo resterebbe
+ * valido per chiunque ne avesse fatto una copia. Si prova percio' a revocarlo
+ * davvero, e il file si cancella comunque — anche se la revoca fallisce, non
+ * lasciarne la copia in giro e' sempre meglio.
+ */
+async function comandoEsci() {
+  const salvata = leggiSessioneSalvata();
+  if (!salvata) {
+    console.log('Non c\'era nessuna sessione salvata.');
+    return;
+  }
+
+  try {
+    const cfg = configurazione();
+    const sessione = await accediConRinnovo(cfg, salvata.rinnovo);
+    await chiamata(cfg, '/auth/v1/logout', { method: 'POST', token: sessione.token });
+    dimenticaSessione();
+    console.log('Sessione chiusa, qui e sul server.');
+  } catch {
+    dimenticaSessione();
+    console.log(
+      'Sessione dimenticata qui.\n' +
+        'Non sono riuscito a revocarla sul server: scadra\' da sola.'
+    );
+  }
+}
+
 const AIUTO = `
 TaskFlow da riga di comando.
+
+  node scripts/taskflow.mjs accedi
+      Chiede email e password una volta sola e ricorda la sessione.
+      Da li' in poi gli altri comandi non chiedono piu' niente.
 
   node scripts/taskflow.mjs elenco
       Le attivita' assegnate a te, con l'inizio dell'identificativo.
@@ -534,12 +916,18 @@ TaskFlow da riga di comando.
   node scripts/taskflow.mjs nota <id> "testo"
       Aggiunge solo un commento.
 
-L'<id> sono le prime lettere che mostra "elenco": bastano finche' individuano
-una sola attivita'.
+  node scripts/taskflow.mjs esci
+      Dimentica la sessione e la revoca sul server.
 
-Credenziali in TASKFLOW_EMAIL e TASKFLOW_PASSWORD, nell'ambiente o in
-.env.local. Le regole sono quelle del database: se un'attivita' e' bloccata da
-un'altra, chiuderla viene rifiutato qui come nell'interfaccia.
+L'<id> sono le prime lettere che mostra "elenco": bastano finche' individuano
+una sola attivita', altrimenti il comando si ferma invece di indovinare.
+
+Per le esecuzioni automatiche, dove non c'e' nessuno a rispondere, restano
+TASKFLOW_EMAIL e TASKFLOW_PASSWORD nell'ambiente. Con piu' organizzazioni si
+sceglie con TASKFLOW_ORG.
+
+Le regole sono quelle del database: se un'attivita' e' bloccata da un'altra,
+chiuderla viene rifiutato qui come nell'interfaccia.
 `;
 
 /* -------------------------------------------------------------------------- */
@@ -552,8 +940,15 @@ async function principale() {
     return;
   }
 
+  // `esci` non ha bisogno di sapere chi sei: e' il comando che serve proprio
+  // quando la sessione e' in uno stato che non si riesce piu' ad aprire.
+  if (comando === 'esci') return comandoEsci();
+
   const cfg = configurazione();
-  const sessione = await accedi(cfg);
+
+  if (comando === 'accedi') return comandoAccedi(cfg);
+
+  const sessione = await apriSessione(cfg);
   const org = await organizzazione(cfg, sessione);
 
   switch (comando) {

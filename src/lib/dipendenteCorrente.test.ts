@@ -20,7 +20,16 @@ const RIGA_AVVELENATA: Employee = {
   name: 'Dipendente',
   avatar: '',
   role: 'Collaudo',
-  userRole: 'member',
+  /*
+    `userRole: 'admin'` e non 'member', ed e' il punto.
+
+    La prima versione di questi test metteva qui 'member', cioe' la verita':
+    la riga "avvelenata" e il ruolo vero coincidevano, e quindi ogni caso
+    passava anche quando il codice ascoltava l'array invece del database.
+    Copriva il buco solo in apparenza. `admin` e' il valore che un dipendente
+    ci scriverebbe davvero, ed e' l'unico che rende visibile la differenza.
+  */
+  userRole: 'admin',
   status: 'active',
   joinedDate: '2026-09-14T00:00:00.000Z',
   customPermissions: { tasks: { view_all: true, edit_any: true } },
@@ -42,6 +51,7 @@ describe('dipendenteCorrente', () => {
       nome: 'Dipendente',
       avatar: '',
       profilo: PROFILO_SENZA_DEROGHE,
+      orgDeroghe: null,
       orgRole: 'member',
       employees: [RIGA_AVVELENATA],
     });
@@ -56,27 +66,79 @@ describe('dipendenteCorrente', () => {
     expect(canPerformAction(RIGA_AVVELENATA, 'tasks', 'edit_any')).toBe(true);
   });
 
-  it('il resto della riga in anagrafica continua a valere: si sostituiscono solo i permessi', () => {
+  it("dell'anagrafica resta l'anagrafica: ruolo e stato vengono dal database", () => {
     const io = dipendenteCorrente({
       userId: 'utente-1',
       nome: 'Nome dal profilo',
       avatar: '',
       profilo: PROFILO_SENZA_DEROGHE,
+      orgDeroghe: null,
       orgRole: 'member',
       employees: [{ ...RIGA_AVVELENATA, department: 'Cantiere', skills: ['ponteggi'] }],
     });
 
+    // Quello per cui l'array esiste passa.
     expect(io.department).toBe('Cantiere');
     expect(io.skills).toEqual(['ponteggi']);
+
+    // Quello che decide cosa si puo' fare, no.
     expect(io.customPermissions).toBeUndefined();
+    expect(io.userRole).toBe('member');
+    expect(io.status).toBe('active');
+    expect(io.teamLead).toBe(false);
   });
 
-  it('una deroga vera, scritta da un amministratore sul profilo, vale', () => {
+  it("il ruolo scritto nell'anagrafica non apre nessun pannello", () => {
+    /*
+      E' l'attacco per intero: il dipendente non tocca i permessi — quelli
+      ormai sono protetti — ma si scrive `userRole: 'admin'` nella propria
+      riga. Prima bastava a far comparire i comandi amministrativi finche' la
+      sincronizzazione non rimarginava l'array; e se la lettura dei membri
+      falliva, per tutta la sessione.
+    */
     const io = dipendenteCorrente({
       userId: 'utente-1',
       nome: 'Dipendente',
       avatar: '',
-      profilo: { ...PROFILO_SENZA_DEROGHE, custom_permissions: { tasks: { edit_any: true } } },
+      profilo: PROFILO_SENZA_DEROGHE,
+      orgDeroghe: null,
+      orgRole: 'member',
+      employees: [RIGA_AVVELENATA],
+    });
+
+    expect(io.userRole).toBe('member');
+    expect(canPerformAction(io, 'employees', 'manage_roles')).toBe(false);
+    expect(canPerformAction(io, 'employees', 'delete')).toBe(false);
+
+    // Che la riga avvelenata, da sola, otterrebbe davvero: senza questo
+    // controllo il test sopra passerebbe anche se non servisse a niente.
+    expect(canPerformAction(RIGA_AVVELENATA, 'employees', 'manage_roles')).toBe(true);
+  });
+
+  it("uno stato 'inactive' iniettato nell'anagrafica non vale: conta il profilo", () => {
+    const io = dipendenteCorrente({
+      userId: 'utente-1',
+      nome: 'Dipendente',
+      avatar: '',
+      profilo: PROFILO_SENZA_DEROGHE,
+      orgDeroghe: null,
+      orgRole: 'member',
+      employees: [{ ...RIGA_AVVELENATA, status: 'inactive', teamLead: true }],
+    });
+
+    expect(io.status).toBe('active');
+    expect(io.teamLead).toBe(false);
+  });
+
+  it("una deroga vera, scritta da un amministratore sull'appartenenza, vale", () => {
+    const io = dipendenteCorrente({
+      userId: 'utente-1',
+      nome: 'Dipendente',
+      avatar: '',
+      profilo: PROFILO_SENZA_DEROGHE,
+      // Dall'APPARTENENZA, non dal profilo: e' la riga di questa
+      // organizzazione, e una deroga concessa qui non deve valere altrove.
+      orgDeroghe: { tasks: { edit_any: true } },
       orgRole: 'member',
       employees: [{ ...RIGA_AVVELENATA, customPermissions: undefined }],
     });
@@ -96,6 +158,7 @@ describe('dipendenteCorrente', () => {
       avatar: 'avatar',
       emailAccesso: 'nuova@esempio.it',
       profilo: { ...PROFILO_SENZA_DEROGHE, job_title: 'Operaio', departments: ['Cantiere'] },
+      orgDeroghe: null,
       orgRole: 'manager',
       employees: [RIGA_AVVELENATA],
       creatoIl: '2026-01-01T00:00:00.000Z',
@@ -117,6 +180,7 @@ describe('dipendenteCorrente', () => {
       nome: 'Dipendente',
       avatar: '',
       profilo: null,
+      orgDeroghe: null,
       orgRole: 'member',
       employees: [RIGA_AVVELENATA],
     });

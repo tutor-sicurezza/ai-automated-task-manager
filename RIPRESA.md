@@ -168,16 +168,32 @@ Cosa è cambiato:
 fatto" senza aprire il browser.
 
 ```
+node scripts/taskflow.mjs accedi                                (una volta sola)
 node scripts/taskflow.mjs elenco
 node scripts/taskflow.mjs stato <id> completata "cosa ho fatto"
 node scripts/taskflow.mjs nota  <id> "testo"
+node scripts/taskflow.mjs esci
 ```
 
 L'`<id>` sono le prime lettere che mostra `elenco`: bastano finché individuano
 una sola attività, altrimenti il comando si ferma invece di indovinare.
-Credenziali in `TASKFLOW_EMAIL` e `TASKFLOW_PASSWORD`, nell'ambiente o in
-`.env.local`; con più organizzazioni si sceglie con `TASKFLOW_ORG`. Il token
-resta in memoria e non viene mai scritto su disco.
+
+**L'accesso si fa una volta.** `accedi` chiede email e password (la password
+non compare sullo schermo) e da lì in poi nessun comando chiede più niente.
+
+Cosa resta su disco, ed è la distinzione che conta: il token di **rinnovo**, in
+`~/.config/taskflow/sessione.json`, cartella `700` e file `600` — fuori dal
+repository, così non può finire in un commit nemmeno per distrazione, e così i
+comandi funzionano da qualunque cartella. Il token di **accesso**, che dura
+un'ora, viene chiesto al momento e non viene scritto da nessuna parte. Supabase
+ruota il token di rinnovo a ogni uso, quindi il file viene riscritto a ogni
+comando; `esci` lo revoca sul server e cancella il file (e cancella il file
+anche se la revoca fallisce — meglio non lasciarne una copia in giro).
+
+Per le esecuzioni automatiche, dove non c'è nessuno a rispondere a una domanda,
+restano `TASKFLOW_EMAIL` e `TASKFLOW_PASSWORD` nell'ambiente o in `.env.local`;
+con più organizzazioni si sceglie con `TASKFLOW_ORG`. Ora sono documentate in
+`.env.example`.
 
 **Non passa da una rotta in `api/`, ed è la decisione che conta.** Le rotte
 serverless girano con il service role: scavalcano le policy e per loro
@@ -186,6 +202,373 @@ dimenticanza sarebbe un buco. Il comando accede invece come l'utente e parla a
 PostgREST con il **suo** token: valgono le stesse policy e gli stessi trigger
 dell'interfaccia. Chi non può fare una cosa dal browser non la può fare
 nemmeno da qui, e non perché lo controlli lo script.
+
+## La tabella delle migrazioni ora corrisponde ai file (17 settembre 2026)
+
+`supabase_migrations.schema_migrations` registrava **otto** migrazioni mentre
+ne sono applicate **ventotto**, ed è il motivo per cui `supabase db push`
+rifiuta. Il difetto vero però non era il numero: era la **forma**. Le otto
+righe usavano le versioni a timestamp della CLI —
+`20260908082343_multitenant_schema` — mentre i file locali si chiamano
+`0001_multitenant_schema.sql`. Per la CLI erano migrazioni *diverse*, quindi
+le due cronologie non potevano coincidere in nessun caso.
+
+Ora le versioni corrispondono ai file, tutte e ventotto. Le otto originali
+erano, per il caso vada annotato:
+
+```
+20260908082343 multitenant_schema           → 0001
+20260908082452 fix_rls_recursion            → 0002
+20260908082608 restrict_helper_functions    → 0003
+20260908084522 extend_schema_for_app_state  → 0004
+20260908085239 owner_can_read_own_org       → 0005
+20260908123855 restrict_task_mutations      → 0006
+20260908171452 ai_usage_limits              → 0007
+20260908171441 role_write_separation        → 0008
+```
+
+(Le ultime due erano registrate in ordine inverso rispetto ai file. Non conta:
+sono entrambe applicate da settembre.)
+
+Fatto in un unico blocco atomico, e riletto dopo: 28 righe, esattamente i 28
+file. **Non verificato end-to-end**: `supabase db push` non è eseguibile in
+questo ambiente (la CLI non c'è). Quello che si può dire è che lo stato di
+prima rendeva impossibile l'allineamento, e questo lo rende possibile.
+
+## Rilievi minori, chiusi in blocco (17 settembre 2026)
+
+Ognuno piccolo, ognuno con una conseguenza concreta.
+
+**Ricorrenze: la guardia fermava l'occorrenza, non la serie.** Su una serie con
+storia non serviva a niente — l'occorrenza #5 in attesa di visto veniva
+saltata, la #4 già approvata entrava come "ultima chiusa", e la #6 veniva creata
+mentre la #5 aspettava ancora. Funzionava solo al primo giro.
+
+**`api/notifications` scriveva `task_id` invece di `task_ref`.** Esistono
+entrambe le colonne, ed è per questo che l'errore era invisibile: l'insert
+riusciva. Ma il client legge `task_ref`, quindi il collegamento all'attività non
+portava da nessuna parte.
+
+**`api/ai/complete` controllava l'appartenenza, non il ruolo.** Un `viewer` che
+chiamasse la rotta direttamente otteneva le risposte AI, facendole pagare
+all'organizzazione contro i tetti di spesa degli altri.
+
+**Il CSV delle analisi non neutralizzava le formule.** Usava `scappaHTML`, che
+in un CSV non c'entra niente e soprattutto non impedisce a un nome di reparto
+di essere letto come formula. Le virgolette non bastano: un foglio esegue
+`"=HYPERLINK(...)"` come `=HYPERLINK(...)`.
+
+**La riga di comando cancellava i commenti dei colleghi** — la stessa corsa
+chiusa in `useTasks`, e qui la finestra era di *secondi*. Ora si rileggono
+`comments` e `activities` un istante prima di riscriverli. Non chiude la
+finestra, la riduce a millisecondi: chiuderla del tutto vorrebbe dire una
+scrittura condizionata sul valore letto, che per due colonne jsonb PostgREST
+non offre in modo pulito.
+
+**E `elenco` mentiva in tre modi**: metteva fra le "chiuse" il lavoro in attesa
+di visto (che così spariva dalle aperte e si dimenticava), ordinava le "chiuse
+di recente" per scadenza crescente — cioè le *meno* recenti — e scriveva «(47)»
+sopra dieci righe senza accennare alle altre trentasette.
+
+**I promemoria: due letture con due tetti, non una con un tetto solo.** Le
+attività aperte e scadute da mesi non escono mai dall'insieme e si mangiavano il
+budget di 2000 righe, e in coda a quell'ordinamento c'era proprio il preavviso.
+Il primo a morire era `task_due_soon`, che fra i due è il più utile: avvisare
+prima serve, avvisare dopo constata.
+
+**Comporre un'email costava cinque letture, tre identiche per ogni destinatario
+della stessa azienda.** Cento email significavano trecento letture per ottenere
+tre risultati. Ora c'è una cache che dura quanto l'esecuzione — creata da chi
+chiama, non globale, così non esiste il caso del modello modificato che continua
+a valere perché l'istanza è rimasta calda.
+
+## Le attività archiviate non si scaricano più (17 settembre 2026)
+
+`useTasks` leggeva **tutta** la tabella `tasks` dell'organizzazione, archiviate
+comprese, con `comments` e `activities` dentro la riga. Il filtro sugli
+archiviati esisteva solo nel client (due `filter` su `archivedAt` in `App.tsx`),
+quindi **l'archiviazione automatica non alleggeriva niente**: il lavoro
+pianificato archiviava dopo trenta giorni e la scheda continuava a scaricare
+tutto, per sempre. E la lettura riparte a ogni `focus` della finestra: ogni
+alt-tab riscaricava l'archivio.
+
+Con commenti e cronologia nella riga, mille attività sono nell'ordine dei dieci
+megabyte. Un'azienda di venti persone che ne crea dieci al giorno ci arriva in
+cinque mesi — è il muro di scala più probabile per il cliente bersaglio, e lo si
+tocca entro il primo anno. C'era già un indice parziale apposta
+(`tasks_org_attivi_idx`) che questa query non usava.
+
+Perché non cambia nessun conto: un'attività archiviata è **sempre** chiusa
+davvero (`daArchiviare` richiede `eChiuso`), quindi come bloccante risulta
+"riferimento non trovato", che il client tratta come "non blocca" — la stessa
+conclusione di prima.
+
+L'unico posto che le voleva davvero è l'esportazione con ambito "tutti". Lì si
+caricano a richiesta (`caricaArchiviate()`), una volta sola, e il dialogo lo
+dice: conteggio provvisorio mentre arrivano, e **un messaggio esplicito se non
+arrivano**. Un'esportazione "completa" che manca di un pezzo in silenzio è
+peggio di un errore.
+
+> Il secondo problema di scala — gli allegati base64 rispediti a ogni modifica —
+> è già chiuso dal diff delle colonne: `attachments` entra nell'UPDATE solo se
+> è cambiato.
+
+## La disiscrizione non scrive più su GET (17 settembre 2026)
+
+`api/email/disiscrivi.ts` spegneva le email **prima** di distinguere GET da
+POST. Sembrava innocuo e non lo era: quel collegamento vive dentro un'email, e i
+sistemi di scansione dei link lo seguono da soli — Outlook ATP Safe Links, i
+gateway antispam aziendali, i prefetcher dei client. La persona veniva
+disiscritta **senza aver cliccato niente e senza nessun avviso**, e poi «non mi
+arrivano più le notifiche» diventava un problema che nessuno sapeva spiegare,
+perché nell'applicazione non c'è nulla che dica che qualcosa le ha spente.
+
+Ora la GET controlla il gettone e mostra una pagina con un pulsante. Il POST
+one-click di RFC 8058 — quello che manda Gmail quando si preme "Annulla
+iscrizione" nella posta — resta immediato, com'è giusto.
+
+Il modulo non ha `action`, quindi manda il POST allo stesso indirizzo, gettone
+compreso: il gettone non va riscritto dentro l'HTML e non c'è niente da
+ripulire. Un campo `conferma=web` distingue il pulsante dal client di posta, per
+rispondere con una pagina all'uno e con JSON all'altro.
+
+## Migrazione 0028: le deroghe valgono dove sono state date (17 settembre 2026)
+
+È il rovescio preciso di un lavoro fatto prima, e vale la pena raccontarlo per
+intero perché è il tipo di errore che si fa correggendo.
+
+Le deroghe stavano in `app_state.employees`: una chiave **per organizzazione**,
+ma riscrivibile da ogni membro col proprio token — chiunque si concedeva i
+permessi che voleva. Sono state spostate su `profiles.custom_permissions`, che
+nessuno può modificare per sé (trigger della 0018). Falla chiusa.
+
+Ma `profiles` ha **una riga per persona**, non una per organizzazione: le
+deroghe sono diventate **globali**. Mario è membro di Acme e di Beta;
+l'amministratrice di Acme gli concede `tasks.edit_any`; Mario passa su Beta e si
+ritrova i comandi di approvazione sul lavoro di colleghi che non hanno mai
+deciso niente in proposito. Una falla chiusa, un'altra aperta di forma diversa.
+
+La sede giusta non era nessuna delle due: è `organization_members`, che è già la
+riga che dice *"questa persona, in questa organizzazione, è questo"*. Per
+organizzazione come `app_state`, non scrivibile dall'interessato come
+`profiles`.
+
+Verificato sul database:
+
+```
+deroga nell'organizzazione dove è stata data: {"tasks": {"edit_any": true}}
+deroga nell'altra organizzazione ...........: nessuna
+1) membro si concede una deroga ....: 0 righe, valore ora: nessuna
+2) admin si concede una deroga .....: RIFIUTATO: Non si cambiano i propri permessi
+3) admin concede una deroga a un altro: 1 riga
+```
+
+Due difese distinte e volute: il **membro** non passa nemmeno dalla policy
+(`organization_members` è scrivibile solo dagli amministratori, 0027), e
+l'**amministratore** entra ma lo ferma il trigger — perché un amministratore è
+un membro come gli altri, e la sua riga è una riga come le altre.
+
+> Nota di metodo: la prima versione di questa prova diceva «PASSATO» per il
+> caso 1, perché guardavo solo l'eccezione. Un UPDATE filtrato da RLS **non
+> solleva niente**: tocca zero righe. È esattamente il difetto corretto poche
+> ore prima in `useTasks` e in `taskflow.mjs`, ripetuto da me nella sonda.
+
+`profiles.custom_permissions` **non viene cancellata**: i valori sono copiati,
+nessuno la legge più, e la colonna porta un commento che lo dice. Toglierla
+sarebbe irreversibile per guadagnare qualche byte.
+
+## I due "backup" (17 settembre 2026)
+
+Esistevano due percorsi con lo stesso nome e semantiche **opposte**: uno
+cancellava, l'altro non funzionava.
+
+### `DataManagement` — cancellava, senza dirlo
+
+`handleImportData` faceva `setTasks(data.tasks)`, e sembrava un ripristino. Non
+lo era: `setTasks` calcola una differenza, e tutto ciò che non compariva nel
+file diventava un **DELETE vero**. Importare un backup di due settimane fa
+cancellava ogni attività creata da allora — senza conferma (mentre "Clear All
+Data", che fa un danno minore, una conferma ce l'aveva), senza dire quante, e
+nel momento in cui lo si usa, che è sempre un momento di panico.
+
+E la metà costruttiva non funzionava nemmeno: il server rifiuta in creazione i
+commenti non firmati da chi importa (`elencoFirmato`), e un backup vero
+contiene i commenti dei colleghi. **Bilancio netto: le attività nuove
+cancellate, quelle vecchie non tornate.**
+
+Ora è una fusione per id — ciò che sta nel file aggiorna ciò che c'è, il resto
+resta dov'è — con una conferma che dice quante attività ci sono nel file e che
+niente verrà cancellato. Tre chiavi nuove, tradotte in tutte e cinque le
+lingue.
+
+### `SuperAdminSettings` — non poteva funzionare, e per tre motivi
+
+Provato sul database, con gli errori veri:
+
+1. **`attachments_count` è una colonna `generated always`** (0017). Il backup fa
+   `select('*')`, quindi se la porta dentro, e Postgres risponde
+   `cannot insert a non-DEFAULT value into column "attachments_count"`. Bastava
+   questo a far fallire l'intero blocco.
+2. Il trigger della **0023** rifiuta ogni riga nuova già approvata, quando chi
+   scrive è una persona. Un backup di chi usa le approvazioni ne contiene
+   sempre.
+3. Le policy della **0024** e della **0026** non lasciano nascere una riga
+   archiviata o figlia di una serie ricorrente.
+
+Nessuna delle tre va allentata: descrivono ciò che una *persona* non può
+fabbricarsi a mano. Un ripristino non è quello. Ora passa da
+`POST /api/tenants/<id>/restore`, col service role, a blocchi di 25 — verificato
+che una riga approvata+archiviata+figlia di serie passa, e che l'invariante
+della 0026 **continua a mordere anche lì**: un backup che dice "completata"
+mentre ciò che la bloccava risulta aperto viene rifiutato, col nome
+dell'attività.
+
+E i task si ripristinano **per primi**. Non ci sono transazioni fra chiamate:
+facendoli per ultimi, un guasto lasciava le impostazioni del backup sopra i
+task di prima — lo stato peggiore, perché è incoerente e non se ne accorge
+nessuno. Per primi, un guasto lascia tutto com'era.
+
+## I quattro lavori pianificati che si spegnevano da soli (17 settembre 2026)
+
+`supabase-js` manda i `select` come GET con i filtri nella query string, e un
+`in (...)` non lo spezza da solo. Con 2000 uuid l'indirizzo supera i 70 kB e il
+gateway rifiuta la richiesta molto prima.
+
+Il guasto non è un errore isolato, ed è questo il punto: **la rotta risponde 500
+e non fa niente.** In `pulizia` l'arretrato non si riduce, quindi la stessa
+richiesta troppo lunga si ripresenta la notte dopo, e quella dopo, per sempre.
+In `promemoria` bastano un paio di centinaia di attività aperte e scadute perché
+non parta più nessun promemoria, a nessuno. E si vede solo in produzione: a
+regime i numeri sono piccoli e tutto passa.
+
+La precauzione **esisteva già** in `manutenzione.ts`, per l'UPDATE di
+archiviazione, con il commento giusto accanto (`BLOCCO_ARCHIVIAZIONE = 100`).
+Era applicata in un punto su cinque. Ora sta in `api/_lib/aBlocchi.ts` — un
+numero solo, 7 test — ed è usata nei quattro punti che mancavano:
+
+| File | Cosa |
+| --- | --- |
+| `cron/pulizia.ts` | `delete .in('id', …)`, fino a 5000 |
+| `cron/promemoria.ts` | `select .in('task_id', …)`, fino a 2000 |
+| `cron/manutenzione.ts` | `select .in('task_id', …)`, fino a 2000 |
+| `cron/ricorrenze.ts` | due `select .in(…)`, fino a 2000 |
+
+In `pulizia` si conta anche quanto è stato cancellato **davvero**: se un blocco
+fallisce, i precedenti restano lavoro fatto, e l'arretrato cala di cento righe
+per volta invece di non calare mai.
+
+## `members.ts`: due falle nella stessa rotta (17 settembre 2026)
+
+**1. Scalata fra organizzazioni via reimpostazione password.** Il controllo
+guardava il ruolo del bersaglio **solo dentro questo tenant**. Bob è
+proprietario di "Beta" e semplice membro di "Acme"; Carla, amministratrice di
+Acme, gli reimposta la password, la legge in chiaro nella risposta, entra come
+Bob e si ritrova proprietaria di Beta. Il ruolo letto diceva `member` e i due
+controlli passavano entrambi.
+
+Ora la reimpostazione è rifiutata se il bersaglio appartiene a **qualunque**
+altra organizzazione. Non basta escludere i ruoli privilegiati altrove: entrare
+come semplice membro di un'altra organizzazione ne apre comunque i dati.
+Un'identità che vale in più posti non è amministrabile da uno solo di quei
+posti — chi è in quella condizione recupera la password da sé, per email.
+
+**2. La scrittura veniva prima del controllo.** Mandando
+`{email: <proprietario>, status: "inactive"}` si riceveva
+`403 Solo il proprietario puo modificare il proprio ruolo`, e intanto il
+proprietario era già disattivato e le sue deroghe cancellate. Il controllo
+proteggeva davvero solo la riga in `organization_members`.
+
+Ora l'ordine è: controllo → appartenenza → profilo. L'aggiornamento del profilo
+sta **dopo** l'upsert dell'appartenenza, non solo dopo il controllo: `profiles`
+non ha una colonna per organizzazione, quindi `status`, `team_lead` e
+`custom_permissions` valgono ovunque quella persona sia, e scriverli prima di
+sapere se è gente nostra permetteva all'amministratore di Acme — indovinando un
+indirizzo email — di disattivare un dipendente di Beta.
+
+> Che quelle tre colonne siano **globali** resta un difetto di forma, non
+> chiuso: una deroga concessa in Acme vale anche in Beta. La sede giusta è
+> `organization_members.custom_permissions`. È il rovescio del lavoro fatto
+> spostandole da `app_state` (per-organizzazione ma scrivibile da chiunque) a
+> `profiles` (protetto ma globale): ha chiuso una falla e ne ha aperta una di
+> forma diversa.
+
+## La scrittura di un task non è più a riga intera (17 settembre 2026)
+
+`useTasks` mandava in UPDATE **tutte** le colonne, con i valori che il browser
+aveva in memoria. Sembrava innocuo: erano i valori giusti. Il punto è che erano
+i valori giusti *per lui*.
+
+Due persone sulla stessa attività, o una sola con una scheda rimasta aperta
+mentre la rete cadeva, e il commento scritto da un collega nel frattempo veniva
+riscritto via — senza errori, e la rilettura confermava che sul database non
+c'era più. Il caso peggiore non erano i commenti: se la copia locale era
+antecedente a un'approvazione, partivano `approved_by: null` e
+`approved_at: null`, e **nessun trigger li ferma** (la 0023 non controlla un
+visto che viene *tolto*, perché riaprire è legittimo; la 0026 azzera solo se
+cambia lo stato). Bastava correggere un titolo: la cronologia diceva
+"approvato" e la riga non aveva più un approvatore.
+
+Due difese, in `src/lib/scritturaTask.ts` (modulo nuovo, logica pura, 10 test):
+
+1. **`taskToRow(task, precedente)`** mette nell'UPDATE solo le colonne il cui
+   valore è davvero cambiato. È la stessa garanzia che già valeva per
+   `attachments`, estesa a tutte: non sta in un controllo, sta nel fatto che la
+   colonna non entra nella query.
+2. **`fondiPerId`** per `comments` e `activities`, che sono cumulative e quindi
+   non bastava non toccarle: chi *aggiunge* un commento manda comunque l'array
+   intero. Quando cambiano si rilegge la colonna e ci si riapplica sopra la
+   differenza — aggiunto, modificato, tolto. È quello che fa già `flushKey` in
+   `useKV`: la base è sempre lo stato del server, mai la copia locale. Se la
+   rilettura fallisce quelle due colonne non si scrivono, e lo si dice.
+
+Restano fuori `subtasks`, `labels` e `watchers`: la difesa 1 protegge chi non
+li tocca, la 2 non è stata estesa perché si modificano come insieme e non per
+accumulo. Se un giorno due persone li modificheranno insieme, la sede è la
+stessa.
+
+## Migrazioni 0026 e 0027 (17 settembre 2026)
+
+Nate da un audit in quattro parti. Ogni buco è stato **prima riprodotto** sul
+database di produzione dentro un blocco che si annulla da solo, poi chiuso, poi
+riprovato con la stessa sonda. Sei su sei erano reali; uno stampava in chiaro il
+titolo di un'attività di un'altra organizzazione.
+
+### 0026 — confini di creazione e dipendenze
+
+1. **La sottoquery della 0025 non si fermava al confine dell'organizzazione.**
+   Il trigger è `security definer`, quindi vedeva *tutti* i task del progetto,
+   mentre il client considera "riferimento rotto, non blocca" qualunque id non
+   suo. Chi conosceva un uuid altrui se lo metteva fra i propri `blocked_by`
+   (nessuno valida quella colonna in UPDATE) e si portava a casa il messaggio
+   `Prima vanno chiuse: <titolo altrui>`. Oracolo ripetibile. Chiuso con
+   `and b.organization_id = new.organization_id`.
+2. **La regola dei bloccanti valeva solo in UPDATE.** Il trigger passa a
+   `before insert or update`: si poteva nascere già `completed` con dipendenze
+   aperte.
+3. **La 0024 non guardava `recurrence_parent` né `archived_at`.** Un membro si
+   dichiarava figlio di una serie ricorrente e il cron, trovando una "figlia
+   aperta", **smetteva di rigenerare quel controllo periodico** — rispondendo
+   200, senza errori per nessuno.
+
+### 0027 — appartenenze e assegnazioni
+
+1. **Un `admin` poteva prendersi l'organizzazione.** `organization_members`
+   aveva una sola policy di scrittura (`for all` con `is_org_admin`) e nessun
+   trigger: bastava una PATCH per mettersi `owner`, degradare il proprietario o
+   cancellarlo. Ora tre policy separate più un trigger: nessuno cambia il
+   proprio ruolo, la proprietà la conferisce solo chi ce l'ha, un'appartenenza
+   non cambia persona né organizzazione. Nuova funzione `is_org_owner`.
+2. **Un'attività si assegnava a chiunque, anche fuori organizzazione** (e il
+   cron dei promemoria poi gli mandava l'email). Il confine sta in un trigger e
+   non in una `with check` perché deve scattare **solo quando l'assegnatario
+   cambia**: altrimenti un'attività il cui assegnatario ha lasciato l'azienda
+   diventerebbe immodificabile per sempre.
+3. **Un `viewer` assegnatario poteva scrivere:** la policy di update non
+   consultava mai `is_org_writer`. Ora sì.
+
+Applicate con `mcp__Supabase__execute_sql` (il binario `supabase` non c'è
+nell'ambiente remoto; il file resta la fonte di verità in
+`supabase/migrations/`).
 
 ### Migrazione 0025: due regole del cambio di stato scendono nel database
 
@@ -272,8 +655,26 @@ ma le chiavi VAPID le deve generare e configurare il proprietario.
 
 ### 8. Da fare a mano nella dashboard Vercel
 Controllare i **Cron Jobs**: sono cinque e uno è orario, che richiede il piano
-Pro. Aggiungere `CRON_SECRET` e `APP_URL` a `.env.example` (in produzione ci
-sono già, manca solo la riga di documentazione).
+Pro. (`CRON_SECRET` e `APP_URL` sono ora documentate in `.env.example`,
+insieme a `SENDGRID_API_KEY`, ai tetti AI e alle `TASKFLOW_*`.)
+
+**Due interruttori restano da toccare a mano**, e non c'è modo di farlo da
+qui — non esiste uno strumento per la configurazione auth, la CLI non è
+installata, e le chiavi `config.toml` corrispondenti non sono confermate dalla
+documentazione (scriverle alla cieca, in un file che dichiara di rappresentare
+lo stato *completo* di `[auth]`, è più rischioso che lasciarle stare):
+
+- **Protezione password compromesse** (confronto con HaveIBeenPwned),
+- **MFA / TOTP**, oggi con troppo pochi metodi attivi.
+
+Entrambi in Supabase → Authentication → Policies. Li segnala l'advisor di
+sicurezza del progetto.
+
+### I due domini di produzione sono lo stesso deploy
+`supabase/config.toml` ha `site_url = employee-task-m-last-dodalo.vercel.app`
+mentre qui sopra si legge `employee-task-m-last.vercel.app`. Verificato il 17
+settembre: **rispondono entrambi 200**, sono alias. I link di recupero password
+funzionano. Era un dubbio lasciato aperto dall'audit sulla documentazione.
 
 ## Cose che sembrano difetti e non lo sono
 
