@@ -203,6 +203,53 @@ PostgREST con il **suo** token: valgono le stesse policy e gli stessi trigger
 dell'interfaccia. Chi non può fare una cosa dal browser non la può fare
 nemmeno da qui, e non perché lo controlli lo script.
 
+## Rilievi minori, chiusi in blocco (17 settembre 2026)
+
+Ognuno piccolo, ognuno con una conseguenza concreta.
+
+**Ricorrenze: la guardia fermava l'occorrenza, non la serie.** Su una serie con
+storia non serviva a niente — l'occorrenza #5 in attesa di visto veniva
+saltata, la #4 già approvata entrava come "ultima chiusa", e la #6 veniva creata
+mentre la #5 aspettava ancora. Funzionava solo al primo giro.
+
+**`api/notifications` scriveva `task_id` invece di `task_ref`.** Esistono
+entrambe le colonne, ed è per questo che l'errore era invisibile: l'insert
+riusciva. Ma il client legge `task_ref`, quindi il collegamento all'attività non
+portava da nessuna parte.
+
+**`api/ai/complete` controllava l'appartenenza, non il ruolo.** Un `viewer` che
+chiamasse la rotta direttamente otteneva le risposte AI, facendole pagare
+all'organizzazione contro i tetti di spesa degli altri.
+
+**Il CSV delle analisi non neutralizzava le formule.** Usava `scappaHTML`, che
+in un CSV non c'entra niente e soprattutto non impedisce a un nome di reparto
+di essere letto come formula. Le virgolette non bastano: un foglio esegue
+`"=HYPERLINK(...)"` come `=HYPERLINK(...)`.
+
+**La riga di comando cancellava i commenti dei colleghi** — la stessa corsa
+chiusa in `useTasks`, e qui la finestra era di *secondi*. Ora si rileggono
+`comments` e `activities` un istante prima di riscriverli. Non chiude la
+finestra, la riduce a millisecondi: chiuderla del tutto vorrebbe dire una
+scrittura condizionata sul valore letto, che per due colonne jsonb PostgREST
+non offre in modo pulito.
+
+**E `elenco` mentiva in tre modi**: metteva fra le "chiuse" il lavoro in attesa
+di visto (che così spariva dalle aperte e si dimenticava), ordinava le "chiuse
+di recente" per scadenza crescente — cioè le *meno* recenti — e scriveva «(47)»
+sopra dieci righe senza accennare alle altre trentasette.
+
+**I promemoria: due letture con due tetti, non una con un tetto solo.** Le
+attività aperte e scadute da mesi non escono mai dall'insieme e si mangiavano il
+budget di 2000 righe, e in coda a quell'ordinamento c'era proprio il preavviso.
+Il primo a morire era `task_due_soon`, che fra i due è il più utile: avvisare
+prima serve, avvisare dopo constata.
+
+**Comporre un'email costava cinque letture, tre identiche per ogni destinatario
+della stessa azienda.** Cento email significavano trecento letture per ottenere
+tre risultati. Ora c'è una cache che dura quanto l'esecuzione — creata da chi
+chiama, non globale, così non esiste il caso del modello modificato che continua
+a valere perché l'istanza è rimasta calda.
+
 ## Le attività archiviate non si scaricano più (17 settembre 2026)
 
 `useTasks` leggeva **tutta** la tabella `tasks` dell'organizzazione, archiviate

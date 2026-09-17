@@ -2,7 +2,7 @@ export const runtime = 'edge';
 
 import { createSupabaseAdminClient, jsonResponse, withErrors } from '../_lib/supabase.js';
 import { getRequiredEnv } from '../_lib/env.js';
-import { componiPerDestinatario } from '../_lib/composizione.js';
+import { componiPerDestinatario, creaCacheOrganizzazione } from '../_lib/composizione.js';
 import { spedisci } from '../_lib/invio.js';
 import { costruisciTaskUrl } from '../_lib/promemoriaLogica.js';
 import {
@@ -253,6 +253,10 @@ export const fetch = withErrors(async (request: Request) => {
 
   const giaScalati = new Set((gia ?? []).map((r) => r.task_id as string));
 
+  // Le letture che dipendono solo dall'organizzazione si fanno una volta per
+  // esecuzione, non una per destinatario. Vedi `creaCacheOrganizzazione`.
+  const cacheOrg = creaCacheOrganizzazione();
+
   // I responsabili di tutte le organizzazioni coinvolte, in una sola lettura.
   const organizzazioni = Array.from(
     new Set(candidati.map((riga) => riga.organization_id as string))
@@ -382,6 +386,7 @@ export const fetch = withErrors(async (request: Request) => {
        */
       try {
         const composta = await componiPerDestinatario(admin, {
+          cache: cacheOrg,
           tenantId: riga.organization_id as string,
           destinatarioId,
           tipo: TIPO_NOTIFICA_ESCALATION,
