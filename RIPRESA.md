@@ -168,16 +168,32 @@ Cosa è cambiato:
 fatto" senza aprire il browser.
 
 ```
+node scripts/taskflow.mjs accedi                                (una volta sola)
 node scripts/taskflow.mjs elenco
 node scripts/taskflow.mjs stato <id> completata "cosa ho fatto"
 node scripts/taskflow.mjs nota  <id> "testo"
+node scripts/taskflow.mjs esci
 ```
 
 L'`<id>` sono le prime lettere che mostra `elenco`: bastano finché individuano
 una sola attività, altrimenti il comando si ferma invece di indovinare.
-Credenziali in `TASKFLOW_EMAIL` e `TASKFLOW_PASSWORD`, nell'ambiente o in
-`.env.local`; con più organizzazioni si sceglie con `TASKFLOW_ORG`. Il token
-resta in memoria e non viene mai scritto su disco.
+
+**L'accesso si fa una volta.** `accedi` chiede email e password (la password
+non compare sullo schermo) e da lì in poi nessun comando chiede più niente.
+
+Cosa resta su disco, ed è la distinzione che conta: il token di **rinnovo**, in
+`~/.config/taskflow/sessione.json`, cartella `700` e file `600` — fuori dal
+repository, così non può finire in un commit nemmeno per distrazione, e così i
+comandi funzionano da qualunque cartella. Il token di **accesso**, che dura
+un'ora, viene chiesto al momento e non viene scritto da nessuna parte. Supabase
+ruota il token di rinnovo a ogni uso, quindi il file viene riscritto a ogni
+comando; `esci` lo revoca sul server e cancella il file (e cancella il file
+anche se la revoca fallisce — meglio non lasciarne una copia in giro).
+
+Per le esecuzioni automatiche, dove non c'è nessuno a rispondere a una domanda,
+restano `TASKFLOW_EMAIL` e `TASKFLOW_PASSWORD` nell'ambiente o in `.env.local`;
+con più organizzazioni si sceglie con `TASKFLOW_ORG`. Ora sono documentate in
+`.env.example`.
 
 **Non passa da una rotta in `api/`, ed è la decisione che conta.** Le rotte
 serverless girano con il service role: scavalcano le policy e per loro
@@ -272,8 +288,8 @@ ma le chiavi VAPID le deve generare e configurare il proprietario.
 
 ### 8. Da fare a mano nella dashboard Vercel
 Controllare i **Cron Jobs**: sono cinque e uno è orario, che richiede il piano
-Pro. Aggiungere `CRON_SECRET` e `APP_URL` a `.env.example` (in produzione ci
-sono già, manca solo la riga di documentazione).
+Pro. (`CRON_SECRET` e `APP_URL` sono ora documentate in `.env.example`,
+insieme a `SENDGRID_API_KEY`, ai tetti AI e alle `TASKFLOW_*`.)
 
 ## Cose che sembrano difetti e non lo sono
 
