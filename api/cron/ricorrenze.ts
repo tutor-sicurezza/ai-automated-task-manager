@@ -7,6 +7,7 @@ import {
   prossimaOccorrenza,
   regolaValida,
 } from '../_lib/ricorrenza.js';
+import { perBlocchi } from '../_lib/aBlocchi.js';
 
 /**
  * Rinnovo dei task ricorrenti, da un lavoro pianificato.
@@ -170,25 +171,29 @@ export const fetch = withErrors(async (request: Request) => {
    * mentre una successiva e' gia' stata chiusa.
    */
   const [figlieAperte, capostipiteAperte] = await Promise.all([
-    admin
-      .from('tasks')
-      .select('recurrence_parent')
-      .in('recurrence_parent', idSerie)
-      .neq('status', STATO_COMPLETATO)
-      .is('archived_at', null),
-    admin
-      .from('tasks')
-      .select('id')
-      .in('id', idSerie)
-      .neq('status', STATO_COMPLETATO)
-      .is('archived_at', null),
+    perBlocchi<{ recurrence_parent: string | null }>(idSerie, (blocco) =>
+      admin
+        .from('tasks')
+        .select('recurrence_parent')
+        .in('recurrence_parent', blocco)
+        .neq('status', STATO_COMPLETATO)
+        .is('archived_at', null)
+    ),
+    perBlocchi<{ id: string }>(idSerie, (blocco) =>
+      admin
+        .from('tasks')
+        .select('id')
+        .in('id', blocco)
+        .neq('status', STATO_COMPLETATO)
+        .is('archived_at', null)
+    ),
   ]);
 
   if (figlieAperte.error) {
-    return jsonResponse({ error: figlieAperte.error.message }, { status: 500 });
+    return jsonResponse({ error: figlieAperte.error }, { status: 500 });
   }
   if (capostipiteAperte.error) {
-    return jsonResponse({ error: capostipiteAperte.error.message }, { status: 500 });
+    return jsonResponse({ error: capostipiteAperte.error }, { status: 500 });
   }
 
   const conAperta = new Set<string>();

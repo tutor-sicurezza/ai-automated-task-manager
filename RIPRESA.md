@@ -203,6 +203,35 @@ PostgREST con il **suo** token: valgono le stesse policy e gli stessi trigger
 dell'interfaccia. Chi non può fare una cosa dal browser non la può fare
 nemmeno da qui, e non perché lo controlli lo script.
 
+## I quattro lavori pianificati che si spegnevano da soli (17 settembre 2026)
+
+`supabase-js` manda i `select` come GET con i filtri nella query string, e un
+`in (...)` non lo spezza da solo. Con 2000 uuid l'indirizzo supera i 70 kB e il
+gateway rifiuta la richiesta molto prima.
+
+Il guasto non è un errore isolato, ed è questo il punto: **la rotta risponde 500
+e non fa niente.** In `pulizia` l'arretrato non si riduce, quindi la stessa
+richiesta troppo lunga si ripresenta la notte dopo, e quella dopo, per sempre.
+In `promemoria` bastano un paio di centinaia di attività aperte e scadute perché
+non parta più nessun promemoria, a nessuno. E si vede solo in produzione: a
+regime i numeri sono piccoli e tutto passa.
+
+La precauzione **esisteva già** in `manutenzione.ts`, per l'UPDATE di
+archiviazione, con il commento giusto accanto (`BLOCCO_ARCHIVIAZIONE = 100`).
+Era applicata in un punto su cinque. Ora sta in `api/_lib/aBlocchi.ts` — un
+numero solo, 7 test — ed è usata nei quattro punti che mancavano:
+
+| File | Cosa |
+| --- | --- |
+| `cron/pulizia.ts` | `delete .in('id', …)`, fino a 5000 |
+| `cron/promemoria.ts` | `select .in('task_id', …)`, fino a 2000 |
+| `cron/manutenzione.ts` | `select .in('task_id', …)`, fino a 2000 |
+| `cron/ricorrenze.ts` | due `select .in(…)`, fino a 2000 |
+
+In `pulizia` si conta anche quanto è stato cancellato **davvero**: se un blocco
+fallisce, i precedenti restano lavoro fatto, e l'arretrato cala di cento righe
+per volta invece di non calare mai.
+
 ## `members.ts`: due falle nella stessa rotta (17 settembre 2026)
 
 **1. Scalata fra organizzazioni via reimpostazione password.** Il controllo

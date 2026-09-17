@@ -14,6 +14,7 @@ import {
   type Conteggi,
   type Promemoria,
 } from '../_lib/promemoriaLogica.js';
+import { perBlocchi } from '../_lib/aBlocchi.js';
 
 /**
  * Promemoria di scadenza, spediti da un lavoro pianificato.
@@ -115,16 +116,14 @@ export const fetch = withErrors(async (request: Request) => {
    * alla volta: sono al piu' MAX_TASK_LETTI id, e una query per ciascuno
    * moltiplicherebbe per mille la durata dell'esecuzione.
    */
-  const { data: gia, error: erroreGia } = await admin
-    .from('email_promemoria_inviati')
-    .select('task_id, tipo')
-    .in(
-      'task_id',
-      candidati.map((voce) => voce.riga.id)
-    );
+  const { data: gia, error: erroreGia } = await perBlocchi<{ task_id: string; tipo: string }>(
+    candidati.map((voce) => voce.riga.id),
+    (blocco) =>
+      admin.from('email_promemoria_inviati').select('task_id, tipo').in('task_id', blocco)
+  );
 
   if (erroreGia) {
-    return jsonResponse({ error: erroreGia.message }, { status: 500 });
+    return jsonResponse({ error: erroreGia }, { status: 500 });
   }
 
   const giaAvvisati = new Set((gia ?? []).map((r) => `${r.task_id}:${r.tipo}`));

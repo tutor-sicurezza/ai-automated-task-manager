@@ -25,6 +25,7 @@ import {
   type ConteggiManutenzione,
   type TaskDaManutenere,
 } from '../_lib/manutenzioneTask.js';
+import { DIMENSIONE_BLOCCO, perBlocchi } from '../_lib/aBlocchi.js';
 
 /**
  * Manutenzione periodica dei task: archiviazione ed escalation.
@@ -56,8 +57,12 @@ import {
  * trova aprendo la posta, non a chi la riceve a meta' pomeriggio.
  */
 
-/** Quante righe per UPDATE. Un `in (...)` con 500 uuid supera i limiti di URL. */
-const BLOCCO_ARCHIVIAZIONE = 100;
+/**
+ * Quante righe per UPDATE. Un `in (...)` con 500 uuid supera i limiti di URL.
+ * Il numero sta in `api/_lib/aBlocchi.ts`, che e' anche dove vive la stessa
+ * precauzione per le letture e per le cancellazioni degli altri lavori.
+ */
+const BLOCCO_ARCHIVIAZIONE = DIMENSIONE_BLOCCO;
 
 export const fetch = withErrors(async (request: Request) => {
   /**
@@ -231,17 +236,18 @@ export const fetch = withErrors(async (request: Request) => {
    * convenzione. Letta in blocco e non un task alla volta, per lo stesso motivo
    * dei promemoria.
    */
-  const { data: gia, error: erroreGia } = await admin
-    .from('email_promemoria_inviati')
-    .select('task_id, tipo')
-    .eq('tipo', TIPO_ESCALATION)
-    .in(
-      'task_id',
-      candidati.map((riga) => riga.id as string)
-    );
+  const { data: gia, error: erroreGia } = await perBlocchi<{ task_id: string; tipo: string }>(
+    candidati.map((riga) => riga.id as string),
+    (blocco) =>
+      admin
+        .from('email_promemoria_inviati')
+        .select('task_id, tipo')
+        .eq('tipo', TIPO_ESCALATION)
+        .in('task_id', blocco)
+  );
 
   if (erroreGia) {
-    errori.push(`escalation/memoria: ${erroreGia.message}`);
+    errori.push(`escalation/memoria: ${erroreGia}`);
     return rispondi(conteggi, errori);
   }
 
