@@ -203,6 +203,51 @@ PostgREST con il **suo** token: valgono le stesse policy e gli stessi trigger
 dell'interfaccia. Chi non può fare una cosa dal browser non la può fare
 nemmeno da qui, e non perché lo controlli lo script.
 
+## Migrazione 0028: le deroghe valgono dove sono state date (17 settembre 2026)
+
+È il rovescio preciso di un lavoro fatto prima, e vale la pena raccontarlo per
+intero perché è il tipo di errore che si fa correggendo.
+
+Le deroghe stavano in `app_state.employees`: una chiave **per organizzazione**,
+ma riscrivibile da ogni membro col proprio token — chiunque si concedeva i
+permessi che voleva. Sono state spostate su `profiles.custom_permissions`, che
+nessuno può modificare per sé (trigger della 0018). Falla chiusa.
+
+Ma `profiles` ha **una riga per persona**, non una per organizzazione: le
+deroghe sono diventate **globali**. Mario è membro di Acme e di Beta;
+l'amministratrice di Acme gli concede `tasks.edit_any`; Mario passa su Beta e si
+ritrova i comandi di approvazione sul lavoro di colleghi che non hanno mai
+deciso niente in proposito. Una falla chiusa, un'altra aperta di forma diversa.
+
+La sede giusta non era nessuna delle due: è `organization_members`, che è già la
+riga che dice *"questa persona, in questa organizzazione, è questo"*. Per
+organizzazione come `app_state`, non scrivibile dall'interessato come
+`profiles`.
+
+Verificato sul database:
+
+```
+deroga nell'organizzazione dove è stata data: {"tasks": {"edit_any": true}}
+deroga nell'altra organizzazione ...........: nessuna
+1) membro si concede una deroga ....: 0 righe, valore ora: nessuna
+2) admin si concede una deroga .....: RIFIUTATO: Non si cambiano i propri permessi
+3) admin concede una deroga a un altro: 1 riga
+```
+
+Due difese distinte e volute: il **membro** non passa nemmeno dalla policy
+(`organization_members` è scrivibile solo dagli amministratori, 0027), e
+l'**amministratore** entra ma lo ferma il trigger — perché un amministratore è
+un membro come gli altri, e la sua riga è una riga come le altre.
+
+> Nota di metodo: la prima versione di questa prova diceva «PASSATO» per il
+> caso 1, perché guardavo solo l'eccezione. Un UPDATE filtrato da RLS **non
+> solleva niente**: tocca zero righe. È esattamente il difetto corretto poche
+> ore prima in `useTasks` e in `taskflow.mjs`, ripetuto da me nella sonda.
+
+`profiles.custom_permissions` **non viene cancellata**: i valori sono copiati,
+nessuno la legge più, e la colonna porta un commento che lo dice. Toglierla
+sarebbe irreversibile per guadagnare qualche byte.
+
 ## I due "backup" (17 settembre 2026)
 
 Esistevano due percorsi con lo stesso nome e semantiche **opposte**: uno

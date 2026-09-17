@@ -51,6 +51,7 @@ describe('dipendenteCorrente', () => {
       nome: 'Dipendente',
       avatar: '',
       profilo: PROFILO_SENZA_DEROGHE,
+      orgDeroghe: null,
       orgRole: 'member',
       employees: [RIGA_AVVELENATA],
     });
@@ -71,6 +72,7 @@ describe('dipendenteCorrente', () => {
       nome: 'Nome dal profilo',
       avatar: '',
       profilo: PROFILO_SENZA_DEROGHE,
+      orgDeroghe: null,
       orgRole: 'member',
       employees: [{ ...RIGA_AVVELENATA, department: 'Cantiere', skills: ['ponteggi'] }],
     });
@@ -99,6 +101,7 @@ describe('dipendenteCorrente', () => {
       nome: 'Dipendente',
       avatar: '',
       profilo: PROFILO_SENZA_DEROGHE,
+      orgDeroghe: null,
       orgRole: 'member',
       employees: [RIGA_AVVELENATA],
     });
@@ -118,6 +121,7 @@ describe('dipendenteCorrente', () => {
       nome: 'Dipendente',
       avatar: '',
       profilo: PROFILO_SENZA_DEROGHE,
+      orgDeroghe: null,
       orgRole: 'member',
       employees: [{ ...RIGA_AVVELENATA, status: 'inactive', teamLead: true }],
     });
@@ -126,12 +130,15 @@ describe('dipendenteCorrente', () => {
     expect(io.teamLead).toBe(false);
   });
 
-  it('una deroga vera, scritta da un amministratore sul profilo, vale', () => {
+  it("una deroga vera, scritta da un amministratore sull'appartenenza, vale", () => {
     const io = dipendenteCorrente({
       userId: 'utente-1',
       nome: 'Dipendente',
       avatar: '',
-      profilo: { ...PROFILO_SENZA_DEROGHE, custom_permissions: { tasks: { edit_any: true } } },
+      profilo: PROFILO_SENZA_DEROGHE,
+      // Dall'APPARTENENZA, non dal profilo: e' la riga di questa
+      // organizzazione, e una deroga concessa qui non deve valere altrove.
+      orgDeroghe: { tasks: { edit_any: true } },
       orgRole: 'member',
       employees: [{ ...RIGA_AVVELENATA, customPermissions: undefined }],
     });
@@ -151,6 +158,7 @@ describe('dipendenteCorrente', () => {
       avatar: 'avatar',
       emailAccesso: 'nuova@esempio.it',
       profilo: { ...PROFILO_SENZA_DEROGHE, job_title: 'Operaio', departments: ['Cantiere'] },
+      orgDeroghe: null,
       orgRole: 'manager',
       employees: [RIGA_AVVELENATA],
       creatoIl: '2026-01-01T00:00:00.000Z',
@@ -172,6 +180,7 @@ describe('dipendenteCorrente', () => {
       nome: 'Dipendente',
       avatar: '',
       profilo: null,
+      orgDeroghe: null,
       orgRole: 'member',
       employees: [RIGA_AVVELENATA],
     });

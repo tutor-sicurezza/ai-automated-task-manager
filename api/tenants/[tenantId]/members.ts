@@ -276,8 +276,20 @@ export const fetch = withErrors(async (request: Request) => {
       ...(teamLead !== null ? { team_lead: teamLead } : {}),
       ...(phone !== null ? { phone } : {}),
       ...(location !== null ? { location } : {}),
-      ...(customPermissions !== undefined ? { custom_permissions: customPermissions } : {}),
     };
+
+    /*
+      Le deroghe NON stanno fra i campi del profilo (0028).
+
+      `profiles` ha una riga per persona, non una per organizzazione: una
+      deroga scritta li' valeva ovunque quella persona fosse membro. Mario e'
+      in Acme e in Beta, l'amministratrice di Acme gli concede
+      `tasks.edit_any`, e Mario se lo ritrova anche in Beta, dove nessuno ha
+      deciso niente.
+
+      Ora vanno sulla riga di `organization_members`, che e' gia' quella che
+      dice "questa persona, in questa organizzazione, e' questo".
+    */
 
     /*
       Il controllo viene PRIMA di ogni scrittura, ed e' il punto.
@@ -368,6 +380,12 @@ export const fetch = withErrors(async (request: Request) => {
           organization_id: tenantId,
           user_id: memberId,
           role,
+          // Solo se il chiamante le ha davvero inviate: `undefined` lascia
+          // stare la colonna, `null` la azzera. E' la differenza fra "non ne
+          // parlo" e "toglile", e sono due gesti diversi.
+          ...(customPermissions !== undefined
+            ? { custom_permissions: customPermissions }
+            : {}),
         },
         {
           onConflict: 'organization_id,user_id',

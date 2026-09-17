@@ -224,7 +224,7 @@ const vistaIniziale: VistaPrincipale = (() => {
 })();
 
 function App() {
-  const { user, profile, orgRole, organization, signOut } = useAuth();
+  const { user, profile, orgRole, orgDeroghe, organization, signOut } = useAuth();
   const { t, lingua } = useTranslation();
   /**
    * I task arrivano dalla tabella public.tasks, una riga ciascuno.
@@ -393,10 +393,11 @@ function App() {
       emailAccesso: user.email,
       profilo: profile,
       orgRole,
+      orgDeroghe,
       employees,
       creatoIl: user.created_at,
     });
-  }, [user, profile, orgRole, employees, currentUser]);
+  }, [user, profile, orgRole, orgDeroghe, employees, currentUser]);
   /**
    * La vista di partenza, che le scorciatoie dell'applicazione installata
    * possono scegliere con `?vista=`.

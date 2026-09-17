@@ -62,10 +62,10 @@ interface UpsertMemberArgs {
   location?: string;
   /**
    * Deroghe ai permessi del ruolo. `null` le toglie; assente le lascia
-   * com'erano. Vivono su profiles.custom_permissions, che il trigger della
-   * 0018 rende non modificabile dal proprio profilo: e' la rotta, con il
-   * service role e dopo aver verificato che chi chiama e' amministratore,
-   * l'unica a poterle scrivere.
+   * com'erano. Vivono su organization_members.custom_permissions (0028),
+   * quindi valgono SOLO nell'organizzazione in cui sono state concesse: e' la
+   * rotta, con il service role e dopo aver verificato che chi chiama e'
+   * amministratore, l'unica a poterle scrivere.
    */
   customPermissions?: DeroghePermessi | null;
 }

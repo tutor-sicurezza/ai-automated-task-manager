@@ -12,9 +12,15 @@ import type { DeroghePermessi, Employee, UserRole } from '@/lib/types';
  * Un dipendente si concedeva `tasks.edit_any` da solo e l'interfaccia gli
  * credeva.
  *
- * Ora la fonte e' `profiles.custom_permissions`, che il trigger della
- * migrazione 0018 rende non modificabile dal proprio profilo e che scrive solo
- * la rotta dei membri, da amministratore.
+ * Ora la fonte e' `organization_members.custom_permissions`: la scrive solo la
+ * rotta dei membri, da amministratore, e il trigger della 0028 impedisce a
+ * chiunque di cambiare le PROPRIE.
+ *
+ * Il primo tentativo l'aveva messa su `profiles`, dove nessuno puo' toccare
+ * la propria — ma `profiles` ha una riga per persona, non una per
+ * organizzazione, quindi una deroga concessa in un'azienda seguiva la persona
+ * in tutte le altre. La 0028 l'ha spostata sull'appartenenza, che e' l'unica
+ * riga che sa dire "questa persona, QUI".
  */
 
 /** Il database ha un ruolo 'owner' in piu' rispetto al tipo UserRole della UI. */
@@ -51,7 +57,6 @@ export interface ProfiloPerDipendente {
   departments?: string[] | null;
   status?: 'active' | 'inactive' | null;
   team_lead?: boolean | null;
-  custom_permissions?: unknown;
 }
 
 export interface IngressoDipendenteCorrente {
@@ -63,6 +68,14 @@ export interface IngressoDipendenteCorrente {
   profilo: ProfiloPerDipendente | null | undefined;
   /** Il ruolo NELL'organizzazione corrente, letto da organization_members. */
   orgRole: string | null | undefined;
+  /**
+   * Le deroghe NELL'organizzazione corrente, dalla stessa riga del ruolo.
+   *
+   * Prima venivano da `profiles.custom_permissions`, che non sa distinguere
+   * le organizzazioni: una deroga concessa in un'azienda seguiva la persona
+   * in tutte le altre (0028).
+   */
+  orgDeroghe: unknown;
   /** L'anagrafica applicativa: comoda, ma non e' una fonte di autorizzazione. */
   employees: Employee[] | null | undefined;
   /** Data di creazione dell'account, per la voce "membro dal". */
@@ -76,17 +89,25 @@ export function dipendenteCorrente({
   emailAccesso,
   profilo,
   orgRole,
+  orgDeroghe,
   employees,
   creatoIl,
 }: IngressoDipendenteCorrente): Employee {
   /*
-    Le deroghe vengono SEMPRE dal profilo, mai dalla copia in `employees`.
+    Le deroghe vengono SEMPRE dall'appartenenza, mai dalla copia in
+    `employees`.
 
-    E' una sostituzione e non una fusione: se il profilo non ne ha, chi guarda
-    non ne ha, anche quando l'array ne porta. L'array arriva da una chiave che
-    ogni membro puo' riscrivere, quindi in fatto di permessi non ha voce.
+    E' una sostituzione e non una fusione: se l'appartenenza non ne ha, chi
+    guarda non ne ha, anche quando l'array ne porta. L'array arriva da una
+    chiave che ogni membro puo' riscrivere, quindi in fatto di permessi non ha
+    voce.
+
+    E vengono dall'APPARTENENZA e non dal profilo (0028): il profilo e' uno
+    solo per persona, quindi una deroga scritta li' valeva in ogni
+    organizzazione a cui quella persona appartiene — comprese quelle dove
+    nessuno gliel'aveva concessa.
   */
-  const deroghe = derogheDalProfilo(profilo?.custom_permissions);
+  const deroghe = derogheDalProfilo(orgDeroghe);
 
   const esistente = (employees || []).find((e) => e.id === userId);
   if (esistente) {
