@@ -203,6 +203,38 @@ PostgREST con il **suo** token: valgono le stesse policy e gli stessi trigger
 dell'interfaccia. Chi non può fare una cosa dal browser non la può fare
 nemmeno da qui, e non perché lo controlli lo script.
 
+## La tabella delle migrazioni ora corrisponde ai file (17 settembre 2026)
+
+`supabase_migrations.schema_migrations` registrava **otto** migrazioni mentre
+ne sono applicate **ventotto**, ed è il motivo per cui `supabase db push`
+rifiuta. Il difetto vero però non era il numero: era la **forma**. Le otto
+righe usavano le versioni a timestamp della CLI —
+`20260908082343_multitenant_schema` — mentre i file locali si chiamano
+`0001_multitenant_schema.sql`. Per la CLI erano migrazioni *diverse*, quindi
+le due cronologie non potevano coincidere in nessun caso.
+
+Ora le versioni corrispondono ai file, tutte e ventotto. Le otto originali
+erano, per il caso vada annotato:
+
+```
+20260908082343 multitenant_schema           → 0001
+20260908082452 fix_rls_recursion            → 0002
+20260908082608 restrict_helper_functions    → 0003
+20260908084522 extend_schema_for_app_state  → 0004
+20260908085239 owner_can_read_own_org       → 0005
+20260908123855 restrict_task_mutations      → 0006
+20260908171452 ai_usage_limits              → 0007
+20260908171441 role_write_separation        → 0008
+```
+
+(Le ultime due erano registrate in ordine inverso rispetto ai file. Non conta:
+sono entrambe applicate da settembre.)
+
+Fatto in un unico blocco atomico, e riletto dopo: 28 righe, esattamente i 28
+file. **Non verificato end-to-end**: `supabase db push` non è eseguibile in
+questo ambiente (la CLI non c'è). Quello che si può dire è che lo stato di
+prima rendeva impossibile l'allineamento, e questo lo rende possibile.
+
 ## Rilievi minori, chiusi in blocco (17 settembre 2026)
 
 Ognuno piccolo, ognuno con una conseguenza concreta.
@@ -625,6 +657,24 @@ ma le chiavi VAPID le deve generare e configurare il proprietario.
 Controllare i **Cron Jobs**: sono cinque e uno è orario, che richiede il piano
 Pro. (`CRON_SECRET` e `APP_URL` sono ora documentate in `.env.example`,
 insieme a `SENDGRID_API_KEY`, ai tetti AI e alle `TASKFLOW_*`.)
+
+**Due interruttori restano da toccare a mano**, e non c'è modo di farlo da
+qui — non esiste uno strumento per la configurazione auth, la CLI non è
+installata, e le chiavi `config.toml` corrispondenti non sono confermate dalla
+documentazione (scriverle alla cieca, in un file che dichiara di rappresentare
+lo stato *completo* di `[auth]`, è più rischioso che lasciarle stare):
+
+- **Protezione password compromesse** (confronto con HaveIBeenPwned),
+- **MFA / TOTP**, oggi con troppo pochi metodi attivi.
+
+Entrambi in Supabase → Authentication → Policies. Li segnala l'advisor di
+sicurezza del progetto.
+
+### I due domini di produzione sono lo stesso deploy
+`supabase/config.toml` ha `site_url = employee-task-m-last-dodalo.vercel.app`
+mentre qui sopra si legge `employee-task-m-last.vercel.app`. Verificato il 17
+settembre: **rispondono entrambi 200**, sono alias. I link di recupero password
+funzionano. Era un dubbio lasciato aperto dall'audit sulla documentazione.
 
 ## Cose che sembrano difetti e non lo sono
 
