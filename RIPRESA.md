@@ -327,6 +327,12 @@ verifica della 0026 e della 0027 **rieseguite dopo**.
   proprio più profili dei colleghi su `profiles`.
 - **`is_org_owner` eseguibile da `anon`**: per un anonimo `auth.uid()` è nullo,
   quindi risponde sempre falso. Come le altre `is_org_*`.
+- **`auth_db_connections_absolute`** (INFO, comparso il 17 settembre a sera): il
+  server di autenticazione usa un tetto fisso di 10 connessioni invece di una
+  quota percentuale. Conta **solo se si ingrandisce l'istanza**: con la
+  dimensione attuale non cambia nulla, e si tocca dalla console, non da qui.
+  Se un giorno si passa a un piano più grande, va cambiato o l'autenticazione
+  resterà ferma a dieci connessioni.
 
 ## L'accessibilità, quattro rilievi chiusi (17 settembre 2026)
 
@@ -389,10 +395,12 @@ leggere anche le righe vecchie del registro attività, scritte con lo spazio
 invece del trattino. Fonderle vorrebbe dire o perdere quelle righe o sporcare la
 scala con valori che nessuno può più assegnare.
 
-**Mancavano due traduzioni italiane.** `'Medium'` e `'Low'` non erano in
-`TESTI_IT` — c'erano in francese, tedesco e spagnolo. Senza, il badge tradotto
-avrebbe mostrato «Medium» in italiano: stesso risultato di prima, per un'altra
-strada. Aggiunte con lo script di unione, non a mano.
+**Ho creduto che mancassero due traduzioni italiane. Non mancavano.**
+`'Medium'` e `'Low'` c'erano già, in `traduzioni-3.ts` e `traduzioni-5.ts`.
+Le avevo cercate solo in `traduzioni.ts`, senza accorgermi che `TESTI_IT` unisce
+cinque oggetti da file diversi. Le due voci che avevo aggiunto erano doppioni ed
+sono stati tolti; il badge avrebbe detto «Media» e «Bassa» anche senza di me.
+Da questo abbaglio è nato `dizionari.test.ts` — vedi sotto.
 
 ### 4. Il calendario parlava inglese
 
@@ -463,10 +471,63 @@ letti dal browser.
 - **La striscia colorata a sinistra delle schede** (`borderColors`): è
   decorativa e ridondante rispetto alla targhetta, e cambiarla è una scelta
   estetica.
-- **1.359 chiavi mancanti in `TESTI_IT`.** L'italiano ha 203 voci contro le
-  1.562 delle altre tre lingue: tutto il resto ripiega sulla chiave, cioè
-  sull'inglese. È un buco vero e grosso, ma è preesistente e di tutt'altra
-  taglia rispetto a questi quattro rilievi. **Da affrontare a parte.**
+- **Il «buco nelle traduzioni italiane» — che non esiste.** L'ho annunciato
+  come il difetto più grosso rimasto, prima a 1.359 voci mancanti, poi 976, poi
+  51. **Erano zero.** Vedi «Le traduzioni erano già complete» più sotto: nessuna
+  delle tre misure era giusta, e nessuna era difficile da fare bene.
+
+## Le traduzioni erano già complete (17 settembre 2026)
+
+Avevo annunciato «il buco più grosso rimasto»: **1.359 chiavi mancanti in
+italiano**. Poi, misurando meglio, 976. Poi 51. La risposta vera è **zero**:
+ogni chiave che l'interfaccia chiede è nota a tutte e cinque le lingue.
+
+Tre misure, tutte sbagliate, tutte con lo stesso vizio — leggere i sorgenti
+con espressioni regolari invece di guardare gli oggetti:
+
+1. **1.359** — contavo solo le voci scritte in `traduzioni.ts`, senza
+   accorgermi che `TESTI_IT` unisce `PARTE_2`…`PARTE_5` da quattro file
+   separati. L'italiano ha 1.493 voci di dizionario, non 203.
+2. **976** — includevo le parti ma non le **chiavi semantiche** (`login.*`,
+   `org.*`, `password.*`), che in italiano stanno in `i18n.ts` e non nei
+   dizionari. È scritto in testa a `traduzioni.ts`; l'avevo letto e non
+   collegato.
+3. **51** — la regex riconosceva solo le chiavi fra apici singoli. Le dodici
+   che contengono un apostrofo (`"You're all caught up!"`) sono scritte fra
+   virgolette doppie, e risultavano assenti **in tutte le lingue** — cioè il
+   risultato era palesemente assurdo, e l'ho riportato lo stesso.
+
+Il conteggio giusto: italiano 1.558 chiavi, le altre tre 1.562, **1.198**
+chiamate davvero da `t()`, **zero** senza risposta. Le poche voci che in
+italiano ripiegano sulla chiave sono frasi **scritte in italiano** e usate come
+chiave: per l'italiano il ripiego dà già la risposta giusta, ed è per quelle
+che esiste `TESTI_EN_EXTRA`.
+
+### Cosa è cambiato in concreto
+
+**Quattro doppioni, tolti.** Due li avevo introdotti io quel pomeriggio
+(`'Medium'`, `'Low'`, già presenti in `traduzioni-3.ts` e `traduzioni-5.ts`);
+due erano lì da prima (`'Next'`, `'Save'`). Tutti con lo stesso valore, quindi
+invisibili a schermo — ma un doppione è un secondo posto in cui sbagliare, e
+nasconde la voce vera a chi cerca con un grep.
+
+**Il blocco letterale di `traduzioni.ts` ora si chiama `PARTE_GENERALE` ed è
+esportato.** Finché era anonimo dentro `TESTI_IT`, le sue chiavi sparivano
+nell'oggetto già unito e nessuno poteva accorgersi che ne ripeteva quattro.
+
+**`SEMANTICHE_IT` e `SEMANTICHE_EN` sono esportate da `i18n.ts`**, perché senza
+di loro qualunque confronto fra le lingue è incompleto e dà risultati falsi.
+
+**`src/lib/dizionari.test.ts`**, 13 controlli che importano gli **oggetti già
+costruiti dal compilatore** invece di rileggere i sorgenti: nessun doppione fra
+le parti, somma delle parti uguale a `TESTI_IT`, nessun valore vuoto, ogni
+lingua conosce ciò che conosce l'italiano e viceversa, e le tre lingue caricate
+a richiesta hanno lo stesso identico insieme di chiavi.
+
+Verificato per mutazione, perché tredici test verdi al primo colpo non
+dimostrano niente: rimettendo un doppione, togliendo una chiave dal francese e
+svuotando un valore, **5 test su 13 falliscono**. Gli altri restano verdi a
+ragione — sono invarianti che quelle tre mutazioni non violano.
 
 ## Gli advisor di sicurezza, letti fino in fondo — 0031 (17 settembre 2026)
 
