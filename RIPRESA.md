@@ -203,6 +203,25 @@ PostgREST con il **suo** token: valgono le stesse policy e gli stessi trigger
 dell'interfaccia. Chi non può fare una cosa dal browser non la può fare
 nemmeno da qui, e non perché lo controlli lo script.
 
+## La disiscrizione non scrive più su GET (17 settembre 2026)
+
+`api/email/disiscrivi.ts` spegneva le email **prima** di distinguere GET da
+POST. Sembrava innocuo e non lo era: quel collegamento vive dentro un'email, e i
+sistemi di scansione dei link lo seguono da soli — Outlook ATP Safe Links, i
+gateway antispam aziendali, i prefetcher dei client. La persona veniva
+disiscritta **senza aver cliccato niente e senza nessun avviso**, e poi «non mi
+arrivano più le notifiche» diventava un problema che nessuno sapeva spiegare,
+perché nell'applicazione non c'è nulla che dica che qualcosa le ha spente.
+
+Ora la GET controlla il gettone e mostra una pagina con un pulsante. Il POST
+one-click di RFC 8058 — quello che manda Gmail quando si preme "Annulla
+iscrizione" nella posta — resta immediato, com'è giusto.
+
+Il modulo non ha `action`, quindi manda il POST allo stesso indirizzo, gettone
+compreso: il gettone non va riscritto dentro l'HTML e non c'è niente da
+ripulire. Un campo `conferma=web` distingue il pulsante dal client di posta, per
+rispondere con una pagina all'uno e con JSON all'altro.
+
 ## Migrazione 0028: le deroghe valgono dove sono state date (17 settembre 2026)
 
 È il rovescio preciso di un lavoro fatto prima, e vale la pena raccontarlo per
