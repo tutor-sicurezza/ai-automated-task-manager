@@ -34,13 +34,29 @@ const PUBBLICO =
  *
  * - `supabase/config.toml` contiene project ref, dominio e mittente di questa
  *   installazione: nel pubblico c'e' `config.example.toml` con i segnaposto.
- * - `STATO.md` e `LAUNCH_FEEDBACK_GUIDE.md` documentano lo stato interno di
- *   questo progetto e non dicono nulla a chi installa il software.
+ * - `STATO.md`, `RIPRESA.md` e `LAUNCH_FEEDBACK_GUIDE.md` documentano lo stato
+ *   interno di questo progetto e non dicono nulla a chi installa il software.
  * - `scripts/sync-public.mjs` e' questo script: serve qui, non li'.
+ *
+ * `RIPRESA.md` e' stato aggiunto il 17 settembre 2026, dopo essere gia' uscito.
+ * Vale la pena dire perche', perche' la ragione non e' quella ovvia: il project
+ * ref che contiene NON e' un segreto — e' il sottodominio di
+ * `VITE_SUPABASE_URL`, quindi sta gia' nel bundle JavaScript del sito, e
+ * chiunque apra l'applicazione ce l'ha. Il problema e' un altro: quel file e'
+ * il quaderno di lavoro di QUESTA installazione, e ha una sezione intitolata
+ * "Aperto, in ordine di gravita'". Un elenco dei punti deboli ancora aperti,
+ * accanto all'indirizzo esatto a cui provarli, non e' documentazione di
+ * prodotto: e' una mappa. `STATO.md` era escluso esattamente per questo, e
+ * `RIPRESA.md` e' lo stesso tipo di documento.
+ *
+ * ATTENZIONE: questa riga impedisce le pubblicazioni FUTURE. Non toglie il file
+ * dalla cronologia del repository pubblico, dove e' gia' uscito. Per quello
+ * serve riscrivere quella cronologia, ed e' una decisione del proprietario.
  */
 const SOLO_PRIVATI = new Set([
   'supabase/config.toml',
   'STATO.md',
+  'RIPRESA.md',
   'LAUNCH_FEEDBACK_GUIDE.md',
   'scripts/sync-public.mjs',
 ]);
