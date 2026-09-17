@@ -195,10 +195,34 @@ export function useTasks() {
   const reload = useCallback(async () => {
     if (!organization?.id) return;
 
+    /*
+      Le archiviate NON si scaricano.
+
+      Il filtro esisteva solo nel client (`App.tsx`, due `filter` su
+      `archivedAt`), quindi l'archiviazione automatica non alleggeriva niente:
+      il lavoro pianificato archiviava dopo trenta giorni e la scheda
+      continuava a scaricare tutto, per sempre. E questa lettura riparte a ogni
+      `focus` della finestra, quindi ogni alt-tab riscaricava l'archivio.
+
+      Con commenti e cronologia dentro la riga, mille attivita' sono nell'ordine
+      dei dieci megabyte: un'azienda di venti persone che ne crea dieci al
+      giorno ci arriva in cinque mesi. E' il muro di scala piu' probabile per il
+      cliente bersaglio, e lo si tocca entro il primo anno.
+
+      C'e' gia' un indice parziale apposta (`tasks_org_attivi_idx`), che prima
+      questa query non usava.
+
+      Un'attivita' archiviata e' sempre chiusa davvero (`daArchiviare` lo
+      richiede), quindi non averla in memoria non cambia nessun conto: come
+      bloccante risulta "riferimento non trovato", che il client tratta come
+      "non blocca" — la stessa conclusione di prima. Chi le vuole tutte, per
+      esportarle, usa `caricaArchiviate()`.
+    */
     const { data, error } = await supabase
       .from('tasks')
       .select(COLONNE_LISTA)
       .eq('organization_id', organization.id)
+      .is('archived_at', null)
       .order('created_at', { ascending: true });
 
     if (error) {
@@ -648,5 +672,38 @@ export function useTasks() {
     [applica]
   );
 
-  return [tasks, setTasks, caricaAllegati, caricato, erroreLettura, reload] as const;
+  /**
+   * Le archiviate, a richiesta.
+   *
+   * Non stanno in memoria (vedi `reload`), ma servono a chi esporta "tutte":
+   * senza, l'esportazione completa avrebbe smesso di essere completa senza
+   * dirlo, che e' il modo peggiore di guadagnare velocita'.
+   */
+  const caricaArchiviate = useCallback(async (): Promise<Task[]> => {
+    if (!organization?.id) return [];
+
+    const { data, error } = await supabase
+      .from('tasks')
+      .select(COLONNE_LISTA)
+      .eq('organization_id', organization.id)
+      .not('archived_at', 'is', null)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('[useTasks] lettura archiviate fallita:', error.message);
+      throw new Error(error.message);
+    }
+
+    return (data ?? []).map((r) => rowToTask(r as unknown as TaskRow));
+  }, [organization?.id]);
+
+  return [
+    tasks,
+    setTasks,
+    caricaAllegati,
+    caricato,
+    erroreLettura,
+    reload,
+    caricaArchiviate,
+  ] as const;
 }

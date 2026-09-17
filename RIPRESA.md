@@ -203,6 +203,37 @@ PostgREST con il **suo** token: valgono le stesse policy e gli stessi trigger
 dell'interfaccia. Chi non può fare una cosa dal browser non la può fare
 nemmeno da qui, e non perché lo controlli lo script.
 
+## Le attività archiviate non si scaricano più (17 settembre 2026)
+
+`useTasks` leggeva **tutta** la tabella `tasks` dell'organizzazione, archiviate
+comprese, con `comments` e `activities` dentro la riga. Il filtro sugli
+archiviati esisteva solo nel client (due `filter` su `archivedAt` in `App.tsx`),
+quindi **l'archiviazione automatica non alleggeriva niente**: il lavoro
+pianificato archiviava dopo trenta giorni e la scheda continuava a scaricare
+tutto, per sempre. E la lettura riparte a ogni `focus` della finestra: ogni
+alt-tab riscaricava l'archivio.
+
+Con commenti e cronologia nella riga, mille attività sono nell'ordine dei dieci
+megabyte. Un'azienda di venti persone che ne crea dieci al giorno ci arriva in
+cinque mesi — è il muro di scala più probabile per il cliente bersaglio, e lo si
+tocca entro il primo anno. C'era già un indice parziale apposta
+(`tasks_org_attivi_idx`) che questa query non usava.
+
+Perché non cambia nessun conto: un'attività archiviata è **sempre** chiusa
+davvero (`daArchiviare` richiede `eChiuso`), quindi come bloccante risulta
+"riferimento non trovato", che il client tratta come "non blocca" — la stessa
+conclusione di prima.
+
+L'unico posto che le voleva davvero è l'esportazione con ambito "tutti". Lì si
+caricano a richiesta (`caricaArchiviate()`), una volta sola, e il dialogo lo
+dice: conteggio provvisorio mentre arrivano, e **un messaggio esplicito se non
+arrivano**. Un'esportazione "completa" che manca di un pezzo in silenzio è
+peggio di un errore.
+
+> Il secondo problema di scala — gli allegati base64 rispediti a ogni modifica —
+> è già chiuso dal diff delle colonne: `attachments` entra nell'UPDATE solo se
+> è cambiato.
+
 ## La disiscrizione non scrive più su GET (17 settembre 2026)
 
 `api/email/disiscrivi.ts` spegneva le email **prima** di distinguere GET da

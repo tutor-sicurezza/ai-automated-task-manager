@@ -179,6 +179,10 @@ export const PARTE_3: Record<string, string> = {
     '{count} attivita\' nel file. Quelle gia\' presenti verranno aggiornate, le altre aggiunte. Niente verra\' cancellato.',
   'Confirm import':
     'Conferma l\'importazione',
+  'Loading archived tasks...':
+    'Carico le attivita\' archiviate...',
+  'Archived tasks could not be loaded: they are missing from this export.':
+    'Non sono riuscito a leggere le attivita\' archiviate: mancano da questa esportazione.',
   'Restore from a previous backup file': 'Ripristina da un file di backup',
   'Restore system data from a previously exported backup file.':
     'Ripristina i dati da un backup esportato in precedenza.',

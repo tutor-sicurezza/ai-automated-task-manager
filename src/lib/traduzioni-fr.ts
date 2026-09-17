@@ -758,6 +758,10 @@ export const TESTI_FR: Record<string, string> = {
     '{count} taches dans le fichier. Celles deja presentes seront mises a jour, les autres ajoutees. Rien ne sera supprime.',
   'Confirm import':
     'Confirmer l\'import',
+  'Loading archived tasks...':
+    'Chargement des taches archivees...',
+  'Archived tasks could not be loaded: they are missing from this export.':
+    'Impossible de charger les taches archivees : elles manquent dans cet export.',
   'Restore from a previous backup file':
     "Restaurez à partir d'un fichier de sauvegarde",
   'Restore system data from a previously exported backup file.':

@@ -241,7 +241,8 @@ function App() {
    * ricarica significava scaricare decine di MB per mostrare dei titoli.
    * Si prendono quando si apre il dettaglio, cioe' quando servono davvero.
    */
-  const [tasks, setTasks, caricaAllegati, taskCaricati, erroreTask, ricaricaTask] = useTasks();
+  const [tasks, setTasks, caricaAllegati, taskCaricati, erroreTask, ricaricaTask, caricaArchiviate] =
+    useTasks();
   const [employees, setEmployees, , employeesCaricati] = useKV<Employee[]>('employees', []);
   /**
    * Il nome dell'applicazione era modificabile nelle impostazioni di sistema e
@@ -3022,6 +3023,7 @@ function App() {
       <EsportaTaskDialog
         tasks={filteredAndSortedTasks}
         tuttiITask={tasks || []}
+        caricaArchiviate={caricaArchiviate}
         employees={listaEmployees}
         open={esportaAperto}
         onOpenChange={setEsportaAperto}
