@@ -15,7 +15,7 @@ import { SelettoreOsservatori } from '@/components/SelettoreOsservatori';
 import { etichetteUsate } from '@/lib/etichette';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Separator } from '@/components/ui/separator';
-import { CalendarBlank } from '@phosphor-icons/react';
+import { CalendarBlank, Info } from '@phosphor-icons/react';
 import { useState, useMemo } from 'react';
 import { Employee, Sottoattivita, Task, TaskPriority, RegolaRicorrenza } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -128,35 +128,66 @@ export function CreateTaskDialog({ open, onOpenChange, employees, tasks = [], on
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-full sm:max-w-[550px] max-h-[90vh] overflow-y-auto sm:overflow-visible">
         <DialogHeader>
           <DialogTitle className="text-2xl">{t('Create New Task')}</DialogTitle>
           <DialogDescription>{t("Add a new task to your team's workflow. Fill in the details below.")}</DialogDescription>
         </DialogHeader>
         
         <div className="grid gap-4 py-4">
+          {/* SECTION 1: CORE FIELDS */}
           <div className="grid gap-2">
-            <Label htmlFor="title">{t('Task Title')} *</Label>
+            <div className="flex justify-between items-center">
+              <Label htmlFor="title">{t('Task Title')} *</Label>
+              <span className="text-xs text-muted-foreground">{title.length}/100</span>
+            </div>
             <Input
               id="title"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => setTitle(e.target.value.slice(0, 100))}
               placeholder={t('Enter task title...')}
+              maxLength={100}
             />
           </div>
-          
+
           <div className="grid gap-2">
-            <Label htmlFor="description">{t('Description')}</Label>
+            <div className="flex justify-between items-center">
+              <Label htmlFor="description">{t('Description')}</Label>
+              <span className="text-xs text-muted-foreground">{description.length}/500</span>
+            </div>
             <Textarea
               id="description"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => setDescription(e.target.value.slice(0, 500))}
               placeholder={t('Add task details...')}
               rows={3}
+              maxLength={500}
             />
           </div>
-          
-          <div className="grid grid-cols-2 gap-3">
+
+          <Separator className="my-2" />
+
+          {/* SECTION 2: ASSIGN & SCHEDULE (CRITICAL FIELDS) */}
+          <h3 className="text-sm font-semibold text-muted-foreground">{t('Assign & Schedule')}</h3>
+
+          <div className="grid gap-2">
+            <Label htmlFor="assignee">{t('Assign To')}</Label>
+            <Select value={assigneeId || 'unassigned'} onValueChange={(value) => setAssigneeId(value === 'unassigned' ? null : value)}>
+              <SelectTrigger id="assignee">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unassigned">{t('Unassigned')}</SelectItem>
+                {employees.map(employee => (
+                  <SelectItem key={employee.id} value={employee.id}>
+                    {employee.name} - {employee.role}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="grid gap-2">
               <Label htmlFor="priority">{t('Priority')}</Label>
               <Select value={priority} onValueChange={(value) => setPriority(value as TaskPriority)}>
@@ -170,7 +201,7 @@ export function CreateTaskDialog({ open, onOpenChange, employees, tasks = [], on
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div className="grid gap-2">
               <Label>{t('Due Date')}</Label>
               <Popover>
@@ -196,80 +227,100 @@ export function CreateTaskDialog({ open, onOpenChange, employees, tasks = [], on
                 </PopoverContent>
               </Popover>
             </div>
+          </div>
 
-            <SelettoreEtichette
-              value={etichette}
-              onChange={setEtichette}
-              esistenti={etichetteEsistenti}
-            />
+          <Separator className="my-2" />
 
-            <SelettoreOsservatori
-              value={osservatori}
-              onChange={setOsservatori}
-              employees={employees}
-              assigneeId={assigneeId}
-            />
+          {/* SECTION 3: ADVANCED OPTIONS */}
+          <h3 className="text-sm font-semibold text-muted-foreground">{t('Advanced Options')}</h3>
 
-            <SelettoreRicorrenza value={ricorrenza} onChange={setRicorrenza} />
-
-            {/*
-              I passi si scrivono QUI, mentre si pensa al lavoro: chi assegna
-              sa come si fa, chi lo riceve spesso no. Aggiungerli dopo e'
-              possibile, ma il momento in cui esistono davvero nella testa di
-              qualcuno e' questo.
-            */}
-            <ElencoSottoattivita value={passi} onChange={setPassi} />
-
-            <SelettoreDipendenze
-              value={dipendenze}
-              onChange={setDipendenze}
-              /*
-                Il task non esiste ancora e non ha un id: va bene, serve solo a
-                escludere se stesso e a cercare i cicli, e un task che non
-                esiste non puo' essere dentro il `blockedBy` di nessuno.
-              */
-              taskCorrente={{ id: '', blockedBy: dipendenze } as Task}
-              tuttiITask={tasks}
-              employees={employees}
-            />
-
-            {/*
-              La richiesta di approvazione si decide QUI e non dopo: e' una
-              condizione del lavoro, e chi lo riceve deve saperlo dal primo
-              momento, non scoprirlo quando prova a chiuderlo.
-            */}
-            <div className="flex items-start gap-3 rounded-lg border p-3">
-              <Switch
-                id="richiede-approvazione"
-                checked={richiedeApprovazione}
-                onCheckedChange={setRichiedeApprovazione}
-              />
-              <div className="grid gap-1">
-                <Label htmlFor="richiede-approvazione" className="cursor-pointer">
-                  {t('Require approval before this task can be closed')}
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  {t('When the assignee marks it done, a manager has to approve it.')}
-                </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid gap-2">
+              <div className="flex items-center gap-2">
+                <Label>{t('Labels')}</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button className="h-5 w-5 text-muted-foreground hover:text-foreground transition-colors">
+                      <Info size={16} />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-48 text-sm">
+                    <p>{t('Labels help organize tasks by category. All team members can see them.')}</p>
+                  </PopoverContent>
+                </Popover>
               </div>
+              <SelettoreEtichette
+                value={etichette}
+                onChange={setEtichette}
+                esistenti={etichetteEsistenti}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <div className="flex items-center gap-2">
+                <Label>{t('Watchers')}</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button className="h-5 w-5 text-muted-foreground hover:text-foreground transition-colors">
+                      <Info size={16} />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-48 text-sm">
+                    <p>{t('Watchers receive notifications when the task is updated.')}</p>
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <SelettoreOsservatori
+                value={osservatori}
+                onChange={setOsservatori}
+                employees={employees}
+                assigneeId={assigneeId}
+              />
             </div>
           </div>
-          
-          <div className="grid gap-2">
-            <Label htmlFor="assignee">{t('Assign To')}</Label>
-            <Select value={assigneeId || 'unassigned'} onValueChange={(value) => setAssigneeId(value === 'unassigned' ? null : value)}>
-              <SelectTrigger id="assignee">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="unassigned">{t('Unassigned')}</SelectItem>
-                {employees.map(employee => (
-                  <SelectItem key={employee.id} value={employee.id}>
-                    {employee.name} - {employee.role}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+
+          <SelettoreRicorrenza value={ricorrenza} onChange={setRicorrenza} />
+
+          {/*
+            I passi si scrivono QUI, mentre si pensa al lavoro: chi assegna
+            sa come si fa, chi lo riceve spesso no. Aggiungerli dopo e'
+            possibile, ma il momento in cui esistono davvero nella testa di
+            qualcuno e' questo.
+          */}
+          <ElencoSottoattivita value={passi} onChange={setPassi} />
+
+          <SelettoreDipendenze
+            value={dipendenze}
+            onChange={setDipendenze}
+            /*
+              Il task non esiste ancora e non ha un id: va bene, serve solo a
+              escludere se stesso e a cercare i cicli, e un task che non
+              esiste non puo' essere dentro il `blockedBy` di nessuno.
+            */
+            taskCorrente={{ id: '', blockedBy: dipendenze } as Task}
+            tuttiITask={tasks}
+            employees={employees}
+          />
+
+          {/*
+            La richiesta di approvazione si decide QUI e non dopo: e' una
+            condizione del lavoro, e chi lo riceve deve saperlo dal primo
+            momento, non scoprirlo quando prova a chiuderlo.
+          */}
+          <div className="flex items-start gap-3 rounded-lg border p-3 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800">
+            <Switch
+              id="richiede-approvazione"
+              checked={richiedeApprovazione}
+              onCheckedChange={setRichiedeApprovazione}
+            />
+            <div className="grid gap-1">
+              <Label htmlFor="richiede-approvazione" className="cursor-pointer">
+                {t('Require approval before this task can be closed')}
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                {t('When the assignee marks it done, a manager has to approve it.')}
+              </p>
+            </div>
           </div>
 
           <Separator className="my-2" />
@@ -285,8 +336,8 @@ export function CreateTaskDialog({ open, onOpenChange, employees, tasks = [], on
           />}
 
           {estimatedDuration && (
-            <div className="text-xs text-muted-foreground bg-purple-50 border border-purple-200 rounded-lg px-3 py-2">
-              💡 AI suggests this task will take approximately <span className="font-semibold text-purple-900">{estimatedDuration} day{estimatedDuration !== 1 ? 's' : ''}</span> to complete
+            <div className="text-xs text-muted-foreground bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg px-3 py-2">
+              💡 AI suggests this task will take approximately <span className="font-semibold text-purple-900 dark:text-purple-300">{estimatedDuration} day{estimatedDuration !== 1 ? 's' : ''}</span> to complete
             </div>
           )}
         </div>

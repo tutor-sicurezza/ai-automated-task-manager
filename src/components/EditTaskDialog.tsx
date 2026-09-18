@@ -182,7 +182,7 @@ export function EditTaskDialog({ open, onOpenChange, employees, tasks = [], task
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-full sm:max-w-[550px] max-h-[90vh] overflow-y-auto sm:overflow-visible">
         <DialogHeader>
           <DialogTitle className="text-2xl">{t('Edit Task')}</DialogTitle>
           <DialogDescription>{t('Update the task details below.')}</DialogDescription>
@@ -190,27 +190,35 @@ export function EditTaskDialog({ open, onOpenChange, employees, tasks = [], task
         
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
-            <Label htmlFor="edit-title">{t('Task Title')} *</Label>
+            <div className="flex justify-between items-center">
+              <Label htmlFor="edit-title">{t('Task Title')} *</Label>
+              <span className="text-xs text-muted-foreground">{title.length}/100</span>
+            </div>
             <Input
               id="edit-title"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => setTitle(e.target.value.slice(0, 100))}
               placeholder={t('Enter task title...')}
+              maxLength={100}
             />
           </div>
-          
+
           <div className="grid gap-2">
-            <Label htmlFor="edit-description">{t('Description')}</Label>
+            <div className="flex justify-between items-center">
+              <Label htmlFor="edit-description">{t('Description')}</Label>
+              <span className="text-xs text-muted-foreground">{description.length}/500</span>
+            </div>
             <Textarea
               id="edit-description"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => setDescription(e.target.value.slice(0, 500))}
               placeholder={t('Add task details...')}
               rows={3}
+              maxLength={500}
             />
           </div>
-          
-          <div className="grid grid-cols-2 gap-3">
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="grid gap-2">
               <Label htmlFor="edit-priority">{t('Priority')}</Label>
               <Select value={priority} onValueChange={(value) => setPriority(value as TaskPriority)}>
@@ -354,8 +362,8 @@ export function EditTaskDialog({ open, onOpenChange, employees, tasks = [], task
           />}
 
           {estimatedDuration && (
-            <div className="text-xs text-muted-foreground bg-purple-50 border border-purple-200 rounded-lg px-3 py-2">
-              💡 AI suggests this task will take approximately <span className="font-semibold text-purple-900">{estimatedDuration} day{estimatedDuration !== 1 ? 's' : ''}</span> to complete
+            <div className="text-xs text-muted-foreground bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg px-3 py-2">
+              💡 AI suggests this task will take approximately <span className="font-semibold text-purple-900 dark:text-purple-300">{estimatedDuration} day{estimatedDuration !== 1 ? 's' : ''}</span> to complete
             </div>
           )}
         </div>
