@@ -2741,7 +2741,6 @@ function App() {
                     notifications={myNotifications}
                     onNavigateToTasks={() => setViewMode('tasks')}
                     onCreateTask={() => setCreateDialogOpen(true)}
-                    onOpenAIAssistant={() => setAiAssistantOpen(true)}
                   />
                 ) : currentEmployee.userRole === 'manager' ? (
                   <DepartmentAdminDashboard
@@ -2756,7 +2755,6 @@ function App() {
                 ) : (
                   <UserDashboard
                     tasks={tasks || []}
-                    employees={employees || []}
                     currentEmployee={currentEmployee}
                     onNavigateToTasks={() => setViewMode('tasks')}
                     onViewTaskDetails={handleViewDetails}
