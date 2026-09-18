@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Employee, Task } from '@/lib/types';
-import { normalizeActionableSuggestions } from '@/components/AIAssistant';
+import { normalizeActionableSuggestions } from '@/lib/aiAssistantSuggestions';
 
 const tasks: Pick<Task, 'id'>[] = [{ id: 'task-1' }, { id: 'task-2' }];
 const employees: Pick<Employee, 'id' | 'status'>[] = [
