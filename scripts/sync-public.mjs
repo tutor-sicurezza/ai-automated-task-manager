@@ -52,12 +52,29 @@ const PUBBLICO =
  * ATTENZIONE: questa riga impedisce le pubblicazioni FUTURE. Non toglie il file
  * dalla cronologia del repository pubblico, dove e' gia' uscito. Per quello
  * serve riscrivere quella cronologia, ed e' una decisione del proprietario.
+ *
+ * `AUDIT_REPORT.md` e `ULTRA_HARD_AUDIT.md` sono stati aggiunti il 18 settembre
+ * 2026, PRIMA che uscissero: il repository pubblico era fermo al giorno prima,
+ * quindi qui non c'e' niente da rimpiangere.
+ *
+ * Non contengono segreti — controllati riga per riga: nessun project ref,
+ * nessun indirizzo, nessuna chiave; l'unica occorrenza di `CRON_SECRET` e' il
+ * nome della variabile. Restano fuori per la stessa ragione di `STATO.md`: sono
+ * inventari di punti deboli. Uno si intitola "Top 10 problems" e l'altro ha una
+ * "Priority improvement list". Un elenco ordinato di cosa in questo software e'
+ * fragile non e' documentazione di prodotto — e' il lavoro di ricognizione gia'
+ * fatto per chi volesse attaccarlo.
+ *
+ * Il codice che descrivono esce lo stesso, ed e' giusto cosi': chi legge il
+ * sorgente vede la struttura. Quello che non esce e' la mappa con le croci.
  */
 const SOLO_PRIVATI = new Set([
   'supabase/config.toml',
   'STATO.md',
   'RIPRESA.md',
   'LAUNCH_FEEDBACK_GUIDE.md',
+  'AUDIT_REPORT.md',
+  'ULTRA_HARD_AUDIT.md',
   'scripts/sync-public.mjs',
 ]);
 
