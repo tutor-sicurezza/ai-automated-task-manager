@@ -62,6 +62,66 @@ describe('normalizeActionableSuggestions', () => {
     ]);
   });
 
+  /*
+    I due casi qui sotto mancavano, e non e' un dettaglio: sono la garanzia
+    principale del normalizzatore.
+
+    Verificato per mutazione. Togliendo dal codice il controllo
+    `validTaskIds.has(action.taskId)` la suite passava lo stesso, perche' ogni
+    `taskId` nei test esisteva gia'. Cioe' il controllo che impedisce al modello
+    di far riassegnare o ripriorizzare un task che non c'e' — o che appartiene a
+    un'altra organizzazione, visto che `tasks` contiene solo i nostri — non era
+    coperto da nulla.
+  */
+  it('scarta un task che non esiste, anche se il resto e valido', () => {
+    const payload = {
+      suggestions: [
+        {
+          type: 'reassign',
+          title: 'Riassegna un fantasma',
+          description: 'Il task non esiste in questa organizzazione',
+          action: { taskId: 'task-inventato', newAssigneeId: 'emp-active' },
+        },
+        {
+          type: 'priority_change',
+          title: 'Alza la priorita di un fantasma',
+          description: 'Stesso problema',
+          action: { taskId: 'task-inventato', newPriority: 'high' },
+        },
+      ],
+    };
+
+    expect(normalizeActionableSuggestions(payload, tasks, employees)).toEqual([]);
+  });
+
+  it('azzera un assegnatario sconosciuto invece di crearci sopra un task', () => {
+    const payload = {
+      suggestions: [
+        {
+          type: 'create_task',
+          title: 'Nuovo task',
+          description: 'Con un assegnatario che non esiste',
+          action: {
+            taskData: {
+              title: 'Task',
+              description: 'Descrizione',
+              assigneeId: 'emp-inventato',
+              priority: 'low',
+              dueDate: null,
+            },
+          },
+        },
+      ],
+    };
+
+    const esito = normalizeActionableSuggestions(payload, tasks, employees);
+    // Il task si puo' creare — non assegnato. Tenere l'id inventato lo
+    // renderebbe invisibile a chiunque, assegnato a nessuno ma non "da
+    // assegnare".
+    expect(esito).toHaveLength(1);
+    expect(esito[0].action?.taskData?.assigneeId).toBeNull();
+  });
+
   it('normalizes create-task suggestions and drops incomplete ones', () => {
     const payload = {
       suggestions: [
