@@ -1,0 +1,555 @@
+export const runtime = 'edge';
+
+import { createSupabaseAdminClient, ensureTenantAdmin, ensureTenantMembership, getAuthenticatedUser, jsonResponse, withErrors } from '../../_lib/supabase.js';
+import { AVVISO_PROFILO_ALTROVE } from '../../_lib/scritturaProfilo.js';
+import {
+  normalizzaPermessiPersonalizzati,
+  type PermessiPersonalizzati,
+} from '../../_lib/permessiPersonalizzati.js';
+
+export const fetch = withErrors(async (request: Request) => {
+  const user = await getAuthenticatedUser(request);
+
+  // Il routing generato da Vercel riscrive questa rotta come
+  //   /api/tenants/[tenantId]/members?tenantId=$1
+  // quindi l'id arriva in query string. Il fallback legge il segmento di path
+  // nel caso la rotta venga invocata direttamente.
+  const url = new URL(request.url);
+  // Indicizzazione esplicita invece di .at(-2): Vercel compila le funzioni di
+  // api/ con il tsconfig.json di root, che ha target ES2020, dove
+  // Array.prototype.at non esiste. Il nostro tsconfig.api.json usa ES2022 e
+  // quindi non intercettava l'errore — il build passava in locale e falliva
+  // sulla piattaforma.
+  const segments = url.pathname.split('/').filter(Boolean);
+  const tenantId =
+    url.searchParams.get('tenantId') ??
+    (segments.length >= 2 ? segments[segments.length - 2] : '');
+
+  if (!tenantId) {
+    return jsonResponse({ error: 'tenantId mancante' }, { status: 400 });
+  }
+
+  const admin = createSupabaseAdminClient();
+
+  await ensureTenantMembership(user.id, tenantId);
+
+  if (request.method === 'GET') {
+    const { data, error } = await admin
+      .from('organization_members')
+      .select('id, role, created_at, users:profiles(id, full_name, avatar_url, email)')
+      .eq('organization_id', tenantId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      return jsonResponse({ error: error.message }, { status: 500 });
+    }
+
+    return jsonResponse({ members: data ?? [] });
+  }
+
+  if (request.method === 'POST') {
+    // Aggiungere membri o assegnare ruoli e' un'operazione amministrativa.
+    // Senza questo controllo un 'member' poteva promuoversi da solo: gli
+    // handler usano il client service role, che ignora le policy RLS.
+    const callerMembership = await ensureTenantAdmin(user.id, tenantId);
+
+    const body = await request.json().catch(() => ({}));
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+
+    /**
+     * Reimpostazione della password da parte dell'amministratore.
+     *
+     * Senza questo percorso, chi dimenticava la password restava fuori per
+     * sempre: non esiste un "password dimenticata" recapitabile con certezza
+     * (il mailer di Supabase e' fortemente limitato) e non c'era alcun modo,
+     * dall'applicazione, di assegnare una nuova password. L'unica via era il
+     * dashboard Supabase, cioe' un accesso che l'amministratore
+     * dell'organizzazione normalmente non ha.
+     *
+     * La nuova password e' provvisoria e viene restituita a chi la richiede,
+     * perche' la consegni di persona: non essendoci un canale di recapito
+     * garantito, inviarla per email sarebbe una garanzia solo apparente.
+     */
+    if (body.action === 'reset-password') {
+      // `callerMembership` viene gia' da `ensureTenantAdmin` poche righe
+      // sopra: ripeterlo qui non aggiungeva nulla se non una query.
+      if (!email) {
+        return jsonResponse({ error: 'Email is required' }, { status: 400 });
+      }
+
+      const { data: target, error: targetError } = await admin
+        .from('profiles')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (targetError) {
+        return jsonResponse({ error: targetError.message }, { status: 500 });
+      }
+
+      if (!target) {
+        return jsonResponse({ error: 'Utente non trovato' }, { status: 404 });
+      }
+
+      // Deve appartenere a QUESTA organizzazione: senza il controllo, un
+      // amministratore potrebbe reimpostare la password di un utente di
+      // un'altra organizzazione conoscendone solo l'indirizzo email.
+      const { data: membership } = await admin
+        .from('organization_members')
+        .select('role')
+        .eq('organization_id', tenantId)
+        .eq('user_id', target.id)
+        .maybeSingle();
+
+      if (!membership) {
+        return jsonResponse(
+          { error: 'Questo utente non appartiene alla tua organizzazione' },
+          { status: 403 }
+        );
+      }
+
+      /*
+        E non deve appartenere a NESSUN'ALTRA organizzazione.
+
+        Il controllo qui sotto guardava il ruolo del bersaglio solo dentro
+        questo tenant, e bastava a scavalcarlo: Bob e' proprietario di "Beta" e
+        semplice membro di "Acme"; Carla, amministratrice di Acme, gli
+        reimposta la password, la legge in chiaro nella risposta, entra come
+        Bob e si ritrova proprietaria di Beta. Il ruolo letto diceva 'member' e
+        i due controlli passavano entrambi.
+
+        Non basta escludere i ruoli privilegiati altrove: anche entrare come un
+        semplice membro di un'altra organizzazione ne apre i dati. Un'identita'
+        che vale in piu' posti non e' amministrabile da uno solo di quei posti.
+
+        Chi e' in questa condizione recupera la password da se', per email:
+        e' l'unico percorso che non passa dalle mani di nessuno.
+      */
+      const { data: altreAppartenenze, error: altreError } = await admin
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', target.id)
+        .neq('organization_id', tenantId)
+        .limit(1);
+
+      if (altreError) {
+        return jsonResponse({ error: altreError.message }, { status: 500 });
+      }
+
+      if (altreAppartenenze && altreAppartenenze.length > 0 && target.id !== user.id) {
+        return jsonResponse(
+          {
+            error:
+              'Questo utente appartiene anche ad altre organizzazioni: ' +
+              'la password puo reimpostarla solo lui, dal recupero via email',
+          },
+          { status: 403 }
+        );
+      }
+
+      // La password nuova torna IN CHIARO in questa risposta: reimpostarla a
+      // qualcuno equivale quindi a entrare nel suo account. Senza i due
+      // controlli che seguono, tutta la logica anti-scalata di questo file
+      // (chi puo' conferire 'owner', chi puo' declassare, chi puo' rimuovere
+      // un admin) era aggirabile dalla porta di servizio: un 'admin'
+      // reimpostava la password del proprietario, la leggeva qui ed entrava
+      // come lui, prendendosi l'organizzazione.
+      // L'eccezione e' il proprietario su se stesso: sta gia' usando il
+      // proprio account, quindi non c'e' nessuna scalata da impedire.
+      if (membership.role === 'owner' && target.id !== user.id) {
+        return jsonResponse(
+          { error: 'La password del proprietario non puo essere reimpostata da altri' },
+          { status: 403 }
+        );
+      }
+
+      // Fra pari non ci si reimposta la password a vicenda: e' la stessa
+      // regola della rimozione (solo il proprietario puo' toccare un admin).
+      if (membership.role === 'admin' && callerMembership.role !== 'owner') {
+        return jsonResponse(
+          { error: 'Solo il proprietario puo reimpostare la password di un amministratore' },
+          { status: 403 }
+        );
+      }
+
+      const nuovaPassword = `Tf-${crypto.randomUUID().slice(0, 12)}!`;
+
+      const { error: updateError } = await admin.auth.admin.updateUserById(target.id, {
+        password: nuovaPassword,
+      });
+
+      if (updateError) {
+        return jsonResponse({ error: updateError.message }, { status: 500 });
+      }
+
+      return jsonResponse({ temporaryPassword: nuovaPassword });
+    }
+
+    // La lista deve coprire TUTTI i ruoli del vincolo CHECK di
+    // organization_members (0004), non solo tre: con 'manager' e 'viewer'
+    // fuori dalla lista, l'interfaccia poteva chiedere quei ruoli e l'utente
+    // finiva silenziosamente 'member', cioe' con piu' permessi di quelli
+    // scelti nel caso di 'viewer'.
+    const ROLES = ['owner', 'admin', 'manager', 'member', 'viewer'] as const;
+
+    // Il ruolo e' FACOLTATIVO: questa rotta serve anche a modificare
+    // l'anagrafica di un membro esistente. Prima l'assenza di body.role
+    // significava 'member', quindi salvare il numero di telefono di un
+    // amministratore lo declassava in silenzio.
+    const roleRichiesto: (typeof ROLES)[number] | null = ROLES.includes(body.role)
+      ? body.role
+      : null;
+
+    // Solo il proprietario puo' conferire la proprieta'. Senza questo controllo
+    // un 'admin' poteva assegnare 'owner' a se stesso e poi declassare il vero
+    // proprietario a 'member': l'upsert su (organization_id, user_id) aggiorna
+    // una membership esistente, non crea solo inviti. Presa di controllo
+    // completa dell'organizzazione partendo da admin.
+    if (roleRichiesto === 'owner' && callerMembership.role !== 'owner') {
+      return jsonResponse(
+        { error: 'Solo il proprietario puo assegnare il ruolo owner' },
+        { status: 403 }
+      );
+    }
+
+    if (!email) {
+      return jsonResponse({ error: 'Email is required' }, { status: 400 });
+    }
+
+    const { data: profile, error: profileError } = await admin
+      .from('profiles')
+      // Non solo l'id: quando la scrittura dei campi anagrafici viene saltata,
+      // questi valori tornano a chi chiama, che altrimenti mostrerebbe quelli
+      // che ha inviato e che il server ha rifiutato.
+      .select('id, full_name, email, avatar_url, joined_date, job_title, departments, status, team_lead, phone, location')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (profileError) {
+      return jsonResponse({ error: profileError.message }, { status: 500 });
+    }
+
+    let memberId = profile?.id;
+    let createdPassword: string | null = null;
+
+    // Campi di profilo che l'interfaccia raccoglie nello stesso form della
+    // creazione. Vivono su profiles perche' e' da li' che useSyncEmployees li
+    // rilegge a ogni avvio: se restassero solo nello stato applicativo,
+    // sarebbero invisibili a chi non ha ancora quella copia in cache.
+    const jobTitle =
+      typeof body.jobTitle === 'string' && body.jobTitle.trim()
+        ? body.jobTitle.trim()
+        : null;
+    const departments = Array.isArray(body.departments)
+      ? body.departments.filter((d: unknown): d is string => typeof d === 'string')
+      : null;
+
+    // Gli altri campi dell'anagrafica. Vivono su profiles perche' e' da li'
+    // che useSyncEmployees li rilegge: tenuti solo nello stato applicativo,
+    // ogni ricarica li riportava al valore del database. E' il motivo per cui
+    // "disattiva utente" non durava: profiles.status restava 'active'.
+    const fullNameAggiornato =
+      typeof body.fullName === 'string' && body.fullName.trim()
+        ? body.fullName.trim()
+        : null;
+    const status =
+      body.status === 'active' || body.status === 'inactive' ? body.status : null;
+    const teamLead = typeof body.teamLead === 'boolean' ? body.teamLead : null;
+    const phone = typeof body.phone === 'string' ? body.phone.trim() : null;
+    const location = typeof body.location === 'string' ? body.location.trim() : null;
+
+    // Le deroghe ai permessi del ruolo. Prima vivevano solo nell'array
+    // `employees` di app_state, che ogni membro puo' riscrivere: chiunque
+    // poteva darsene. Qui finiscono su profiles.custom_permissions, che il
+    // trigger della 0018 rende non modificabile dal proprio profilo e che il
+    // client si limita a leggere. Assente = non toccare; null = togliere.
+    let customPermissions: PermessiPersonalizzati | null | undefined;
+    if (body && typeof body === 'object' && 'customPermissions' in body) {
+      const esito = normalizzaPermessiPersonalizzati(body.customPermissions);
+      if (!esito.ok) {
+        return jsonResponse({ error: esito.errore }, { status: 400 });
+      }
+      customPermissions = esito.valore;
+    }
+
+    const campiProfilo = {
+      ...(jobTitle ? { job_title: jobTitle } : {}),
+      ...(departments ? { departments } : {}),
+      ...(fullNameAggiornato ? { full_name: fullNameAggiornato } : {}),
+      ...(status ? { status } : {}),
+      ...(teamLead !== null ? { team_lead: teamLead } : {}),
+      ...(phone !== null ? { phone } : {}),
+      ...(location !== null ? { location } : {}),
+    };
+
+    /*
+      Le deroghe NON stanno fra i campi del profilo (0028).
+
+      `profiles` ha una riga per persona, non una per organizzazione: una
+      deroga scritta li' valeva ovunque quella persona fosse membro. Mario e'
+      in Acme e in Beta, l'amministratrice di Acme gli concede
+      `tasks.edit_any`, e Mario se lo ritrova anche in Beta, dove nessuno ha
+      deciso niente.
+
+      Ora vanno sulla riga di `organization_members`, che e' gia' quella che
+      dice "questa persona, in questa organizzazione, e' questo".
+    */
+
+    /*
+      Il controllo viene PRIMA di ogni scrittura, ed e' il punto.
+
+      Stava dopo l'aggiornamento del profilo. Risultato: un'amministratrice
+      mandava `{email: <proprietario>, status: "inactive"}`, si vedeva
+      rispondere `403 Solo il proprietario puo modificare il proprio ruolo`, e
+      intanto il proprietario era gia' disattivato e le sue eventuali deroghe
+      cancellate. Il messaggio diceva che l'operazione era stata rifiutata;
+      meta' operazione era passata. Cio' che il controllo proteggeva davvero
+      era solo la riga in organization_members.
+    */
+    const { data: targetMembership } = await admin
+      .from('organization_members')
+      .select('role')
+      .eq('organization_id', tenantId)
+      .eq('user_id', memberId)
+      .maybeSingle();
+
+    if (targetMembership?.role === 'owner' && callerMembership.role !== 'owner') {
+      return jsonResponse(
+        { error: 'Solo il proprietario puo modificare il proprio ruolo' },
+        { status: 403 }
+      );
+    }
+
+    if (!profile) {
+      // L'utente non esiste ancora: lo crea l'amministratore.
+      // Questo e' l'UNICO percorso di creazione account previsto — la
+      // registrazione autonoma va disattivata in Supabase (Authentication ->
+      // Sign In / Providers -> "Allow new users to sign up").
+      const fullName =
+        typeof body.fullName === 'string' && body.fullName.trim()
+          ? body.fullName.trim()
+          : email.split('@')[0];
+
+      // Password temporanea: finche' non e' configurato un provider email,
+      // non esiste modo di recapitarla, quindi viene restituita all'admin
+      // nella risposta perche' la consegni lui.
+      // Costante tipizzata a parte: `body` e' `any`, quindi assegnare
+      // direttamente a createdPassword (string | null) non restringe il tipo e
+      // password: string | null non e' accettato da createUser.
+      const password: string =
+        typeof body.password === 'string' && body.password.length >= 8
+          ? body.password
+          : `Tf-${crypto.randomUUID().slice(0, 12)}!`;
+
+      createdPassword = password;
+
+      const { data: created, error: createError } =
+        await admin.auth.admin.createUser({
+          email,
+          password,
+          email_confirm: true,
+          user_metadata: { full_name: fullName },
+        });
+
+      if (createError || !created?.user) {
+        return jsonResponse(
+          { error: createError?.message ?? 'Creazione utente fallita' },
+          { status: 500 }
+        );
+      }
+
+      memberId = created.user.id;
+
+      const { error: insertProfileError } = await admin.from('profiles').insert({
+        id: memberId,
+        email,
+        full_name: fullName,
+        avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(memberId)}`,
+        ...campiProfilo,
+      });
+
+      if (insertProfileError) {
+        return jsonResponse({ error: insertProfileError.message }, { status: 500 });
+      }
+    }
+
+    // Ruolo effettivo: quello richiesto se c'e', altrimenti quello che il
+    // membro ha gia'; 'member' solo per chi entra ora nell'organizzazione.
+    const role = roleRichiesto ?? targetMembership?.role ?? 'member';
+
+    const { data, error } = await admin
+      .from('organization_members')
+      .upsert(
+        {
+          organization_id: tenantId,
+          user_id: memberId,
+          role,
+          // Solo se il chiamante le ha davvero inviate: `undefined` lascia
+          // stare la colonna, `null` la azzera. E' la differenza fra "non ne
+          // parlo" e "toglile", e sono due gesti diversi.
+          ...(customPermissions !== undefined
+            ? { custom_permissions: customPermissions }
+            : {}),
+        },
+        {
+          onConflict: 'organization_id,user_id',
+        }
+      )
+      .select('*')
+      .single();
+
+    if (error) {
+      return jsonResponse({ error: error.message }, { status: 500 });
+    }
+
+    /*
+      Il controllo "questa persona e' solo nostra" e la scrittura del suo
+      profilo sono UNA istruzione sola, dentro `aggiorna_profilo_se_solo_nostro`
+      (migrazione 0032).
+
+      `profiles` non ha una colonna per organizzazione: `status`, `full_name`,
+      `departments`, `team_lead` valgono ovunque quella persona sia. Scriverli
+      e' un gesto che esce da questo tenant. Invitare invece e' interno —
+      appartenenza e ruolo stanno su `organization_members` — quindi riesce.
+
+      Questo blocco ha sbagliato tre volte, in tre modi diversi, e le lascio
+      scritte tutte perche' sono la stessa lezione da tre lati.
+
+      1. La scrittura stava PRIMA del controllo. Mandare l'email di un
+         dipendente altrui lo rendeva membro qui e poi disattivabile ovunque.
+      2. Spostare il controllo dopo l'upsert chiudeva la scrittura ma lasciava
+         passare l'APPARTENENZA, rispondendo 403. Un accesso concesso e
+         dichiarato fallito: chi lo provoca non sa di averlo dato, e
+         l'interfaccia — vedendo un errore — non mostrava nemmeno il nuovo
+         membro. (Codex, PR #11.)
+      3. Leggere e poi scrivere, in due viaggi, lasciava una finestra: A legge
+         e non trova nessuno, B inserisce la propria appartenenza, A scrive
+         comunque su un profilo ormai condiviso. (Codex, PR #15.)
+
+      Ora il `not exists` sta nel `where` dello stesso `update`. Resta un limite
+      onesto, scritto in testa alla 0032: in `read committed` la sotto-query
+      vede l'istantanea presa all'inizio dell'istruzione, quindi la garanzia e'
+      «si scrive solo se, quando la scrittura e' cominciata, quella persona era
+      soltanto nostra». Per la serializzazione piena servirebbe che anche
+      l'upsert dell'appartenenza stesse nella stessa funzione, con un lock
+      sull'id della persona.
+
+      (Che quelle colonne siano globali resta un difetto di forma: la loro sede
+      giusta e' organization_members, come le deroghe dalla 0028 in poi.)
+    */
+    let avviso: string | undefined;
+
+    if (profile && Object.keys(campiProfilo).length > 0) {
+      const { data: scritto, error: erroreProfilo } = await admin.rpc(
+        'aggiorna_profilo_se_solo_nostro',
+        {
+          p_utente: memberId,
+          p_organizzazione: tenantId,
+          p_campi: campiProfilo,
+        }
+      );
+
+      if (erroreProfilo) {
+        return jsonResponse({ error: erroreProfilo.message }, { status: 500 });
+      }
+
+      if (scritto !== true) avviso = AVVISO_PROFILO_ALTROVE;
+    }
+
+    // temporaryPassword compare solo quando l'account e' stato appena creato.
+    return jsonResponse(
+      {
+        member: data,
+        ...(createdPassword ? { temporaryPassword: createdPassword } : {}),
+        // Presente solo quando qualcosa di richiesto non e' stato fatto, e
+        // insieme all'avviso torna il profilo VERO: senza, chi chiama
+        // mostrerebbe i valori che ha inviato e che sono stati rifiutati.
+        ...(avviso ? { avviso, profiloEsistente: profile } : {}),
+      },
+      { status: 201 }
+    );
+  }
+
+  if (request.method === 'DELETE') {
+    /**
+     * Rimozione di un membro dall'organizzazione.
+     *
+     * Prima non esisteva affatto: "Team member removed" nell'interfaccia si
+     * limitava a togliere la persona dall'array `employees` dello stato
+     * applicativo. La riga in organization_members restava, quindi
+     * l'interessato continuava ad accedere e a vedere tutto; e alla ricarica
+     * successiva useSyncEmployees lo rimetteva in elenco, perche' la fonte di
+     * verita' e' il database. La rimozione non revocava nulla e non durava
+     * nemmeno.
+     *
+     * Qui si revoca la membership, che e' cio' su cui si reggono le policy
+     * RLS: senza, l'utente non vede piu' i dati dell'organizzazione. L'account
+     * resta (puo' appartenere ad altre organizzazioni, e cancellarlo sarebbe
+     * una decisione diversa e irreversibile).
+     */
+    const callerMembership = await ensureTenantAdmin(user.id, tenantId);
+
+    const memberId = url.searchParams.get('userId') ?? '';
+
+    if (!memberId) {
+      return jsonResponse({ error: 'userId mancante' }, { status: 400 });
+    }
+
+    const { data: target, error: targetError } = await admin
+      .from('organization_members')
+      .select('role')
+      .eq('organization_id', tenantId)
+      .eq('user_id', memberId)
+      .maybeSingle();
+
+    if (targetError) {
+      return jsonResponse({ error: targetError.message }, { status: 500 });
+    }
+
+    if (!target) {
+      return jsonResponse({ error: 'Questo utente non e un membro' }, { status: 404 });
+    }
+
+    // Il proprietario non e' rimovibile: l'organizzazione resterebbe senza
+    // nessuno che possa conferire di nuovo i ruoli, e organizations.owner_id
+    // punterebbe a un non-membro.
+    if (target.role === 'owner') {
+      return jsonResponse(
+        { error: 'Il proprietario non puo essere rimosso dall organizzazione' },
+        { status: 403 }
+      );
+    }
+
+    // Un admin non puo' rimuovere un altro admin: solo il proprietario puo'
+    // farlo. Senza questo, due amministratori potrebbero espellersi a vicenda
+    // e vincerebbe chi clicca per primo.
+    if (target.role === 'admin' && callerMembership.role !== 'owner') {
+      return jsonResponse(
+        { error: 'Solo il proprietario puo rimuovere un amministratore' },
+        { status: 403 }
+      );
+    }
+
+    const { error: deleteError } = await admin
+      .from('organization_members')
+      .delete()
+      .eq('organization_id', tenantId)
+      .eq('user_id', memberId);
+
+    if (deleteError) {
+      return jsonResponse({ error: deleteError.message }, { status: 500 });
+    }
+
+    // Le notifiche gia' recapitate riguardano un'organizzazione a cui non
+    // appartiene piu': non deve continuare a vederle.
+    await admin
+      .from('notifications')
+      .delete()
+      .eq('organization_id', tenantId)
+      .eq('user_id', memberId);
+
+    return jsonResponse({ removed: memberId });
+  }
+
+  return jsonResponse({ error: 'Method not allowed' }, { status: 405 });
+});

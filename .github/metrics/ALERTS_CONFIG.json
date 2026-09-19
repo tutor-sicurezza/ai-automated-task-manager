@@ -1,0 +1,461 @@
+{
+  "alerts_config": {
+    "version": "1.0",
+    "last_updated": "2026-09-19",
+    "description": "Alert thresholds and rules for AI Automated Task Manager metrics",
+    "alert_channels": {
+      "critical": {
+        "slack": "#metrics-alerts",
+        "email": true,
+        "sms": false,
+        "ping_oncall": true,
+        "delay": "immediate"
+      },
+      "warning": {
+        "slack": "#metrics-alerts",
+        "email": true,
+        "sms": false,
+        "ping_oncall": false,
+        "delay": "daily_digest_06:00_UTC"
+      },
+      "info": {
+        "slack": "#metrics-weekly",
+        "email": false,
+        "sms": false,
+        "ping_oncall": false,
+        "delay": "weekly_digest_monday_10:00_UTC"
+      }
+    },
+    "alert_rules": {
+      "acquisition": {
+        "signups_daily": {
+          "metric_name": "Daily Trial Signups",
+          "metric_key": "signups.daily",
+          "type": "numeric",
+          "rules": [
+            {
+              "severity": "CRITICAL",
+              "condition": "rolling_3day_avg < 20",
+              "threshold": 20,
+              "operator": "less_than_rolling_average",
+              "rolling_days": 3,
+              "message": "⛔ CRITICAL: Daily signups dropped to {{value}} (target: 30/day). Check marketing campaigns.",
+              "owner": "Growth Lead",
+              "action": "Investigate marketing channels, review campaign performance, check funnel"
+            },
+            {
+              "severity": "WARNING",
+              "condition": "daily < 25",
+              "threshold": 25,
+              "operator": "less_than",
+              "message": "⚠️ WARNING: Daily signups {{value}} (target: 30/day). Monitor closely.",
+              "owner": "Growth Lead",
+              "action": "Review daily trends, prepare contingency campaign"
+            },
+            {
+              "severity": "INFO",
+              "condition": "daily > 50",
+              "threshold": 50,
+              "operator": "greater_than",
+              "message": "🎉 INFO: Daily signups {{value}} (exceeding target). Great momentum!",
+              "owner": "Growth Lead",
+              "action": "Document what's working, scale successful channels"
+            }
+          ]
+        },
+        "email_confirm_rate": {
+          "metric_name": "Email Confirmation Rate",
+          "metric_key": "trial.email_confirm_rate",
+          "type": "percentage",
+          "rules": [
+            {
+              "severity": "CRITICAL",
+              "condition": "rate < 0.80",
+              "threshold": 80,
+              "operator": "less_than_percentage",
+              "message": "⛔ CRITICAL: Email confirmation rate dropped to {{value}}% (target: >85%). Possible delivery issue.",
+              "owner": "Growth Lead",
+              "action": "Check email delivery logs, verify no spam filters, test confirmation link"
+            },
+            {
+              "severity": "CRITICAL",
+              "condition": "delivery_fail_rate > 0.02",
+              "threshold": 2,
+              "operator": "greater_than_percentage",
+              "message": "⛔ CRITICAL: Email delivery failure rate {{value}}% (max: 1%). Contact email provider.",
+              "owner": "Growth Lead",
+              "action": "Check email service status, verify API keys, review bounces"
+            }
+          ]
+        },
+        "activation_rate": {
+          "metric_name": "Trial Activation Rate",
+          "metric_key": "trial.activation_rate",
+          "type": "percentage",
+          "rules": [
+            {
+              "severity": "WARNING",
+              "condition": "rate < 0.75",
+              "threshold": 75,
+              "operator": "less_than_percentage",
+              "message": "⚠️ WARNING: Trial activation rate {{value}}% (target: >85%). Possible onboarding friction.",
+              "owner": "Product Lead",
+              "action": "Review onboarding flow, check for errors in activation step, survey users"
+            }
+          ]
+        }
+      },
+      "engagement": {
+        "form_completion_rate": {
+          "metric_name": "Form Completion Rate (Signup)",
+          "metric_key": "quality.form_completion_rate",
+          "type": "percentage",
+          "rules": [
+            {
+              "severity": "CRITICAL",
+              "condition": "rate < 0.50",
+              "threshold": 50,
+              "operator": "less_than_percentage",
+              "message": "⛔ CRITICAL: Form completion rate {{value}}% (target: 75%+). Major UX issue.",
+              "owner": "Product Lead",
+              "action": "Review form for errors, check mobile rendering, test all browsers, survey abandoners"
+            },
+            {
+              "severity": "WARNING",
+              "condition": "rate < 0.75",
+              "threshold": 75,
+              "operator": "less_than_percentage",
+              "message": "⚠️ WARNING: Form completion rate {{value}}% (target: 75%+). Monitor closely.",
+              "owner": "Product Lead",
+              "action": "Identify which fields have highest dropout, improve copy/UX"
+            }
+          ]
+        },
+        "mobile_completion_rate": {
+          "metric_name": "Mobile Form Completion Rate",
+          "metric_key": "quality.mobile_completion_rate",
+          "type": "percentage",
+          "rules": [
+            {
+              "severity": "WARNING",
+              "condition": "rate < 0.60",
+              "threshold": 60,
+              "operator": "less_than_percentage",
+              "message": "⚠️ WARNING: Mobile form completion {{value}}% (target: 70%+). Possible mobile UX friction.",
+              "owner": "Product Lead",
+              "action": "Test on actual mobile devices, check form field widths, verify keyboard behavior"
+            }
+          ]
+        },
+        "active_users_7day": {
+          "metric_name": "7-Day Active Trial Users",
+          "metric_key": "trial.active_users_7day",
+          "type": "numeric",
+          "rules": [
+            {
+              "severity": "WARNING",
+              "condition": "users < 300",
+              "threshold": 300,
+              "operator": "less_than",
+              "message": "⚠️ WARNING: 7-day active users {{value}} (target: 350+). Retention declining?",
+              "owner": "Product Lead",
+              "action": "Analyze churn cohorts, send re-engagement emails, review usage patterns"
+            }
+          ]
+        }
+      },
+      "quality": {
+        "error_rate": {
+          "metric_name": "Application Error Rate",
+          "metric_key": "quality.error_rate",
+          "type": "percentage",
+          "rules": [
+            {
+              "severity": "CRITICAL",
+              "condition": "rate > 0.01",
+              "threshold": 1,
+              "operator": "greater_than_percentage",
+              "message": "⛔ CRITICAL: Error rate {{value}}% (max: 0.1%). Production issue detected.",
+              "owner": "Engineering Lead",
+              "action": "Check error logs immediately, identify error type, roll back if needed, notify customers"
+            },
+            {
+              "severity": "WARNING",
+              "condition": "rate > 0.005",
+              "threshold": 0.5,
+              "operator": "greater_than_percentage",
+              "message": "⚠️ WARNING: Error rate {{value}}% (target: <0.1%). Minor issues detected.",
+              "owner": "Engineering Lead",
+              "action": "Review error patterns, plan fix in next sprint"
+            }
+          ]
+        },
+        "page_load_time": {
+          "metric_name": "Average Page Load Time",
+          "metric_key": "quality.avg_load_time_ms",
+          "type": "numeric",
+          "unit": "milliseconds",
+          "rules": [
+            {
+              "severity": "WARNING",
+              "condition": "time_ms > 3000",
+              "threshold": 3000,
+              "operator": "greater_than",
+              "message": "⚠️ WARNING: Page load time {{value}}ms (target: <2000ms). Performance issue.",
+              "owner": "Engineering Lead",
+              "action": "Profile with Lighthouse, identify slow scripts, optimize images/assets"
+            }
+          ]
+        }
+      },
+      "github": {
+        "star_growth": {
+          "metric_name": "GitHub Star Growth",
+          "metric_key": "repository.stars",
+          "type": "numeric",
+          "rules": [
+            {
+              "severity": "WARNING",
+              "condition": "rolling_3day_growth < 0",
+              "threshold": 0,
+              "operator": "less_than_rolling_delta",
+              "rolling_days": 3,
+              "message": "⚠️ WARNING: No GitHub star growth for 3+ days (last rate: {{stars}}/day). Project visibility low?",
+              "owner": "Growth Lead",
+              "action": "Check if project shared recently, review GitHub trends, boost social promotion"
+            }
+          ]
+        },
+        "issue_response_time": {
+          "metric_name": "Average Issue Response Time",
+          "metric_key": "repository.avg_issue_response_hours",
+          "type": "numeric",
+          "unit": "hours",
+          "rules": [
+            {
+              "severity": "WARNING",
+              "condition": "hours > 48",
+              "threshold": 48,
+              "operator": "greater_than",
+              "message": "⚠️ WARNING: Issue response time {{value}}h (target: <24h). Team responsiveness declining.",
+              "owner": "Engineering Lead",
+              "action": "Increase triage priority, assign owner to old issues, improve response process"
+            }
+          ]
+        },
+        "open_issues": {
+          "metric_name": "Open Issues Count",
+          "metric_key": "repository.open_issues",
+          "type": "numeric",
+          "rules": [
+            {
+              "severity": "WARNING",
+              "condition": "issues > 30",
+              "threshold": 30,
+              "operator": "greater_than",
+              "message": "⚠️ WARNING: {{value}} open issues (max: 20). Backlog growing too fast?",
+              "owner": "Product Lead",
+              "action": "Triage issues, close duplicates, prioritize critical ones, assign owners"
+            }
+          ]
+        },
+        "pr_cycle_time": {
+          "metric_name": "Average PR Cycle Time",
+          "metric_key": "repository.avg_pr_cycle_days",
+          "type": "numeric",
+          "unit": "days",
+          "rules": [
+            {
+              "severity": "WARNING",
+              "condition": "days > 3",
+              "threshold": 3,
+              "operator": "greater_than",
+              "message": "⚠️ WARNING: PR cycle time {{value}} days (target: <2 days). Review process slow?",
+              "owner": "Engineering Lead",
+              "action": "Increase review frequency, delegate review responsibilities, remove blockers"
+            }
+          ]
+        }
+      },
+      "business": {
+        "mrr": {
+          "metric_name": "Monthly Recurring Revenue",
+          "metric_key": "business.mrr",
+          "type": "numeric",
+          "unit": "dollars",
+          "rules": [
+            {
+              "severity": "CRITICAL",
+              "condition": "mrr_change < -0.20",
+              "threshold": -20,
+              "operator": "less_than_percentage_change",
+              "message": "⛔ CRITICAL: MRR dropped {{value}}% (max decline: 20%). Major churn event?",
+              "owner": "Founder",
+              "action": "Emergency churn analysis, contact lost customers, review product changes, implement retention"
+            },
+            {
+              "severity": "WARNING",
+              "condition": "mrr_change < -0.10",
+              "threshold": -10,
+              "operator": "less_than_percentage_change",
+              "message": "⚠️ WARNING: MRR declined {{value}}% (target: +20% growth). Investigate churn.",
+              "owner": "Founder",
+              "action": "Analyze churn reasons, send re-engagement campaign, review recent changes"
+            }
+          ]
+        },
+        "churn_rate": {
+          "metric_name": "Monthly Customer Churn Rate",
+          "metric_key": "business.churn_rate",
+          "type": "percentage",
+          "rules": [
+            {
+              "severity": "CRITICAL",
+              "condition": "rate > 0.10",
+              "threshold": 10,
+              "operator": "greater_than_percentage",
+              "message": "⛔ CRITICAL: Churn rate {{value}}% (max: 5%). Product crisis or pricing issue?",
+              "owner": "Founder",
+              "action": "URGENT: Survey lost customers, halt marketing, focus on retention, review product"
+            },
+            {
+              "severity": "WARNING",
+              "condition": "rate > 0.05",
+              "threshold": 5,
+              "operator": "greater_than_percentage",
+              "message": "⚠️ WARNING: Churn rate {{value}}% (target: <3%). Higher than target.",
+              "owner": "Product Lead",
+              "action": "Identify churn reasons, implement feature based on feedback, improve onboarding"
+            }
+          ]
+        },
+        "cac": {
+          "metric_name": "Customer Acquisition Cost",
+          "metric_key": "business.cac",
+          "type": "numeric",
+          "unit": "dollars",
+          "rules": [
+            {
+              "severity": "WARNING",
+              "condition": "cac > 100",
+              "threshold": 100,
+              "operator": "greater_than",
+              "message": "⚠️ WARNING: CAC {{value}}$ (target: <$50). Unit economics at risk.",
+              "owner": "Growth Lead",
+              "action": "Reduce marketing spend, focus on organic channels, improve conversion efficiency"
+            }
+          ]
+        },
+        "ltv_cac_ratio": {
+          "metric_name": "LTV to CAC Ratio",
+          "metric_key": "business.ltv_cac_ratio",
+          "type": "numeric",
+          "rules": [
+            {
+              "severity": "WARNING",
+              "condition": "ratio < 3",
+              "threshold": 3,
+              "operator": "less_than",
+              "message": "⚠️ WARNING: LTV:CAC ratio {{value}}:1 (healthy: >3:1). Unit economics weak.",
+              "owner": "Founder",
+              "action": "Increase LTV (upsell, reduce churn) or decrease CAC (improve organic mix)"
+            }
+          ]
+        }
+      },
+      "support": {
+        "support_tickets": {
+          "metric_name": "Daily Support Tickets",
+          "metric_key": "support.daily_tickets",
+          "type": "numeric",
+          "rules": [
+            {
+              "severity": "WARNING",
+              "condition": "tickets > 5",
+              "threshold": 5,
+              "operator": "greater_than",
+              "message": "⚠️ WARNING: {{value}} support tickets today (target: <3). High volume.",
+              "owner": "Support Lead",
+              "action": "Prioritize urgent issues, identify common problems, add FAQ/docs"
+            }
+          ]
+        }
+      }
+    },
+    "alert_cooldown_minutes": {
+      "CRITICAL": 15,
+      "WARNING": 60,
+      "INFO": 240
+    },
+    "escalation": {
+      "CRITICAL": {
+        "after_5_minutes": "notify_slack_@channel",
+        "after_15_minutes": "send_email_to_founder",
+        "after_30_minutes": "create_incident_ticket"
+      },
+      "WARNING": {
+        "after_24_hours": "weekly_review_discussion"
+      }
+    },
+    "custom_alerts": [
+      {
+        "name": "Competitor Feature Launch",
+        "type": "manual",
+        "condition": "detected_via_monitoring",
+        "message": "📢 Competitor alert: Major feature launched. Review positioning.",
+        "owner": "Product Lead",
+        "severity": "INFO"
+      },
+      {
+        "name": "Major Press Mention",
+        "type": "manual",
+        "condition": "detected_via_monitoring",
+        "message": "📰 Press mention detected: {{source}}. Prepare comment.",
+        "owner": "Founder",
+        "severity": "INFO"
+      },
+      {
+        "name": "Security Issue Reported",
+        "type": "manual",
+        "condition": "detected_via_security_monitoring",
+        "message": "🔒 URGENT: Security issue reported. Investigate immediately.",
+        "owner": "Engineering Lead",
+        "severity": "CRITICAL"
+      }
+    ],
+    "aggregation_rules": {
+      "daily_summary": {
+        "run_time": "09:00 UTC",
+        "include_metrics": [
+          "signups.daily",
+          "quality.form_completion_rate",
+          "quality.mobile_completion_rate",
+          "quality.error_rate",
+          "repository.stars",
+          "trial.active_users_7day"
+        ],
+        "format": "slack_message"
+      },
+      "weekly_summary": {
+        "run_time": "10:00 UTC Monday",
+        "include_metrics": [
+          "signups.daily",
+          "trial.active_users_7day",
+          "quality.form_completion_rate",
+          "business.mrr",
+          "business.churn_rate",
+          "repository.stars",
+          "repository.avg_issue_response_hours"
+        ],
+        "format": "detailed_report"
+      },
+      "monthly_summary": {
+        "run_time": "14:00 UTC Last Tuesday",
+        "include_metrics": [
+          "*"
+        ],
+        "format": "business_review"
+      }
+    }
+  }
+}

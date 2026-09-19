@@ -1,0 +1,406 @@
+import { useMemo } from 'react';
+import { useTranslation } from '@/contexts/LanguageContext';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Task, Employee } from '@/lib/types';
+import { ListChecks, CheckCircle, Clock, Warning, CalendarBlank, TrendUp, Eye, ClockCounterClockwise, ArrowRight } from '@phosphor-icons/react';
+import { Progress } from '@/components/ui/progress';
+import { confrontaScadenze, dataScadenza, eInRitardo, giorniAllaScadenza } from '@/lib/scadenze';
+
+/**
+ * Stato e priorita' arrivano dal registro attivita' come valori grezzi
+ * ('in-progress', 'high'): qui diventano la chiave inglese che i dizionari
+ * conoscono gia', invece di finire a schermo cosi' come sono.
+ */
+/*
+  I valori arrivano dalla cronologia salvata, dove sono scritti con lo SPAZIO:
+  chi registra l'attivita' fa `status.replace('-', ' ')` prima di scriverli.
+  Con le sole chiavi col trattino la mappa mancava due stati su tre, e la
+  cronologia diceva "da not started a Completato" — meta' tradotta e meta' no.
+  Ci sono entrambe le forme perche' nel database esistono righe vecchie di
+  tutte e due i tipi, e nessuna delle due si puo' riscrivere all'indietro.
+*/
+const ETICHETTA_STATO: Record<string, string> = {
+  'completed': 'Completed',
+  'in-progress': 'In Progress',
+  'in progress': 'In Progress',
+  'not-started': 'Not Started',
+  'not started': 'Not Started',
+  'blocked': 'Blocked',
+};
+
+const ETICHETTA_PRIORITA: Record<string, string> = {
+  high: 'High',
+  medium: 'Medium',
+  low: 'Low',
+};
+
+interface UserDashboardProps {
+  tasks: Task[];
+  currentEmployee: Employee;
+  onNavigateToTasks: () => void;
+  onViewTaskDetails: (taskId: string) => void;
+  onViewAllTasks?: () => void;
+}
+
+export function UserDashboard({
+  tasks,
+  currentEmployee,
+  onNavigateToTasks,
+  onViewTaskDetails,
+  onViewAllTasks,
+}: UserDashboardProps) {
+  const { t } = useTranslation();
+  const myTasks = useMemo(() => {
+    return tasks.filter(task => task.assigneeId === currentEmployee.id);
+  }, [tasks, currentEmployee.id]);
+
+  const taskStats = useMemo(() => {
+    const total = myTasks.length;
+    const completed = myTasks.filter(t => t.status === 'completed').length;
+    const inProgress = myTasks.filter(t => t.status === 'in-progress').length;
+    const notStarted = myTasks.filter(t => t.status === 'not-started').length;
+    const overdue = myTasks.filter(t => 
+      eInRitardo(t)
+    ).length;
+    const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+    return { total, completed, inProgress, notStarted, overdue, completionRate };
+  }, [myTasks]);
+
+  const upcomingTasks = useMemo(() => {
+    const now = new Date();
+    const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+
+    return myTasks
+      .filter(task => {
+        // Senza scadenza un task non e' "in arrivo": non ha un quando.
+        const dueDate = dataScadenza(task);
+        if (!dueDate) return false;
+        return task.status !== 'completed' && dueDate >= now && dueDate <= threeDaysFromNow;
+      })
+      .sort((a, b) => confrontaScadenze(a, b))
+      .slice(0, 5);
+  }, [myTasks]);
+
+  const recentActivity = useMemo(() => {
+    return myTasks
+      .filter(task => task.activities && task.activities.length > 0)
+      .flatMap(task => 
+        (task.activities || []).map(activity => ({
+          ...activity,
+          taskTitle: task.title,
+          taskId: task.id,
+        }))
+      )
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 5);
+  }, [myTasks]);
+
+  const priorityBreakdown = useMemo(() => {
+    const activeTasks = myTasks.filter(t => t.status !== 'completed');
+    const high = activeTasks.filter(t => t.priority === 'high').length;
+    const medium = activeTasks.filter(t => t.priority === 'medium').length;
+    const low = activeTasks.filter(t => t.priority === 'low').length;
+    
+    return { high, medium, low };
+  }, [myTasks]);
+
+  const formatRelativeTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = date.getTime() - now.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+
+    if (diffDays > 0) {
+      return diffDays === 1 ? t('in 1 day') : t('in {count} days', { count: diffDays });
+    } else if (diffHours > 0) {
+      return diffHours === 1 ? t('in 1 hour') : t('in {count} hours', { count: diffHours });
+    } else if (diffHours === 0) {
+      return t('today');
+    } else if (diffDays === -1) {
+      return t('yesterday');
+    } else {
+      const giorni = Math.abs(diffDays);
+      return giorni === 1 ? t('1 day ago') : t('{count} days ago', { count: giorni });
+    }
+  };
+
+  const getActivityText = (activity: any) => {
+    switch (activity.type) {
+      case 'created':
+        return t('Task created');
+      case 'status_changed':
+        return t('Status changed to {status}', {
+          status: t(ETICHETTA_STATO[activity.newValue] ?? activity.newValue),
+        });
+      case 'priority_changed':
+        return t('Priority changed to {priority}', {
+          priority: t(ETICHETTA_PRIORITA[activity.newValue] ?? activity.newValue),
+        });
+      case 'assignee_changed':
+        return t('Assigned to {name}', { name: activity.newValue });
+      case 'comment_added':
+        return t('New comment added');
+      default:
+        return t('Task updated');
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-semibold mb-2">{t('My Dashboard')}</h2>
+        <p className="text-muted-foreground">
+          {t('Welcome back, {name}!', { name: currentEmployee.name })}
+        </p>
+      </div>
+
+      <Card className="p-6 bg-gradient-to-r from-primary/5 via-accent/5 to-primary/5 border-primary/20">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <ArrowRight className="w-5 h-5 text-primary" weight="bold" />{t('Quick Actions')}</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {onViewAllTasks && (
+            <Button 
+              onClick={onViewAllTasks} 
+              className="h-auto flex-col gap-2 py-4"
+              variant="outline"
+            >
+              <Eye className="w-6 h-6" weight="bold" />
+              <span className="text-sm font-medium">{t('View My Tasks')}</span>
+            </Button>
+          )}
+          {taskStats.overdue > 0 && (
+            <Button 
+              onClick={onNavigateToTasks} 
+              className="h-auto flex-col gap-2 py-4 bg-red-50 border-red-200 hover:bg-red-100"
+              variant="outline"
+            >
+              <Warning className="w-6 h-6 text-destructive" weight="bold" />
+              <span className="text-sm font-medium text-destructive">{t('{count} Overdue', { count: taskStats.overdue })}</span>
+            </Button>
+          )}
+          {taskStats.inProgress > 0 && (
+            <Button 
+              onClick={onNavigateToTasks} 
+              className="h-auto flex-col gap-2 py-4"
+              variant="outline"
+            >
+              <ClockCounterClockwise className="w-6 h-6" weight="bold" />
+              <span className="text-sm font-medium">{t('{count} In Progress', { count: taskStats.inProgress })}</span>
+            </Button>
+          )}
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="p-6 bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200">
+          <div className="flex items-start justify-between mb-4">
+            <div className="p-3 bg-blue-500 rounded-lg">
+              <ListChecks className="w-6 h-6 text-white" weight="bold" />
+            </div>
+            <div className="text-right">
+              <div className="text-3xl font-bold text-blue-900">{taskStats.total}</div>
+              <div className="text-sm text-blue-700">{t('My Tasks')}</div>
+            </div>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-blue-700">{t('{n}% complete', { n: taskStats.completionRate })}</span>
+            <Button variant="ghost" size="sm" onClick={onNavigateToTasks} className="h-7 px-2 text-blue-700 hover:text-blue-900 hover:bg-blue-200">{t('View All')}</Button>
+          </div>
+        </Card>
+
+        <Card className="p-6 bg-gradient-to-br from-green-50 to-green-100/50 border-green-200">
+          <div className="flex items-start justify-between mb-4">
+            <div className="p-3 bg-green-500 rounded-lg">
+              <CheckCircle className="w-6 h-6 text-white" weight="bold" />
+            </div>
+            <div className="text-right">
+              <div className="text-3xl font-bold text-green-900">{taskStats.completed}</div>
+              <div className="text-sm text-green-700">{t('Completed')}</div>
+            </div>
+          </div>
+          <Progress value={taskStats.completionRate} className="h-2" />
+        </Card>
+
+        <Card className="p-6 bg-gradient-to-br from-amber-50 to-amber-100/50 border-amber-200">
+          <div className="flex items-start justify-between mb-4">
+            <div className="p-3 bg-amber-500 rounded-lg">
+              <Clock className="w-6 h-6 text-white" weight="bold" />
+            </div>
+            <div className="text-right">
+              <div className="text-3xl font-bold text-amber-900">{taskStats.inProgress}</div>
+              <div className="text-sm text-amber-700">{t('In Progress')}</div>
+            </div>
+          </div>
+          <div className="text-xs text-amber-700">{t('{count} not started', { count: taskStats.notStarted })}</div>
+        </Card>
+
+        <Card className="p-6 bg-gradient-to-br from-red-50 to-red-100/50 border-red-200">
+          <div className="flex items-start justify-between mb-4">
+            <div className="p-3 bg-red-500 rounded-lg">
+              <Warning className="w-6 h-6 text-white" weight="bold" />
+            </div>
+            <div className="text-right">
+              <div className="text-3xl font-bold text-red-900">{taskStats.overdue}</div>
+              <div className="text-sm text-red-700">{t('Overdue')}</div>
+            </div>
+          </div>
+          {taskStats.overdue > 0 && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={onNavigateToTasks} 
+              className="h-7 px-2 text-red-700 hover:text-red-900 hover:bg-red-200 w-full"
+            >{t('View Overdue')}</Button>
+          )}
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <CalendarBlank className="w-5 h-5" weight="bold" />{t('Upcoming Deadlines')}</h3>
+          {upcomingTasks.length > 0 ? (
+            <div className="space-y-3">
+              {upcomingTasks.map(task => {
+                // L'elenco contiene solo task con scadenza (vedi il filtro
+                // sopra), ma il tipo non lo sa: senza data non e' urgente.
+                const giorni = giorniAllaScadenza(task);
+                const isUrgent = giorni !== null && giorni <= 1;
+                
+                return (
+                  // Era un <div onClick>: da tastiera "Scadenze imminenti" non
+                  // si raggiungeva affatto e non esisteva un percorso alternativo
+                  // verso il dettaglio del task. role+tabIndex+onKeyDown la
+                  // rendono un pulsante a tutti gli effetti.
+                  <div
+                    key={task.id}
+                    className="p-3 bg-muted rounded-lg hover:bg-muted/80 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onViewTaskDetails(task.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        // Senza preventDefault lo spazio scorrerebbe la pagina.
+                        e.preventDefault();
+                        onViewTaskDetails(task.id);
+                      }
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">{task.title}</div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            task.priority === 'high' 
+                              ? 'bg-destructive/10 text-destructive' 
+                              : task.priority === 'medium'
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-blue-100 text-blue-700'
+                          }`}>
+                            {t(ETICHETTA_PRIORITA[task.priority] ?? task.priority)}
+                          </span>
+                          <span className={`text-xs ${isUrgent ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                            {t('Due {when}', { when: task.dueDate ? formatRelativeTime(task.dueDate) : '—' })}
+                          </span>
+                        </div>
+                      </div>
+                      {isUrgent && <Warning className="w-5 h-5 text-destructive flex-shrink-0" weight="bold" />}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-sm">{t('No upcoming deadlines in the next 3 days')}</p>
+          )}
+        </Card>
+
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <TrendUp className="w-5 h-5" weight="bold" />{t('Priority Breakdown')}</h3>
+          <div className="space-y-6">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-medium text-destructive">{t('High Priority')}</span>
+                <span className="text-2xl font-bold text-destructive">{priorityBreakdown.high}</span>
+              </div>
+              <Progress 
+                value={taskStats.total > 0 ? (priorityBreakdown.high / (taskStats.total - taskStats.completed)) * 100 : 0} 
+                className="h-2 bg-red-100"
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-medium text-amber-600">{t('Medium Priority')}</span>
+                <span className="text-2xl font-bold text-amber-600">{priorityBreakdown.medium}</span>
+              </div>
+              <Progress 
+                value={taskStats.total > 0 ? (priorityBreakdown.medium / (taskStats.total - taskStats.completed)) * 100 : 0} 
+                className="h-2 bg-amber-100"
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-medium text-blue-600">{t('Low Priority')}</span>
+                <span className="text-2xl font-bold text-blue-600">{priorityBreakdown.low}</span>
+              </div>
+              <Progress 
+                value={taskStats.total > 0 ? (priorityBreakdown.low / (taskStats.total - taskStats.completed)) * 100 : 0} 
+                className="h-2 bg-blue-100"
+              />
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {recentActivity.length > 0 && (
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4">{t('Recent Activity')}</h3>
+          <div className="space-y-3">
+            {recentActivity.map((activity) => (
+              // Stesso problema di "Scadenze imminenti": riga cliccabile solo
+              // col mouse. Vedi il commento piu' sopra.
+              <div
+                key={activity.id}
+                className="flex items-start gap-3 p-3 bg-muted rounded-lg hover:bg-muted/80 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                role="button"
+                tabIndex={0}
+                onClick={() => onViewTaskDetails(activity.taskId)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onViewTaskDetails(activity.taskId);
+                  }
+                }}
+              >
+                <img 
+                  src={activity.userAvatar} 
+                  alt={activity.userName}
+                  className="w-8 h-8 rounded-full flex-shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm">
+                    <span className="font-medium">{activity.userName}</span>
+                    {' '}
+                    <span className="text-muted-foreground">{getActivityText(activity)}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1 truncate">
+                    {activity.taskTitle}
+                  </div>
+                </div>
+                <div className="text-xs text-muted-foreground flex-shrink-0">
+                  {formatRelativeTime(activity.createdAt)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}

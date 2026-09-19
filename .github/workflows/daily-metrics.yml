@@ -1,0 +1,344 @@
+name: Daily Metrics Collection
+
+on:
+  schedule:
+    # Run every day at 09:00 UTC (morning standup)
+    - cron: '0 9 * * *'
+  # Allow manual trigger
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  repository-projects: read
+
+jobs:
+  collect_metrics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ============================================
+      # 1. FETCH GITHUB REPOSITORY METRICS
+      # ============================================
+      - name: Fetch GitHub Repository Stats
+        id: github_stats
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const repo = await github.rest.repos.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 1
+            });
+
+            const pulls = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 1
+            });
+
+            const metrics = {
+              date: new Date().toISOString().split('T')[0],
+              timestamp: new Date().toISOString(),
+              repository: {
+                stars: repo.data.stargazers_count,
+                forks: repo.data.forks_count,
+                watchers: repo.data.watchers_count,
+                open_issues: issues.data.length > 0 ? issues.data[0].number : 0,
+                open_prs: pulls.data.length > 0 ? pulls.data[0].number : 0,
+                description: repo.data.description,
+                language: repo.data.language,
+                is_template: repo.data.is_template
+              }
+            };
+
+            core.setOutput('metrics_json', JSON.stringify(metrics, null, 2));
+            console.log('GitHub Metrics:', JSON.stringify(metrics, null, 2));
+
+      # ============================================
+      # 2. FETCH GITHUB TRAFFIC DATA
+      # ============================================
+      - name: Fetch GitHub Traffic Stats
+        id: traffic_stats
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              // Note: This endpoint requires admin access. If not available, skip.
+              const views = await github.rest.repos.getViews({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                per: 'day'
+              });
+
+              const clones = await github.rest.repos.getClones({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                per: 'day'
+              });
+
+              const traffic = {
+                views: views.data.views ? views.data.views[0] : null,
+                clones: clones.data.clones ? clones.data.clones[0] : null
+              };
+
+              core.setOutput('traffic_json', JSON.stringify(traffic, null, 2));
+              console.log('Traffic Stats:', JSON.stringify(traffic, null, 2));
+            } catch (error) {
+              console.log('Traffic stats not available (requires admin token):', error.message);
+              core.setOutput('traffic_json', JSON.stringify({ note: 'Traffic data requires admin access' }));
+            }
+
+      # ============================================
+      # 3. FETCH RELEASES
+      # ============================================
+      - name: Fetch Release Information
+        id: releases
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const releases = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 5
+            });
+
+            const releaseData = {
+              total_releases: releases.data.length,
+              latest_release: releases.data[0] || null,
+              this_month: releases.data.filter(r => {
+                const releaseDate = new Date(r.published_at);
+                const today = new Date();
+                const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+                return releaseDate >= thisMonth;
+              }).length
+            };
+
+            core.setOutput('releases_json', JSON.stringify(releaseData, null, 2));
+            console.log('Releases:', JSON.stringify(releaseData, null, 2));
+
+      # ============================================
+      # 4. STORE METRICS AS ARTIFACT
+      # ============================================
+      - name: Create Metrics Report
+        id: report
+        run: |
+          cat > metrics_report.json << 'EOF'
+          {
+            "date": "${{ steps.github_stats.outputs.metrics_json }}"
+          }
+          EOF
+          cat metrics_report.json
+
+      - name: Upload Metrics Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: daily-metrics-${{ github.run_id }}
+          path: metrics_report.json
+          retention-days: 90
+
+      # ============================================
+      # 5. APPEND TO TRACKING FILE (GIT)
+      # ============================================
+      - name: Update Metrics Tracking File
+        run: |
+          # Create metrics directory if it doesn't exist
+          mkdir -p .github/metrics
+
+          # Append today's metrics to tracking file
+          cat >> .github/metrics/daily_metrics.jsonl << 'EOF'
+          ${{ steps.github_stats.outputs.metrics_json }}
+          EOF
+
+          # Show last 10 entries
+          echo "=== Last 10 metrics entries ==="
+          tail -10 .github/metrics/daily_metrics.jsonl
+
+      - name: Commit Metrics to Repository
+        run: |
+          git config --global user.name "metrics-bot"
+          git config --global user.email "noreply@github.com"
+
+          git add .github/metrics/daily_metrics.jsonl || true
+          git diff --cached --quiet || git commit -m "chore: update daily metrics - $(date +%Y-%m-%d)"
+          git push || true
+        continue-on-error: true
+
+      # ============================================
+      # 6. SEND SLACK NOTIFICATION
+      # ============================================
+      - name: Send Slack Notification
+        if: always()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "📊 Daily Metrics Snapshot",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "📊 Daily Metrics — ${{ steps.github_stats.outputs.metrics_json }}"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*GitHub Stars*\n${{ steps.github_stats.outputs.metrics_json }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Forks*\n${{ steps.github_stats.outputs.metrics_json }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Open Issues*\n${{ steps.github_stats.outputs.metrics_json }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Open PRs*\n${{ steps.github_stats.outputs.metrics_json }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Dashboard"
+                      },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/graphs/traffic",
+                      "style": "primary"
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+        continue-on-error: true
+
+  # ============================================
+  # 2. WEEKLY SUMMARY (Runs on Mondays)
+  # ============================================
+  weekly_summary:
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 9 * * 1' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate Weekly Summary
+        id: weekly
+        run: |
+          echo "📅 Generating weekly metrics summary..."
+          # This would pull last 7 days of metrics from .github/metrics/daily_metrics.jsonl
+          # and calculate aggregates
+
+          WEEK_START=$(date -d "7 days ago" +%Y-%m-%d)
+          WEEK_END=$(date +%Y-%m-%d)
+
+          echo "WEEK_START=$WEEK_START" >> $GITHUB_OUTPUT
+          echo "WEEK_END=$WEEK_END" >> $GITHUB_OUTPUT
+
+      - name: Send Weekly Summary to Slack
+        if: always()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "📈 Weekly Metrics Summary",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "📈 Weekly Summary — ${{ steps.weekly.outputs.WEEK_START }} to ${{ steps.weekly.outputs.WEEK_END }}"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Action Required:*\nReview weekly metrics in Google Sheets dashboard.\n<https://docs.google.com/spreadsheets/d/${{ secrets.GOOGLE_SHEETS_ID }}|Open Dashboard>"
+                  }
+                }
+              ]
+            }
+        continue-on-error: true
+
+  # ============================================
+  # 3. ALERT SYSTEM (Check thresholds)
+  # ============================================
+  check_alerts:
+    runs-on: ubuntu-latest
+    needs: collect_metrics
+    if: always()
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Parse Latest Metrics
+        id: parse
+        run: |
+          # Get last line of daily metrics
+          LATEST=$(tail -1 .github/metrics/daily_metrics.jsonl 2>/dev/null || echo "{}")
+          echo "metrics=$LATEST" >> $GITHUB_OUTPUT
+
+      - name: Check Alert Thresholds
+        id: alerts
+        run: |
+          # Parse metrics
+          # Check: stars < 0 (no growth for 3 consecutive days)
+          # Check: issues response time > 48h
+          # Check: open PRs > 15
+
+          echo "Checking alert thresholds..."
+          # Example check (customize based on your data):
+          # if [ $(echo "$METRICS" | jq '.stars') -lt 50 ]; then
+          #   echo "alert_triggered=true" >> $GITHUB_OUTPUT
+          # fi
+
+          echo "alert_triggered=false" >> $GITHUB_OUTPUT
+
+      - name: Send Critical Alert
+        if: steps.alerts.outputs.alert_triggered == 'true'
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "🚨 CRITICAL ALERT: Metrics Threshold Breached",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "🚨 *CRITICAL ALERT*\n\nOne or more metrics have breached alert thresholds.\n\nCheck dashboard: <https://docs.google.com/spreadsheets/d/${{ secrets.GOOGLE_SHEETS_ID }}|Metrics Dashboard>"
+                  }
+                }
+              ]
+            }
+        continue-on-error: true

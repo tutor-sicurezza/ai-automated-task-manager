@@ -1,0 +1,47 @@
+/*
+ * Token di colore dell'interfaccia, e nient'altro.
+ *
+ * Questo file non importa piu' Tailwind e non contiene piu' direttive che lo
+ * richiedano: e' CSS semplice, caricato da main.tsx come qualunque foglio.
+ * Il suo blocco `@theme` e' confluito in main.css, che e' l'unico ingresso;
+ * la regola `@apply border-border` che stava qui era gia' ripetuta identica
+ * la', quindi era di troppo da sempre; i caratteri sono passati anche loro in
+ * main.css, perche' `@layer base` senza Tailwind non avrebbe l'ordine giusto.
+ */
+
+:root {
+  --background: oklch(0.99 0 0);
+  --foreground: oklch(0.25 0.02 230);
+  --card: oklch(0.97 0.005 220);
+  --card-foreground: oklch(0.25 0.02 230);
+  --popover: oklch(0.98 0 0);
+  --popover-foreground: oklch(0.25 0.02 230);
+  --primary: oklch(0.45 0.12 210);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.92 0.01 220);
+  --secondary-foreground: oklch(0.35 0.08 230);
+  --muted: oklch(0.94 0.005 220);
+  --muted-foreground: oklch(0.50 0.02 230);
+  --accent: oklch(0.68 0.18 35);
+  --accent-foreground: oklch(0.25 0.02 230);
+  --destructive: oklch(0.55 0.22 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0.88 0.01 220);
+  --input: oklch(0.88 0.01 220);
+  --ring: oklch(0.45 0.12 210);
+  --radius: 0.5rem;
+}
+
+
+.task-card-overdue {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 oklch(0.55 0.22 25 / 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 4px oklch(0.55 0.22 25 / 0);
+  }
+}

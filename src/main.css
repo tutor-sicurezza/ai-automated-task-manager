@@ -1,0 +1,257 @@
+@import 'tailwindcss';
+
+/*
+ * index.css non si importa qui: lo carica gia' main.tsx, e includerlo anche da
+ * questo file lo faceva finire due volte nel pacchetto.
+ *
+ * theme.css non esiste piu': conteneva la tavolozza del template Spark, gli
+ * import delle 63 palette Radix che la alimentavano, due sotto-import di
+ * Tailwind che questo file gia' fa, e una copia identica del blocco di
+ * compatibilita' qui sotto. Tolta la tavolozza, non restava nulla di suo.
+ */
+@import "tw-animate-css";
+/*
+  ---break---
+*/
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Niente `@config`, e non c'e' piu' nemmeno il file.
+ *
+ * `tailwind.config.js` rimappava colori, raggi e spaziature su variabili
+ * `--size-*` e `--<colore>-*` che theme.css definiva sotto il selettore
+ * `#spark-app` — la radice del vecchio template GitHub Spark, un elemento che
+ * questa applicazione non ha: la radice e' `#root`. Le utility generate da
+ * quel config puntavano quindi a variabili che non esistevano, e ogni padding
+ * valeva zero.
+ *
+ * Non si vedeva perche' Tailwind veniva importato da piu' file: un secondo
+ * ingresso, senza `@config`, rigenerava le stesse utility con la scala
+ * predefinita e — arrivando dopo — vinceva. Il foglio duplicato mascherava una
+ * configurazione morta. Config e blocco `#spark-app` sono stati rimossi
+ * insieme, dopo aver verificato che nessuna delle 135 variabili fosse usata.
+ */
+
+
+
+/*
+  ---break---
+*/
+:root {
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+/*
+  ---break---
+*/
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+/*
+  ---break---
+*/
+/*
+ * Il tema, in un posto solo, e non piu' `inline`.
+ *
+ * Erano due blocchi in due file — questo e uno in index.css — con gli stessi
+ * colori ma formule dei raggi diverse. Convivevano solo perche' ciascun file
+ * importava Tailwind per conto suo: il foglio veniva generato due volte e
+ * vinceva l'ultimo emesso, cioe' quello di index.css. Con un ingresso solo
+ * bisogna sceglierne uno, e si tengono i valori che si vedono oggi a schermo.
+ *
+ * `inline` sostituisce i valori dentro le utility e NON emette le variabili:
+ * qui servono emesse, perche' i componenti leggono `var(--color-...)` a mano.
+ */
+@theme {
+  /*
+   * La scala delle spaziature e' un predefinito di Tailwind, ma con un solo
+   * ingresso non viene emessa: ogni `calc(var(--spacing) * n)` diventerebbe
+   * zero. E' il difetto che ha reso illeggibile l'interfaccia al primo
+   * tentativo di deduplica, e dichiararlo qui lo rende impossibile.
+   */
+  --spacing: 0.25rem;
+
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) * 1.5);
+  --radius-xl: calc(var(--radius) * 2);
+  --radius-2xl: calc(var(--radius) * 3);
+  --radius-full: 9999px;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  /*
+  ---break---
+*/
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+
+    to {
+      height: var(--radix-accordion-content-height);
+    }
+  }
+
+  /*
+  ---break---
+*/
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+
+    to {
+      height: 0;
+    }
+  }
+}
+
+/*
+  ---break---
+*/
+@layer base {
+  /*
+    Il colore dell'anello di fuoco, non la sua forma: `outline-style` resta
+    `none` finche' qualcuno non lo accende (le schede lo fanno con
+    `focus-visible:outline-1`).
+
+    Era `/50`, come nel modello di partenza di shadcn, dove `--ring` e' un
+    grigio chiaro. Qui `--ring` e' `oklch(0.45 0.12 210)`, e a meta' opacita'
+    su fondo chiaro l'indicatore di fuoco misurava 2,31:1 quando ne servono 3
+    (WCAG 2.2 SC 1.4.11, contrasto del non-testo). A `/70` sale a 3,43:1.
+    Cambiare il token invece dell'opacita' avrebbe scurito anche il bordo, che
+    usa `--ring` pieno ed era gia' a 6,48:1.
+  */
+  * {
+    @apply border-border outline-ring/70;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/*
+ * Caratteri dell'interfaccia. Stavano in index.css, che ora non passa piu' da
+ * Tailwind e non puo' quindi contenere direttive che lo richiedono.
+ */
+@layer base {
+  body {
+    font-family: 'Inter', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Work Sans', sans-serif;
+  }
+}
+
+/*
+ * Il colore predefinito dei bordi segue il token dell'applicazione.
+ *
+ * Qui c'era il blocco di compatibilita' con Tailwind v3, che riportava i bordi
+ * al grigio neutro della libreria (`--color-gray-200`) scavalcando
+ * `@apply border-border` poco sopra. Era arrivato con il template e vinceva
+ * solo per la posizione: stava in un file caricato dopo.
+ *
+ * Ora vince `--border`, che e' il token definito in index.css insieme agli
+ * altri colori dell'interfaccia. E' una scelta sull'aspetto — i bordi
+ * diventano leggermente piu' scuri, `oklch(0.88 0.01 220)` invece di
+ * `oklch(0.928 0.006 264.531)` — e il motivo per farla e' che un token del
+ * tema non deve essere scavalcato da una compatibilita' verso una versione
+ * che questo progetto non usa piu'.
+ */

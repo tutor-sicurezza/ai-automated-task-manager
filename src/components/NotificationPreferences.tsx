@@ -1,0 +1,655 @@
+import { useState, useMemo } from 'react';
+import { useTranslation } from '@/contexts/LanguageContext';
+import { useKV } from '@/hooks/useKV';
+import { Switch } from '@/components/ui/switch';
+import { Slider } from '@/components/ui/slider';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Gear, EnvelopeSimple, Bell, ClockCountdown, User, ArrowsClockwise, FlagBanner, ChatCircle, CheckCircle, WarningCircle, Moon, SpeakerHigh, SpeakerX } from '@phosphor-icons/react';
+import { NotificationPreferences as NotificationPreferencesType, NotificationType } from '@/lib/types';
+import { playNotificationSound, getSoundDescription } from '@/lib/notificationSounds';
+import { toast } from 'sonner';
+
+/**
+ * Il fuso orario di chi sta guardando la schermata.
+ *
+ * Non lo si chiede: il browser lo sa gia'. E' l'unico modo di far sì che
+ * "mandamelo alle 8" significhi le 8 di casa sua anche se il lavoro pianificato
+ * che spedisce gira in UTC. Si salva il nome IANA ("Europe/Rome") e non uno
+ * scostamento, perche' il nome segue l'ora legale da solo: con "+02:00"
+ * salvato a luglio, a novembre il riepilogo arriverebbe un'ora prima.
+ *
+ * Se il browser non risponde si ripiega su UTC, e l'interfaccia lo scrive: e'
+ * il caso in cui l'utente DEVE sapere in che ora sta scegliendo.
+ */
+function fusoRilevato(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+}
+
+/** Le ore intere selezionabili: "00:00" ... "23:00". Vedi `digestHours` piu' sotto. */
+const digestHours = Array.from({ length: 24 }, (_, ora) => `${String(ora).padStart(2, '0')}:00`);
+
+/*
+ * `emailNotifications`, `enabledNotifications` e i tre campi `digest*` sono i
+ * campi che il server legge davvero: i primi due li consulta
+ * `api/_lib/preferenzeNotifiche.ts` prima di spedire un'email, e i `digest*` li
+ * leggono `api/_lib/digest.ts` (per scegliere chi servire e a che ora) e di
+ * nuovo `preferenzeNotifiche.ts`, che smette di spedire evento per evento a chi
+ * ha acceso il riepilogo. `quietHours`, `soundEnabled` e `soundVolume` agiscono
+ * qui, sul client. Tutto il resto e' stato tolto: vedi il commento in
+ * `src/lib/types.ts`.
+ */
+const defaultPreferences: Omit<NotificationPreferencesType, 'userId'> = {
+  emailNotifications: true,
+  // Predefinito: email immediate, cioe' il comportamento che c'e' oggi.
+  // Accendere il riepilogo per tutti sarebbe un cambio di recapito deciso al
+  // posto loro.
+  digestEnabled: false,
+  digestTime: '08:00',
+  digestTimezone: fusoRilevato(),
+  enabledNotifications: {
+    task_assigned: true,
+    task_reassigned: true,
+    task_updated: true,
+    task_comment: true,
+    task_due_soon: true,
+    task_overdue: true,
+    task_completed: true,
+    task_status_changed: true,
+    task_priority_changed: true,
+    mention: true,
+  },
+  quietHours: {
+    enabled: false,
+    startTime: '22:00',
+    endTime: '08:00',
+  },
+  soundEnabled: true,
+  soundVolume: 0.3,
+};
+
+const quietHoursPresets = [
+  { label: 'Early Bird (9 PM - 6 AM)', start: '21:00', end: '06:00' },
+  { label: 'Working Hours (6 PM - 9 AM)', start: '18:00', end: '09:00' },
+  { label: 'Night Owl (12 AM - 10 AM)', start: '00:00', end: '10:00' },
+  { label: 'Sleep Time (10 PM - 7 AM)', start: '22:00', end: '07:00' },
+];
+
+function isInQuietHours(startTime: string, endTime: string): boolean {
+  const now = new Date();
+  const currentTime = now.getHours() * 60 + now.getMinutes();
+  const [startHour, startMin] = startTime.split(':').map(Number);
+  const [endHour, endMin] = endTime.split(':').map(Number);
+  const start = startHour * 60 + startMin;
+  const end = endHour * 60 + endMin;
+  
+  if (start < end) {
+    return currentTime >= start && currentTime < end;
+  }
+  return currentTime >= start || currentTime < end;
+}
+
+export function NotificationPreferences({ userId }: { userId: string }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [preferences, setPreferences] = useKV<NotificationPreferencesType>(
+    `notification-preferences-${userId}`,
+    { ...defaultPreferences, userId }
+  );
+
+  const currentPreferences = useMemo(() => {
+    return {
+      ...defaultPreferences,
+      ...preferences,
+      userId,
+      enabledNotifications: {
+        ...defaultPreferences.enabledNotifications,
+        ...(preferences?.enabledNotifications || {}),
+      },
+      quietHours: {
+        ...defaultPreferences.quietHours,
+        ...(preferences?.quietHours || {}),
+      },
+    };
+  }, [preferences, userId]);
+
+  const inQuietHours = useMemo(() => {
+    return isInQuietHours(
+      currentPreferences.quietHours.startTime,
+      currentPreferences.quietHours.endTime
+    );
+  }, [currentPreferences.quietHours]);
+
+  const handleToggleEmailNotifications = (checked: boolean) => {
+    setPreferences((current) => ({
+      ...(current || { ...defaultPreferences, userId }),
+      emailNotifications: checked,
+    }));
+    toast.success(checked ? 'Email notifications enabled' : 'Email notifications disabled');
+  };
+
+  /**
+   * Accende o spegne il riepilogo giornaliero.
+   *
+   * Il fuso si riscrive a ogni accensione e non solo la prima volta: chi si
+   * trasferisce, o viaggia, si aspetta che "le 8" restino le 8 di dove si trova.
+   */
+  const handleToggleDigest = (checked: boolean) => {
+    setPreferences((current) => ({
+      ...(current || { ...defaultPreferences, userId }),
+      digestEnabled: checked,
+      digestTime: current?.digestTime || defaultPreferences.digestTime,
+      digestTimezone: fusoRilevato(),
+    }));
+    toast.success(
+      checked
+        ? t('Daily summary enabled: one email per day instead of one per event')
+        : t('Immediate emails enabled: one email per event')
+    );
+  };
+
+  const handleChangeDigestTime = (value: string) => {
+    setPreferences((current) => ({
+      ...(current || { ...defaultPreferences, userId }),
+      digestTime: value,
+      digestTimezone: fusoRilevato(),
+    }));
+  };
+
+  const handleToggleNotificationType = (type: keyof NotificationPreferencesType['enabledNotifications'], checked: boolean) => {
+    setPreferences((current) => ({
+      ...(current || { ...defaultPreferences, userId }),
+      enabledNotifications: {
+        ...(current?.enabledNotifications || defaultPreferences.enabledNotifications),
+        [type]: checked,
+      },
+    }));
+  };
+
+  const handleToggleQuietHours = (checked: boolean) => {
+    setPreferences((current) => ({
+      ...(current || { ...defaultPreferences, userId }),
+      quietHours: {
+        ...(current?.quietHours || defaultPreferences.quietHours),
+        enabled: checked,
+      },
+    }));
+    toast.success(
+      checked
+        ? t('Quiet hours enabled - notifications paused during sleep times')
+        : t('Quiet hours disabled')
+    );
+  };
+
+  const handleChangeQuietHours = (field: 'startTime' | 'endTime', value: string) => {
+    setPreferences((current) => ({
+      ...(current || { ...defaultPreferences, userId }),
+      quietHours: {
+        ...(current?.quietHours || defaultPreferences.quietHours),
+        [field]: value,
+      },
+    }));
+  };
+
+  const handleApplyPreset = (preset: typeof quietHoursPresets[0]) => {
+    setPreferences((current) => ({
+      ...(current || { ...defaultPreferences, userId }),
+      quietHours: {
+        enabled: true,
+        startTime: preset.start,
+        endTime: preset.end,
+      },
+    }));
+    toast.success(t('Quiet hours set: {preset}', { preset: t(preset.label) }));
+  };
+
+  const handleEnableAll = () => {
+    setPreferences((current) => ({
+      ...(current || { ...defaultPreferences, userId }),
+      enabledNotifications: {
+        task_assigned: true,
+        task_reassigned: true,
+        task_updated: true,
+        task_comment: true,
+        task_due_soon: true,
+        task_overdue: true,
+        task_completed: true,
+        task_status_changed: true,
+        task_priority_changed: true,
+        mention: true,
+      },
+    }));
+    toast.success(t('All notification types enabled'));
+  };
+
+  const handleDisableAll = () => {
+    setPreferences((current) => ({
+      ...(current || { ...defaultPreferences, userId }),
+      enabledNotifications: {
+        task_assigned: false,
+        task_reassigned: false,
+        task_updated: false,
+        task_comment: false,
+        task_due_soon: false,
+        task_overdue: false,
+        task_completed: false,
+        task_status_changed: false,
+        task_priority_changed: false,
+        mention: false,
+      },
+    }));
+    toast.success(t('All notification types disabled'));
+  };
+
+  const handleToggleSound = (checked: boolean) => {
+    setPreferences((current) => ({
+      ...(current || { ...defaultPreferences, userId }),
+      soundEnabled: checked,
+    }));
+    toast.success(checked ? 'Notification sounds enabled' : 'Notification sounds muted');
+  };
+
+  const handleChangeVolume = (value: number[]) => {
+    setPreferences((current) => ({
+      ...(current || { ...defaultPreferences, userId }),
+      soundVolume: value[0],
+    }));
+  };
+
+  const handleTestSound = async (notificationType: NotificationType) => {
+    await playNotificationSound(notificationType, currentPreferences.soundVolume);
+    toast.success(t('Playing {sound}', { sound: t(getSoundDescription(notificationType)) }));
+  };
+
+  const notificationTypes = [
+    {
+      key: 'task_assigned' as const,
+      label: 'Task Assigned',
+      description: 'When a task is assigned to you',
+      icon: <User className="w-4 h-4 text-primary" weight="fill" />,
+    },
+    {
+      key: 'task_reassigned' as const,
+      label: 'Task Reassigned',
+      description: 'When a task is reassigned to you',
+      icon: <ArrowsClockwise className="w-4 h-4 text-blue-500" weight="fill" />,
+    },
+    {
+      key: 'task_updated' as const,
+      label: 'Task Updated',
+      description: 'When task details are modified',
+      icon: <Bell className="w-4 h-4 text-orange-500" weight="fill" />,
+    },
+    {
+      key: 'task_comment' as const,
+      label: 'Comments',
+      description: 'When someone comments on your task',
+      icon: <ChatCircle className="w-4 h-4 text-green-500" weight="fill" />,
+    },
+    {
+      key: 'task_due_soon' as const,
+      label: 'Due Soon',
+      description: 'When a task is due within 24 hours',
+      icon: <ClockCountdown className="w-4 h-4 text-yellow-500" weight="fill" />,
+    },
+    {
+      key: 'task_overdue' as const,
+      label: 'Overdue',
+      description: 'When a task becomes overdue',
+      icon: <WarningCircle className="w-4 h-4 text-red-500" weight="fill" />,
+    },
+    {
+      key: 'task_completed' as const,
+      label: 'Task Completed',
+      description: 'When a task is marked as complete',
+      icon: <CheckCircle className="w-4 h-4 text-green-600" weight="fill" />,
+    },
+    {
+      key: 'task_status_changed' as const,
+      label: 'Status Changed',
+      description: 'When task status is updated',
+      icon: <FlagBanner className="w-4 h-4 text-purple-500" weight="fill" />,
+    },
+    {
+      key: 'task_priority_changed' as const,
+      label: 'Priority Changed',
+      description: 'When task priority is modified',
+      icon: <FlagBanner className="w-4 h-4 text-red-500" weight="fill" />,
+    },
+    {
+      key: 'mention' as const,
+      label: 'Mentions',
+      description: 'When you are mentioned in comments',
+      icon: <ChatCircle className="w-4 h-4 text-pink-500" weight="fill" />,
+    },
+  ];
+
+  const allEnabled = Object.values(currentPreferences.enabledNotifications).every(v => v === true);
+  const allDisabled = Object.values(currentPreferences.enabledNotifications).every(v => v === false);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="icon">
+          <Gear className="h-5 w-5" weight="fill" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0">
+        <DialogHeader className="px-6 pt-6">
+          <DialogTitle className="flex items-center">
+            {t('Notification Preferences')}
+            {inQuietHours && (
+              <Badge variant="secondary" className="ml-2 bg-purple-100 text-purple-700 border-purple-200">
+                <Moon className="w-3 h-3 mr-1" weight="fill" />{t('Quiet Hours Active')}</Badge>
+            )}
+          </DialogTitle>
+          <DialogDescription>{t('Control when and how you receive notifications')}</DialogDescription>
+        </DialogHeader>
+
+        <ScrollArea className="flex-1 pr-4">
+          <div className="space-y-6 py-4 px-6">
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
+                  <EnvelopeSimple className="w-4 h-4" weight="fill" />{t('Email Notifications')}</h3>
+                <p className="text-xs text-muted-foreground mb-3">{t('Receive notifications via email')}</p>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/50">
+                <div className="space-y-0.5">
+                  <Label htmlFor="email-notifications" className="text-sm font-medium">{t('Enable Email Notifications')}</Label>
+                  <p className="text-xs text-muted-foreground">{t('Get notified via email about task updates')}</p>
+                </div>
+                <Switch
+                  id="email-notifications"
+                  checked={currentPreferences.emailNotifications}
+                  onCheckedChange={handleToggleEmailNotifications}
+                />
+              </div>
+
+              {/*
+                Il comando del riepilogo sta QUI dentro, sotto l'interruttore
+                generale delle email, e non in una sezione propria: riguarda
+                soltanto la posta. Le notifiche in applicazione restano
+                immediate in ogni caso, e mostrarlo altrove farebbe credere il
+                contrario. Per lo stesso motivo e' disattivato quando le email
+                sono spente: senza email non c'e' nulla da raggruppare.
+              */}
+              <div className="rounded-lg border p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5 pr-4">
+                    <Label htmlFor="digest-enabled" className="text-sm font-medium">{t('Daily summary instead of immediate emails')}</Label>
+                    <p className="text-xs text-muted-foreground">{t('One email a day with the notifications you have not read, instead of one email for every event')}</p>
+                  </div>
+                  <Switch
+                    id="digest-enabled"
+                    disabled={!currentPreferences.emailNotifications}
+                    checked={currentPreferences.digestEnabled}
+                    onCheckedChange={handleToggleDigest}
+                  />
+                </div>
+
+                {currentPreferences.digestEnabled && currentPreferences.emailNotifications && (
+                  <div className="space-y-2">
+                    <Label htmlFor="digest-time" className="text-sm font-medium">{t('Summary time')}</Label>
+                    {/*
+                      Solo ore intere, di proposito: il lavoro pianificato si
+                      sveglia una volta all'ora, quindi offrire "08:30" e poi
+                      spedire alle 08:00 sarebbe di nuovo un comando che dice
+                      una cosa e ne fa un'altra.
+                    */}
+                    <Select value={currentPreferences.digestTime} onValueChange={handleChangeDigestTime}>
+                      <SelectTrigger id="digest-time" className="w-40">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {digestHours.map((ora) => (
+                          <SelectItem key={ora} value={ora}>{ora}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {/*
+                      Il fuso si DICE. E' l'unico modo di non mentire: l'ora
+                      scelta viene interpretata in questo fuso, e chi legge deve
+                      poterlo verificare — soprattutto quando il rilevamento
+                      fallisce e si ripiega su UTC.
+                    */}
+                    <p className="text-xs text-muted-foreground">
+                      {t('Times are in your timezone: {zone}', { zone: currentPreferences.digestTimezone })}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{t('If there is nothing new, no email is sent. In-app notifications stay immediate.')}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
+                    <Bell className="w-4 h-4" weight="fill" />{t('Notification Types')}</h3>
+                  <p className="text-xs text-muted-foreground">{t('Choose which events trigger notifications')}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleEnableAll}
+                    disabled={allEnabled}
+                  >{t('Enable All')}</Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDisableAll}
+                    disabled={allDisabled}
+                  >{t('Disable All')}</Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {notificationTypes.map((type) => (
+                  <div
+                    key={type.key}
+                    className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-start gap-3 flex-1">
+                      <div className="mt-0.5">
+                        {type.icon}
+                      </div>
+                      <div className="space-y-0.5 flex-1">
+                        <Label
+                          htmlFor={`notification-${type.key}`}
+                          className="text-sm font-medium cursor-pointer"
+                        >
+                          {t(type.label)}
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          {t(type.description)}
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      id={`notification-${type.key}`}
+                      checked={currentPreferences.enabledNotifications[type.key]}
+                      onCheckedChange={(checked) => handleToggleNotificationType(type.key, checked)}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <Separator />
+
+            {/*
+              Qui stava il selettore "Delivery Frequency" (real-time / batched /
+              hourly / daily digest). Nessun invio lo leggeva: le email
+              partivano sempre subito, anche scegliendo "Daily digest". Non e'
+              tornato com'era: al suo posto, nella sezione delle email, c'e' un
+              solo comando — immediate oppure riepilogo giornaliero — e stavolta
+              c'e' anche il lavoro pianificato che lo esegue
+              (`api/cron/digest.ts`). Le altre cinque scelte di allora
+              (frequenza settimanale, giorni, raggruppamento per task, tetto di
+              voci) restano fuori finche' qualcosa non le implementa.
+            */}
+
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
+                  <SpeakerHigh className="w-4 h-4" weight="fill" />{t('Notification Sounds')}</h3>
+                <p className="text-xs text-muted-foreground mb-3">{t('Play sounds when notifications arrive')}</p>
+              </div>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/50">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="sound-enabled" className="text-sm font-medium flex items-center gap-2">
+                      {t('Enable Sounds')}
+                      {!currentPreferences.soundEnabled && (
+                        <Badge variant="secondary" className="bg-muted">
+                          <SpeakerX className="w-3 h-3 mr-1" />{t('Muted')}</Badge>
+                      )}
+                    </Label>
+                  </div>
+                  <Switch
+                    id="sound-enabled"
+                    checked={currentPreferences.soundEnabled}
+                    onCheckedChange={handleToggleSound}
+                  />
+                </div>
+                {currentPreferences.soundEnabled && (
+                  <>
+                    <div className="rounded-lg border p-4 bg-muted/50 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-medium">{t('Volume')}</Label>
+                        <span className="text-xs text-muted-foreground">
+                          {Math.round(currentPreferences.soundVolume * 100)}%
+                        </span>
+                      </div>
+                      <Slider
+                        value={[currentPreferences.soundVolume]}
+                        onValueChange={handleChangeVolume}
+                        min={0}
+                        max={1}
+                        step={0.1}
+                        className="w-full"
+                      />
+                    </div>
+
+                    <div className="rounded-lg border p-4 bg-muted/50">
+                      <Label className="text-sm font-medium mb-3 block">{t('Test Sounds')}</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {notificationTypes.slice(0, 6).map((type) => (
+                          <Button
+                            key={type.key}
+                            variant="outline"
+                            size="sm"
+                            className="h-auto py-2 px-3 text-left justify-start"
+                            onClick={() => handleTestSound(type.key)}
+                          >
+                            <div className="flex items-center gap-2 w-full">
+                              {type.icon}
+                              <span className="text-xs truncate">{t(type.label)}</span>
+                            </div>
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold mb-1 flex items-center gap-2">
+                  <Moon className="w-4 h-4" weight="fill" />{t('Quiet Hours')}</h3>
+                <p className="text-xs text-muted-foreground mb-3">{t('Pause notifications during specific times')}</p>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/50">
+                <div className="space-y-0.5">
+                  <Label htmlFor="quiet-hours" className="text-sm font-medium flex items-center gap-2">
+                    {t('Enable Quiet Hours')}
+                    {currentPreferences.quietHours.enabled && (
+                      <Badge variant="secondary" className="bg-purple-100 text-purple-700 border-purple-200">{t('Active')}</Badge>
+                    )}
+                  </Label>
+                </div>
+                <Switch
+                  id="quiet-hours"
+                  checked={currentPreferences.quietHours.enabled}
+                  onCheckedChange={handleToggleQuietHours}
+                />
+              </div>
+              {currentPreferences.quietHours.enabled && (
+                <>
+                  <div className="pt-2 space-y-3">
+                    <Label className="text-xs font-medium text-muted-foreground">{t('Quick Presets')}</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {quietHoursPresets.map((preset) => (
+                        <Button
+                          key={preset.label}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleApplyPreset(preset)}
+                          className="h-auto py-3 flex flex-col items-start"
+                        >
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs font-medium">{t(preset.label)}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {preset.start} - {preset.end}
+                            </span>
+                          </div>
+                        </Button>
+                      ))}
+                    </div>
+                    <Separator className="my-2" />
+                    <div className="space-y-3">
+                      <Label className="text-xs font-medium text-muted-foreground">{t('Custom Time Range')}</Label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="start-time" className="text-xs">{t('Start Time')}</Label>
+                          <input
+                            type="time"
+                            id="start-time"
+                            value={currentPreferences.quietHours.startTime}
+                            onChange={(e) => handleChangeQuietHours('startTime', e.target.value)}
+                            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="end-time" className="text-xs">{t('End Time')}</Label>
+                          <input
+                            type="time"
+                            id="end-time"
+                            value={currentPreferences.quietHours.endTime}
+                            onChange={(e) => handleChangeQuietHours('endTime', e.target.value)}
+                            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{t('Notifications will be paused between these times')}</p>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </ScrollArea>
+        <div className="flex justify-end gap-2 pt-4 px-6 pb-6 border-t">
+          <Button onClick={() => setOpen(false)}>{t('Close')}</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
