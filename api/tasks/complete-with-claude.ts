@@ -168,7 +168,7 @@ export const fetch = withErrors(async (request: Request) => {
     );
   }
 
-  const completionCount = (usageData?.count ?? 0);
+  const completionCount = (usageData?.length ?? 0);
   if (completionCount >= COMPLETION_RATE_LIMIT) {
     return jsonResponse(
       {
@@ -279,7 +279,7 @@ Please provide completion notes for this completed task.`;
   // Save completion notes to task (in comments or activities)
   // This creates an activity record showing the task was completed with AI assistance
   const completionActivity = {
-    id: crypto.getRandomUUID?.() || Date.now().toString(),
+    id: crypto.randomUUID?.() || Date.now().toString(),
     userId: user.id,
     userName: 'Claude AI',
     userAvatar: '🤖',

@@ -15,6 +15,9 @@
     "build:demo": "VITE_SUPABASE_URL=https://demo.supabase.co VITE_SUPABASE_PUBLISHABLE_KEY=chiave-finta-per-le-immagini vite build --outDir dist-demo",
     "immagini": "npm run build:demo && node scripts/demo/schermate.mjs"
   },
+  "bin": {
+    "taskflow": "./scripts/taskflow-cli.mjs"
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.124.0",
     "@phosphor-icons/react": "^2.1.7",

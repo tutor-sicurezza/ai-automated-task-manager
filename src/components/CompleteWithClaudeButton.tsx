@@ -22,7 +22,7 @@
  */
 
 import { useState } from 'react';
-import { Sparkles, CaretDown } from '@phosphor-icons/react';
+import { Sparkle, CaretDown } from '@phosphor-icons/react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -56,7 +56,7 @@ interface CompleteWithClaudeButtonProps {
   /** Variant for button styling */
   variant?: 'default' | 'secondary' | 'ghost' | 'outline' | 'destructive';
   /** Size of the button */
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'default' | 'sm' | 'lg';
 }
 
 /**
@@ -125,7 +125,7 @@ export function CompleteWithClaudeButton({
             aria-label="Complete task with Claude AI"
             title="Complete task with Claude AI assistance"
           >
-            <Sparkles className="w-4 h-4 mr-2" aria-hidden="true" />
+            <Sparkle className="w-4 h-4 mr-2" aria-hidden="true" />
             Complete with AI
             <CaretDown className="w-3 h-3 ml-1" aria-hidden="true" />
           </Button>
