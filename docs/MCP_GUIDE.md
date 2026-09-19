@@ -1,6 +1,8 @@
-# Claude Desktop Integration (MCP) — AI AUTOMATED TASK MANAGER
+# Claude Desktop Integration (MCP) — TaskFlow
 
 Connect Claude Desktop to manage tasks natively via the Model Context Protocol.
+
+**Quick start?** See [CLAUDE_CLI_SETUP.md](CLAUDE_CLI_SETUP.md) for a 30-second setup guide.
 
 ## What is MCP?
 
@@ -13,36 +15,47 @@ The Model Context Protocol (MCP) allows Claude to interact with external systems
 
 **Key principle**: All operations respect your role and RLS policies — Claude does exactly what you'd be allowed to do from the UI.
 
-## Installation
+## Installation (30 seconds)
 
-### Step 1: Install Claude Desktop
+### Prerequisites
 
-Download from https://claude.ai/download
+- **Claude Desktop** installed ([download](https://claude.ai/download))
+- **Node.js 18+** on your computer
+- **TaskFlow authenticated** — run `node scripts/taskflow.mjs accedi` first
 
-### Step 2: Install MCP Connector
+### Step-by-Step
 
-```bash
-node scripts/mcp/task-manager.mjs --install
-```
+1. **Authenticate to TaskFlow:**
+   ```bash
+   node scripts/taskflow.mjs accedi
+   ```
+   This creates `~/.taskflow/session.json`
 
-This:
-- Adds the task manager to your Claude configuration
-- Sets up authentication with your local credentials
-- Restarts Claude Desktop
+2. **Install the MCP connector:**
+   ```bash
+   node scripts/mcp/taskflow-connector.mjs --install
+   ```
 
-### Step 3: Restart Claude Desktop
+3. **Restart Claude Desktop** fully (don't just close the window)
 
-Fully close Claude (not just the window). Then restart it.
+4. **Test it:**
+   In Claude, ask: "List my open tasks"
 
 ### Verify Installation
 
-In Claude, you should see a new "Task Manager" tool in the toolkit:
+Check status anytime:
 
+```bash
+node scripts/mcp/taskflow-connector.mjs --status
 ```
-Tools
-├── Browse
-├── File Search
-├── Task Manager ✅
+
+You should see:
+```
+✓ TaskFlow connector is installed
+
+Configuration:
+  Command: node
+  Args: ["/path/to/taskflow-connector.mjs"]
 ```
 
 ## Usage
@@ -273,60 +286,76 @@ Your role is checked for every operation. If you can't do something in the UI, C
 
 ## Debugging
 
+### Troubleshooting Checklist
+
+| Problem | Solution |
+|---------|----------|
+| "TaskFlow tool not showing in Claude" | Run `node scripts/mcp/taskflow-connector.mjs --install` and restart Claude completely |
+| "Not authenticated" | Run `node scripts/taskflow.mjs accedi` to create session |
+| "Cannot find Claude config" | Install Claude Desktop first, then try the installer again |
+| "Permission denied" error | Verify your TaskFlow role in settings (you might be a viewer) |
+| "Slow responses" | Restart Claude completely; MCP server might have crashed |
+
 ### MCP Tool Not Showing
 
-1. Verify installation:
-   ```bash
-   node scripts/mcp/task-manager.mjs --status
-   ```
+**Verify:**
+```bash
+node scripts/mcp/taskflow-connector.mjs --status
+```
 
-2. Check configuration:
-   - macOS/Linux: `~/.claude/claude.json`
-   - Windows: `%APPDATA%\Claude\claude.json`
-   - Look for task-manager entry
+**Fix if not installed:**
+```bash
+# Step 1: Authenticate
+node scripts/taskflow.mjs accedi
 
-3. Restart Claude Desktop completely
+# Step 2: Install
+node scripts/mcp/taskflow-connector.mjs --install
+
+# Step 3: Fully restart Claude
+```
+
+**macOS**: Cmd+Q then reopen
+**Windows**: Close all Claude windows and reopen
+**Linux**: Close the window and reopen
 
 ### Authentication Issues
 
-```
-Error: "Not authenticated"
+**Error: "Not authenticated"**
 
-Fix:
-1. Check that you're logged in: npm scripts/ai-task-manager.mjs login
-2. Verify token: node scripts/ai-task-manager.mjs token
-3. Reinstall MCP: node scripts/mcp/task-manager.mjs --install
+```bash
+# Create session
+node scripts/taskflow.mjs accedi
+
+# Check session file
+cat ~/.taskflow/session.json  # should show token
+
+# Reinstall if needed
+node scripts/mcp/taskflow-connector.mjs --install
 ```
 
 ### Operation Denied
 
-```
-Error: "Permission denied: insufficient permissions"
+**Error: "Permission denied: insufficient permissions"**
 
-This means:
-- Your role doesn't allow this operation
-- Or the task/user isn't in your accessible scope
+This means your TaskFlow role doesn't allow the operation. Check in the TaskFlow UI:
+- Settings > Team > Your Role
+- You might be a "viewer" (read-only)
+- Ask an admin to change your role to "manager" or "admin"
 
-Check:
-1. Your role (Settings > Team > Your role)
-2. If you're in the right department
-3. If the task was created by someone else
-```
+### Slow or Stuck Responses
 
-### Slow Responses
-
-The MCP tool communicates over stdin/stdout. If responses are slow:
+The MCP connector might have crashed. The fix is always:
 
 ```bash
-# Check local network/permissions
-ls -la ~/.claude/
+# Fully restart Claude (don't just close the window)
+# macOS: Cmd+Q
+# Windows: Alt+F4 on all Claude windows
+# Linux: Close the window
 
-# Verify database connection
-supabase status
-
-# Check logs
-node scripts/mcp/task-manager.mjs --debug
+# Then reopen Claude
 ```
+
+If it keeps happening, check your task count (very large task lists might slow it down).
 
 ## Examples
 
@@ -334,29 +363,33 @@ See [examples/mcp-setup.sh](../examples/mcp-setup.sh) for installation automatio
 
 ## Configuration
 
+### Uninstall MCP Connector
+
+To remove the connector:
+
+```bash
+node scripts/mcp/taskflow-connector.mjs --uninstall
+```
+
+Then restart Claude Desktop.
+
 ### Multiple Organizations
 
-If you have access to multiple organizations:
+If you have access to multiple TaskFlow organizations, set the default:
 
 ```bash
-node scripts/mcp/task-manager.mjs --install --org "Organization Name"
+TASKFLOW_ORG="Organization Name" node scripts/mcp/taskflow-connector.mjs --install
 ```
 
-This sets the default organization for the MCP tool.
+Replace "Organization Name" with your actual organization name in TaskFlow.
 
-To switch organizations in Claude:
-```
-"Switch to Organization B"
-Claude: Switching to Organization B...
-```
-
-### Disable MCP Tool
-
-To remove the MCP integration:
+To verify which organization is configured:
 
 ```bash
-node scripts/mcp/task-manager.mjs --uninstall
+node scripts/mcp/taskflow-connector.mjs --status
 ```
+
+If `TASKFLOW_ORG` is set, it will show in the configuration.
 
 ## Best Practices
 

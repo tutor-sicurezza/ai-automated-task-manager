@@ -491,13 +491,33 @@ taskkill /PID <PID> /F
 
 ## Next Steps
 
-1. ✅ Create admin account (done during setup)
+### 1. Verify Application Works
+
+```bash
+vercel dev
+```
+
+Visit http://localhost:3000 and log in with admin credentials.
+
+### 2. (Optional) Connect Claude Desktop
+
+To manage tasks from Claude Desktop:
+
+```bash
+node scripts/setup-claude.mjs
+```
+
+Then restart Claude Desktop. See [CLAUDE_CLI_SETUP.md](CLAUDE_CLI_SETUP.md) for details.
+
+### 3. Team Setup
+
+In the TaskFlow web UI:
+1. ✅ Create admin account (done)
 2. ✅ Invite team members (Settings > Users)
 3. ✅ Configure departments (Settings > Departments)
 4. ✅ Set role permissions (Settings > Roles)
-5. ✅ Enable email (set API key)
-6. ✅ Enable Claude (run MCP installer)
-7. ✅ Create first task
+5. ✅ Enable email (set API key in Vercel)
+6. ✅ Create first task
 
 ## Support
 

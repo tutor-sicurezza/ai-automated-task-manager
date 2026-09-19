@@ -412,10 +412,93 @@ function installConnectorInClaudeDesktop(organizzazione) {
 }
 
 /**
- * Gestisce l'argomento --install
+ * Disinstalla il connettore da Claude Desktop
  */
-if (process.argv.includes('--install')) {
+function uninstallConnectorFromClaudeDesktop() {
+  const configPath = percorsoConfigurazione();
+  if (!configPath) {
+    console.error('Cannot determine Claude Desktop config location for this OS.');
+    process.exitCode = 1;
+    return;
+  }
+
+  try {
+    const contenuto = readFileSync(configPath, 'utf-8');
+    const config = JSON.parse(contenuto);
+
+    if (config.mcpServers?.taskflow) {
+      delete config.mcpServers.taskflow;
+      writeFileSync(configPath, JSON.stringify(config, null, 2));
+      console.log('✓ TaskFlow connector removed from Claude Desktop');
+      console.log('✓ Config: ' + configPath);
+      console.log('\nRestart Claude Desktop to apply changes.');
+    } else {
+      console.log('ℹ TaskFlow connector not found in Claude configuration');
+    }
+  } catch (err) {
+    console.error('Error reading config: ' + err.message);
+    process.exitCode = 1;
+  }
+}
+
+/**
+ * Verifica lo stato dell'installazione
+ */
+function checkInstallationStatus() {
+  const configPath = percorsoConfigurazione();
+  if (!configPath) {
+    console.error('Cannot determine Claude Desktop config location for this OS.');
+    process.exitCode = 1;
+    return;
+  }
+
+  try {
+    const contenuto = readFileSync(configPath, 'utf-8');
+    const config = JSON.parse(contenuto);
+    const taskflowServer = config.mcpServers?.taskflow;
+
+    if (taskflowServer) {
+      console.log('✓ TaskFlow connector is installed');
+      console.log('\nConfiguration:');
+      console.log('  Command: ' + taskflowServer.command);
+      console.log('  Args: ' + JSON.stringify(taskflowServer.args));
+      if (taskflowServer.env?.TASKFLOW_ORG) {
+        console.log('  Organization: ' + taskflowServer.env.TASKFLOW_ORG);
+      }
+      console.log('\nLocation: ' + configPath);
+    } else {
+      console.log('✗ TaskFlow connector is NOT installed');
+      console.log('\nTo install, run:');
+      console.log('  node scripts/mcp/taskflow-connector.mjs --install');
+    }
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      console.log('ℹ Claude Desktop config file not found');
+      console.log('   Make sure Claude Desktop is installed first');
+      console.log('   Config path: ' + configPath);
+    } else {
+      console.error('Error reading config: ' + err.message);
+    }
+    process.exitCode = 1;
+  }
+}
+
+/**
+ * Gestisce gli argomenti CLI
+ */
+const arg = process.argv[2];
+if (arg === '--install') {
   installConnectorInClaudeDesktop();
+  process.exit(0);
+}
+
+if (arg === '--uninstall') {
+  uninstallConnectorFromClaudeDesktop();
+  process.exit(0);
+}
+
+if (arg === '--status') {
+  checkInstallationStatus();
   process.exit(0);
 }
 
