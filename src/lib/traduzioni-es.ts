@@ -116,6 +116,8 @@ export const TESTI_ES: Record<string, string> = {
   'All types': 'Todos los tipos',
   'All Categories': 'Todas las categorías',
   'All Departments': 'Todos los departamentos',
+  'Loading…': 'Cargando…',
+  'AI estimate: about {days} day(s) to complete': 'Estimación IA: ~{days} día(s) para completar',
   'Search tasks by title or description': 'Buscar por título o descripción',
   'Search tasks': 'Buscar tareas',
   'Clear search': 'Borrar búsqueda',

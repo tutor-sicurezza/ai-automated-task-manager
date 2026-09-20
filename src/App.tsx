@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { useKV } from '@/hooks/useKV';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -17,7 +17,7 @@ import { SchermataVuota } from '@/components/SchermateVuote';
 import { CreateTaskDialog } from '@/components/CreateTaskDialog';
 import { EditTaskDialog } from '@/components/EditTaskDialog';
 import { TaskDetailsDialog } from '@/components/TaskDetailsDialog';
-import { UsersManagement } from '@/components/UsersManagement';
+const UsersManagement = lazy(() => import('@/components/UsersManagement').then((m) => ({ default: m.UsersManagement })));
 import { TeamAnalytics, DepartmentAnalytics } from '@/components/AnalisiPigre';
 import { AIAssistant } from '@/components/AIAssistant';
 import type { AISuggestion } from '@/lib/aiAssistantSuggestions';
@@ -27,15 +27,15 @@ import { AnnouncementsDialog } from '@/components/AnnouncementsDialog';
 import { TaskNotifications } from '@/components/TaskNotifications';
 import { NotificationPreferences } from '@/components/NotificationPreferences';
 import { PermissionsOverview } from '@/components/PermissionsOverview';
-import { DepartmentManagement } from '@/components/DepartmentManagement';
+const DepartmentManagement = lazy(() => import('@/components/DepartmentManagement').then((m) => ({ default: m.DepartmentManagement })));
 import { DepartmentColorLegend } from '@/components/DepartmentColorLegend';
 import { OrganizationSwitcher } from '@/components/OrganizationSwitcher';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { SuperAdminDashboard } from '@/components/dashboards/SuperAdminDashboard';
 import { DepartmentAdminDashboard } from '@/components/dashboards/DepartmentAdminDashboard';
 import { UserDashboard } from '@/components/dashboards/UserDashboard';
-import { SuperAdminSettings } from '@/components/SuperAdminSettings';
-import { EmailTemplateCustomization } from '@/components/EmailTemplateCustomization';
+const SuperAdminSettings = lazy(() => import('@/components/SuperAdminSettings').then((m) => ({ default: m.SuperAdminSettings })));
+const EmailTemplateCustomization = lazy(() => import('@/components/EmailTemplateCustomization').then((m) => ({ default: m.EmailTemplateCustomization })));
 import { EmailDeliveryAnalytics } from '@/components/AnalisiPigre';
 import { WelcomeGuide } from '@/components/WelcomeGuide';
 import { DataManagement } from '@/components/DataManagement';
@@ -52,7 +52,7 @@ import { canPerformAction } from '@/lib/permissions';
 import { newId } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { traduci, linguaIniziale } from '@/lib/i18n';
-import { VistaCalendario } from '@/components/VistaCalendario';
+const VistaCalendario = lazy(() => import('@/components/VistaCalendario').then((m) => ({ default: m.VistaCalendario })));
 import { bloccantiAperti, bloccati, puoCompletare } from '@/lib/dipendenze';
 import {
   eChiusoDavvero,
@@ -2676,12 +2676,15 @@ function App() {
                 />
               )}
               {canPerformAction(currentEmployee, 'employees', 'edit') && (
+                <Suspense fallback={null}>
                 <DepartmentManagement
                   employees={employees || []}
                   onEmployeeUpdate={handleEditEmployee}
                 />
+                </Suspense>
               )}
               {canPerformAction(currentEmployee, 'employees', 'view') && (
+                <Suspense fallback={null}>
                 <UsersManagement
                   employees={employees || []}
                   onAddEmployee={handleAddEmployee}
@@ -2694,6 +2697,7 @@ function App() {
                   canManageRoles={canPerformAction(currentEmployee, 'employees', 'manage_roles')}
                   onResetPassword={handleResetPassword}
                 />
+                </Suspense>
               )}
               {currentEmployee?.userRole === 'admin' && (
                 <>
@@ -2704,6 +2708,7 @@ function App() {
                     alzava il limite convinto di aver cambiato qualcosa.
                   */}
                   <EmailDeliveryAnalytics currentUserId={currentUser?.id} employees={employees || []} />
+                  <Suspense fallback={null}>
                   <EmailTemplateCustomization
                     currentUserId={currentUser?.id}
                     currentUserName={currentUser?.name}
@@ -2712,6 +2717,7 @@ function App() {
                     currentUserId={currentUser?.id}
                     currentUserName={currentUser?.name}
                   />
+                  </Suspense>
                 </>
               )}
               <Button
@@ -2817,11 +2823,13 @@ function App() {
             Qui il punto e' vedere come il lavoro si distribuisce nel mese, e
             mostrarne solo cento darebbe un mese incompleto senza dirlo.
           */
-          <VistaCalendario
-            tasks={filteredAndSortedTasks}
-            employees={listaEmployees}
-            onViewTask={handleViewDetails}
-          />
+          <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">{t('Loading…')}</div>}>
+            <VistaCalendario
+              tasks={filteredAndSortedTasks}
+              employees={listaEmployees}
+              onViewTask={handleViewDetails}
+            />
+          </Suspense>
         ) : viewMode === 'carico' ? (
           /*
             Riceve TUTTI i task, non quelli filtrati: la domanda "chi e' carico"

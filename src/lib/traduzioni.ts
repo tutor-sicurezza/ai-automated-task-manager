@@ -64,6 +64,8 @@ export const PARTE_GENERALE: Record<string, string> = {
   'All types': 'Tutti i tipi',
   'All Categories': 'Tutte le categorie',
   'All Departments': 'Tutti i dipartimenti',
+  'Loading…': 'Caricamento…',
+  'AI estimate: about {days} day(s) to complete': 'Stima AI: circa {days} giorni al completamento',
   'Search tasks by title or description': 'Cerca per titolo o descrizione',
   'Search tasks': 'Cerca attività',
   'Clear search': 'Cancella ricerca',
