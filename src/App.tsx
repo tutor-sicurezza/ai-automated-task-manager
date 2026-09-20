@@ -2529,46 +2529,51 @@ function App() {
                   onClick={() => setViewMode('dashboard')}
                   className="rounded-r-none"
                   size="sm"
+                  aria-label={t('Dashboard')}
                 >
-                  <House className="mr-2 h-4 w-4" weight={viewMode === 'dashboard' ? 'fill' : 'regular'} />{t('Dashboard')}</Button>
+                  <House className="sm:mr-2 h-4 w-4" weight={viewMode === 'dashboard' ? 'fill' : 'regular'} /><span className="hidden sm:inline">{t('Dashboard')}</span></Button>
                 <Button
                   variant={viewMode === 'tasks' ? 'default' : 'ghost'}
                   onClick={() => setViewMode('tasks')}
                   className="rounded-none"
                   size="sm"
+                  aria-label={t('Tasks')}
                 >
-                  <ListChecks className="mr-2 h-4 w-4" weight={viewMode === 'tasks' ? 'fill' : 'regular'} />{t('Tasks')}</Button>
+                  <ListChecks className="sm:mr-2 h-4 w-4" weight={viewMode === 'tasks' ? 'fill' : 'regular'} /><span className="hidden sm:inline">{t('Tasks')}</span></Button>
                 <Button
                   variant={viewMode === 'calendario' ? 'default' : 'ghost'}
                   onClick={() => setViewMode('calendario')}
                   className="rounded-none"
                   size="sm"
+                  aria-label={t('Calendar')}
                 >
                   <CalendarBlank
-                    className="mr-2 h-4 w-4"
+                    className="sm:mr-2 h-4 w-4"
                     weight={viewMode === 'calendario' ? 'fill' : 'regular'}
                   />
-                  {t('Calendar')}
+                  <span className="hidden sm:inline">{t('Calendar')}</span>
                 </Button>
                 <Button
                   variant={viewMode === 'carico' ? 'default' : 'ghost'}
                   onClick={() => setViewMode('carico')}
                   className="rounded-none"
                   size="sm"
+                  aria-label={t('Workload')}
                 >
                   <Users
-                    className="mr-2 h-4 w-4"
+                    className="sm:mr-2 h-4 w-4"
                     weight={viewMode === 'carico' ? 'fill' : 'regular'}
                   />
-                  {t('Workload')}
+                  <span className="hidden sm:inline">{t('Workload')}</span>
                 </Button>
                 <Button
                   variant={viewMode === 'analytics' ? 'default' : 'ghost'}
                   onClick={() => setViewMode('analytics')}
                   className="rounded-l-none"
                   size="sm"
+                  aria-label={t('Analytics')}
                 >
-                  <ChartBar className="mr-2 h-4 w-4" weight={viewMode === 'analytics' ? 'fill' : 'regular'} />{t('Analytics')}</Button>
+                  <ChartBar className="sm:mr-2 h-4 w-4" weight={viewMode === 'analytics' ? 'fill' : 'regular'} /><span className="hidden sm:inline">{t('Analytics')}</span></Button>
               </div>
               <AnnouncementsDialog
                 announcements={announcements || []}

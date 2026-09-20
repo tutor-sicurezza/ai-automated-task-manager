@@ -7,7 +7,6 @@ import { Clock, Circle, CircleHalf, CheckCircle, ChatCircle, ClockCounterClockwi
 import { Button } from '@/components/ui/button';
 import { StatoApprovazione } from '@/components/StatoApprovazione';
 import { EseguiConClaude } from '@/components/EseguiConClaude';
-import { CompleteWithCLIButton } from '@/components/CompleteWithCLIButton';
 import { AzioniApprovazione } from '@/components/AzioniApprovazione';
 import { StatoBlocco } from '@/components/StatoBlocco';
 import { ElencoSottoattivita } from '@/components/ElencoSottoattivita';
@@ -420,7 +419,6 @@ export function TaskDetailsDialog({
                   canPerformAction(currentEmployee ?? null, 'tasks', 'change_status') && (
                     <>
                       <EseguiConClaude task={task} tuttiITask={tuttiITask} />
-                      <CompleteWithCLIButton task={task} />
                     </>
                   )}
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
