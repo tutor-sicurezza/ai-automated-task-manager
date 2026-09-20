@@ -1,4 +1,4 @@
-# Contributing to AI AUTOMATED TASK MANAGER
+# Contributing to AI Automated Task Manager
 
 Thank you for your interest in contributing! This document provides guidelines and instructions for getting started.
 

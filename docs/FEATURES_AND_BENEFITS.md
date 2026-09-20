@@ -1,4 +1,4 @@
-# Features & Benefits — AI AUTOMATED TASK MANAGER
+# Features & Benefits — AI Automated Task Manager
 
 A comprehensive guide to capabilities and business value.
 

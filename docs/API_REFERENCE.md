@@ -1,10 +1,10 @@
-# API Reference — AI AUTOMATED TASK MANAGER
+# API Reference — AI Automated Task Manager
 
 Complete REST API documentation for integrations and custom applications.
 
 ## Overview
 
-The AI AUTOMATED TASK MANAGER API is built on Supabase (Postgres + PostgREST) with serverless functions on Vercel.
+The AI Automated Task Manager API is built on Supabase (Postgres + PostgREST) with serverless functions on Vercel.
 
 **Base URL**: `https://your-project.supabase.co/rest/v1`
 

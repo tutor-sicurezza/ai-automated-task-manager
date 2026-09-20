@@ -1,4 +1,4 @@
-# Changelog — AI AUTOMATED TASK MANAGER
+# Changelog — AI Automated Task Manager
 
 All notable changes to this project are documented in this file.
 
@@ -221,7 +221,7 @@ When releasing a new version:
 
 ### v1.0.0 (Initial Release)
 
-This is the first stable release of AI AUTOMATED TASK MANAGER with all core features:
+This is the first stable release of AI Automated Task Manager with all core features:
 - Enterprise task management with AI automation
 - Database-enforced security (not UI-only)
 - Claude Desktop integration

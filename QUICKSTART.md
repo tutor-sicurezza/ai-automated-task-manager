@@ -1,4 +1,4 @@
-# Quick Start Guide — AI AUTOMATED TASK MANAGER
+# Quick Start Guide — AI Automated Task Manager
 
 Get up and running in 5 minutes.
 
@@ -80,7 +80,7 @@ This runs:
 ## Create Your First Task
 
 1. Click "New Task"
-2. Title: "Welcome to AI AUTOMATED TASK MANAGER"
+2. Title: "Welcome to AI Automated Task Manager"
 3. Assign to yourself
 4. Set priority and due date
 5. Click "Create"

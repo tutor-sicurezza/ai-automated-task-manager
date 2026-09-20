@@ -1,6 +1,6 @@
 ---
 name: Feature Request
-about: Suggest an idea for AI AUTOMATED TASK MANAGER
+about: Suggest an idea for AI Automated Task Manager
 title: '[FEATURE] '
 labels: enhancement
 assignees: ''

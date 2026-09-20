@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-The security of AI AUTOMATED TASK MANAGER is important to us. If you discover a security vulnerability, please report it to us privately rather than publicly disclosing it.
+The security of AI Automated Task Manager is important to us. If you discover a security vulnerability, please report it to us privately rather than publicly disclosing it.
 
 ### Responsible Disclosure
 
@@ -51,7 +51,7 @@ The security of AI AUTOMATED TASK MANAGER is important to us. If you discover a 
 
 ### Data Protection
 - Enable HTTPS for all communications
-- Use the latest version of AI AUTOMATED TASK MANAGER
+- Use the latest version of AI Automated Task Manager
 - Keep dependencies updated
 - Monitor for security advisories
 

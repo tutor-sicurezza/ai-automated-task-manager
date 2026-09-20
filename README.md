@@ -1,6 +1,6 @@
 <div align="center">
 
-# AI AUTOMATED TASK MANAGER
+# AI Automated Task Manager
 
 **Enterprise task automation where permissions are enforceable.**
 
@@ -16,7 +16,7 @@ Intelligent task orchestration for organizations — AI-powered assignment, smar
 
 [English](README.md) · [Italiano](README.it.md) · [Quick Start](QUICKSTART.md) · [Features](docs/FEATURES_AND_BENEFITS.md)
 
-<img src="docs/immagini/dashboard.png" alt="AI AUTOMATED TASK MANAGER dashboard: AI insights, smart routing and team performance" width="900">
+<img src="docs/immagini/dashboard.png" alt="AI Automated Task Manager dashboard: AI insights, smart routing and team performance" width="900">
 
 </div>
 
@@ -24,7 +24,7 @@ Intelligent task orchestration for organizations — AI-powered assignment, smar
 
 ## What makes it different
 
-Most task managers are reactive tools that wait for humans to organize work. AI AUTOMATED TASK MANAGER **proactively orchestrates tasks** using intelligent algorithms while maintaining **database-enforced security policies** that cannot be bypassed from the UI.
+Most task managers are reactive tools that wait for humans to organize work. AI Automated Task Manager **proactively orchestrates tasks** using intelligent algorithms while maintaining **database-enforced security policies** that cannot be bypassed from the UI.
 
 | Feature | Benefit |
 | --- | --- |
@@ -141,4 +141,4 @@ If your change affects permissions, RLS policies or authentication, describe **w
 
 ---
 
-<sub>AI AUTOMATED TASK MANAGER is an open-source intelligent task orchestration platform built for enterprises that need both **AI automation** and **database-enforced security**.</sub>
+<sub>AI Automated Task Manager is an open-source intelligent task orchestration platform built for enterprises that need both **AI automation** and **database-enforced security**.</sub>

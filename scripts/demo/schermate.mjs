@@ -376,6 +376,10 @@ for (const { nome, vista, attesa } of SCHERMATE) {
   // volta, su un anello di focus fotografato durante la transizione.
   await pagina.waitForTimeout(1500);
 
+  await pagina
+    .addStyleTag({ content: '[data-sonner-toaster]{display:none !important}' })
+    .catch(() => {});
+
   await pagina.screenshot({ path: join(USCITA, `${nome}.png`) });
   console.log(`  salvata docs/immagini/${nome}.png`);
 }
@@ -410,6 +414,10 @@ async function scena(nome, azione) {
   }
 
   await pagina.waitForTimeout(1200);
+  await pagina
+    .addStyleTag({ content: '[data-sonner-toaster]{display:none !important}' })
+    .catch(() => {});
+
   await pagina.screenshot({ path: join(USCITA, `${nome}.png`) });
   console.log(`  salvata docs/immagini/${nome}.png`);
 }

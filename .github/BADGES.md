@@ -1,4 +1,4 @@
-# README Badges for AI AUTOMATED TASK MANAGER
+# README Badges for AI Automated Task Manager
 
 Copy and paste these badges into your README.md file. Update the username and repository URL as needed.
 
@@ -181,7 +181,7 @@ Copy and paste these badges into your README.md file. Update the username and re
 Copy this complete section into your README.md:
 
 ```markdown
-# AI AUTOMATED TASK MANAGER
+# AI Automated Task Manager
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 ![GitHub stars](https://img.shields.io/github/stars/[username]/ai-automated-task-manager?style=social)

@@ -1,4 +1,4 @@
-# Use Cases — AI AUTOMATED TASK MANAGER
+# Use Cases — AI Automated Task Manager
 
 Real-world scenarios where AI automation delivers maximum value.
 
@@ -8,7 +8,7 @@ Real-world scenarios where AI automation delivers maximum value.
 
 Developers context-switch between multiple tools: GitHub issues, Slack, project managers, code review tools. Task assignment happens asynchronously, blocking progress.
 
-### The AI AUTOMATED TASK MANAGER Solution
+### The AI Automated Task Manager Solution
 
 ```
 Engineer creates issue in GitHub
@@ -52,7 +52,7 @@ Claude provides context from task + GitHub issue + PR
 
 Month-end close process involves 40+ sequential approval tasks. Each approval step requires specific sign-offs. One missing signature blocks everything. Currently tracked in spreadsheet with email reminders.
 
-### The AI AUTOMATED TASK MANAGER Solution
+### The AI Automated Task Manager Solution
 
 **Approval Workflow:**
 
@@ -103,7 +103,7 @@ CFO sign-off (CFO)
 
 Currently: team lead manually assigns based on experience, burning out. No learning from past outcomes.
 
-### The AI AUTOMATED TASK MANAGER Solution
+### The AI Automated Task Manager Solution
 
 ```
 Ticket created (client: Acme Corp, type: Database performance)
@@ -152,7 +152,7 @@ Each assignment outcome (resolved on-time? customer satisfied? rework needed?) f
 
 Multi-team project has 200+ tasks across 4 teams. Dependencies are complex: backend must finish before API testing, API testing blocks mobile dev, etc. Manager spends hours tracking blockers manually.
 
-### The AI AUTOMATED TASK MANAGER Solution
+### The AI Automated Task Manager Solution
 
 **Dependency Graph:**
 
@@ -206,7 +206,7 @@ If Task B overdue → escalate to director
 
 Content calendar has 50+ pieces in flight: blog posts, social media, whitepapers, case studies. Approval chain: writer → editor → legal → marketing head. One stalled approval blocks everything. Email threads are a mess.
 
-### The AI AUTOMATED TASK MANAGER Solution
+### The AI Automated Task Manager Solution
 
 **Workflow:**
 
@@ -260,7 +260,7 @@ Multiple content pieces can be in approval simultaneously, each tracked separate
 
 New employee onboarding involves 20+ tasks: IT setup, payroll, orientation, training, workspace setup. Coordinator manually emails each department. Tasks get lost. New hire waiting for laptop week 2.
 
-### The AI AUTOMATED TASK MANAGER Solution
+### The AI Automated Task Manager Solution
 
 **Onboarding Template:**
 
@@ -318,7 +318,7 @@ First day pairing (Buddy) → depends on code access
 
 Daily shift checklist: 30 items. Equipment maintenance, safety checks, inventory counts, quality reviews. Manual spreadsheet tracking. Incomplete checks create safety risk.
 
-### The AI AUTOMATED TASK MANAGER Solution
+### The AI Automated Task Manager Solution
 
 ```
 6:00 AM → Shift begins
@@ -371,7 +371,7 @@ System generates PDF: what was checked, what was missed, issues found. Automatic
 
 Distributed team (4 time zones) makes real-time standup impossible. Email updates are delayed. Manager loses visibility into actual progress. Time-off tracking is messy.
 
-### The AI AUTOMATED TASK MANAGER Solution
+### The AI Automated Task Manager Solution
 
 **Async Standup:**
 
@@ -429,7 +429,7 @@ All decisions (assignments, approvals) are in Task Manager, not Slack threads th
 
 Appointment scheduling, patient follow-ups, lab result review, insurance authorization. Manual tracking in spreadsheet. Easy to miss follow-ups. Compliance issues.
 
-### The AI AUTOMATED TASK MANAGER Solution
+### The AI Automated Task Manager Solution
 
 ```
 Patient appointment completed

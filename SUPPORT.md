@@ -1,6 +1,6 @@
 # Support & Getting Help
 
-Thank you for using **AI AUTOMATED TASK MANAGER**! This guide explains how to get help when you need it.
+Thank you for using **AI Automated Task Manager**! This guide explains how to get help when you need it.
 
 ## Quick Links
 
@@ -145,7 +145,7 @@ Before posting a question, try:
 
 **Body**:
 ```
-I'm trying to run AI AUTOMATED TASK MANAGER in Docker with my Claude API key set in env variables.
+I'm trying to run AI Automated Task Manager in Docker with my Claude API key set in env variables.
 
 Environment:
 - Docker version: 24.0.5

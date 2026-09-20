@@ -1,7 +1,7 @@
-# Example Prompts — AI AUTOMATED TASK MANAGER
+# Example Prompts — AI Automated Task Manager
 
 This page collects **illustrative prompts** for the kinds of drafting and
-summarizing work you can hand to Claude through the AI AUTOMATED TASK MANAGER
+summarizing work you can hand to Claude through the AI Automated Task Manager
 CLI and MCP connector.
 
 > **These are examples, not benchmarks.** The outputs below are illustrative and

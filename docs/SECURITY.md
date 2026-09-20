@@ -1,6 +1,6 @@
-# Security Model — AI AUTOMATED TASK MANAGER
+# Security Model — AI Automated Task Manager
 
-How AI AUTOMATED TASK MANAGER enforces security at the database level.
+How AI Automated Task Manager enforces security at the database level.
 
 ## Core Principle
 

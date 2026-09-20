@@ -51,7 +51,7 @@ export function AIAssistant({ open, onOpenChange, tasks, employees, onSuggestion
         taskCount: tasks.filter(t => t.assigneeId === emp.id && t.status !== 'completed').length,
       }));
 
-      const contextPrompt = `You are an AI assistant for TaskFlow, a team task management application.
+      const contextPrompt = `You are an AI assistant for AI Automated Task Manager, a team task management application.
 
 Current Context:
 - Total tasks: ${tasks.length}

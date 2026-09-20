@@ -1,4 +1,4 @@
-# Installation Guide — AI AUTOMATED TASK MANAGER
+# Installation Guide — AI Automated Task Manager
 
 Complete setup instructions for development and production.
 

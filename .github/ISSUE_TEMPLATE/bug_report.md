@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: Report a bug in AI AUTOMATED TASK MANAGER
+about: Report a bug in AI Automated Task Manager
 title: '[BUG] '
 labels: bug
 assignees: ''

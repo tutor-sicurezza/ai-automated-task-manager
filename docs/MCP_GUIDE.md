@@ -1,4 +1,4 @@
-# Claude Desktop Integration (MCP) — AI AUTOMATED TASK MANAGER
+# Claude Desktop Integration (MCP) — AI Automated Task Manager
 
 Connect Claude Desktop to your tasks through the Model Context Protocol (MCP).
 Once connected, you can read and update your tasks from inside a Claude
