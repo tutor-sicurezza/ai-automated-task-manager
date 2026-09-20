@@ -497,5 +497,5 @@ export const STATO_UTENTE = [
 /** Le righe di `app_state`: configurazione dell'organizzazione. */
 export const STATO_APP = [
   { key: 'departments', value: ['Engineering', 'Design', 'Support'] },
-  { key: 'system-settings', value: { general: { applicationName: 'TaskFlow' } } },
+  { key: 'system-settings', value: { general: { applicationName: 'AI Automated Task Manager' } } },
 ];

@@ -110,7 +110,7 @@ export function LoginScreen() {
     <div className="bg-muted/30 flex min-h-svh items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <h1 className="text-3xl font-bold tracking-tight">TaskFlow</h1>
+          <h1 className="text-3xl font-bold tracking-tight">AI Automated Task Manager</h1>
           <p className="text-muted-foreground text-sm">{t('app.sottotitolo')}</p>
         </div>
 

@@ -254,7 +254,7 @@ function App() {
    */
   const [impostazioni] = useKV<SystemSettings | null>('system-settings', null);
   const nomeApplicazione =
-    impostazioni?.general?.applicationName?.trim() || 'TaskFlow';
+    impostazioni?.general?.applicationName?.trim() || 'AI Automated Task Manager';
 
   // Popola `employees` dai membri reali dell'organizzazione: senza questo il
   // menu "Assign To" resta vuoto e i task non sono assegnabili a nessuno.

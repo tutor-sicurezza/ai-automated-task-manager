@@ -20,7 +20,7 @@ import type { SystemSettings } from '@/lib/types';
  */
 export const DEFAULT_SETTINGS: SystemSettings = {
   general: {
-    applicationName: 'TaskFlow',
+    applicationName: 'AI Automated Task Manager',
   },
 };
 

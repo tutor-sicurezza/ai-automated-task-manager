@@ -73,6 +73,7 @@ Thumbs.db
 # Electron
 electron-builder/
 dist_electron/
+dist-demo/
 
 # Ruby
 Gemfile.lock
