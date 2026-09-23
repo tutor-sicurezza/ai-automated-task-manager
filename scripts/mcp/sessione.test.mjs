@@ -121,7 +121,13 @@ async function fintoSupabase(registro) {
   return { server, url: `http://127.0.0.1:${server.address().port}` };
 }
 
-describe('il connettore e la sessione salvata', () => {
+// retry: questi test avviano un processo MCP vero e legano una porta HTTP a
+// ogni caso; sotto l'esecuzione parallela di vitest una prima chiamata puo'
+// arrivare prima che il figlio sia pronto, o due file possono contendersi le
+// risorse. Riprovare il singolo caso toglie questa sfarfallio senza cambiare
+// cosa il test verifica (gli hook beforeEach/afterEach girano a ogni tentativo,
+// quindi ogni ritentativo riparte da un processo e una porta puliti).
+describe('il connettore e la sessione salvata', { retry: 2 }, () => {
   let finto;
   let registro;
   let casa;

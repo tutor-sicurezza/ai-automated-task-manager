@@ -127,7 +127,13 @@ async function fintoSupabase() {
   return { server, url: `http://127.0.0.1:${server.address().port}` };
 }
 
-describe('la riga di comando e i comandi nuovi', () => {
+// retry: ogni caso lancia `node scripts/taskflow.mjs` con `spawn` e lega una
+// porta HTTP al server finto; sotto l'esecuzione parallela di vitest questo
+// puo' incappare in una corsa allo spawn o alla porta. Riprovare il singolo
+// caso toglie lo sfarfallio senza cambiare cosa il test verifica (gli hook
+// beforeEach/afterEach girano a ogni tentativo, quindi ogni ritentativo
+// riparte da un server e una cartella puliti).
+describe('la riga di comando e i comandi nuovi', { retry: 2 }, () => {
   let finto;
   let casa;
 

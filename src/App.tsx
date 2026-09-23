@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, FunnelSimple, ArrowsDownUp, CheckCircle, CheckSquare, Square, Trash, X, PlayCircle, Circle, ChartBar, ListChecks, Sparkle, Users, Buildings, House, Rocket, CalendarBlank, DownloadSimple, SealWarning, CloudArrowDown, ArrowsClockwise, Gear, CaretDown, MagnifyingGlass } from '@phosphor-icons/react';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Plus, FunnelSimple, ArrowsDownUp, CheckCircle, CheckSquare, Square, Trash, X, PlayCircle, Circle, ChartBar, ListChecks, Sparkle, Users, Buildings, House, Rocket, CalendarBlank, DownloadSimple, SealWarning, CloudArrowDown, ArrowsClockwise, Gear, CaretDown, MagnifyingGlass, List } from '@phosphor-icons/react';
 import { TaskCard } from '@/components/TaskCard';
 import {
   ScheletroSchedeStatistiche,
@@ -2206,6 +2207,10 @@ function App() {
     il clic chiuderebbe il menu e la finestra non si aprirebbe.
   */
   const [strumentiAperti, setStrumentiAperti] = useState(false);
+  // Su schermo piccolo i controlli di servizio dell'header finiscono
+  // dietro un solo bottone "Menu" (un cassetto laterale). Su sm+ restano
+  // tutti in linea, esattamente come prima.
+  const [menuMobileAperto, setMenuMobileAperto] = useState(false);
 
   /*
     I filtri salvati sono PER UTENTE e non condivisi: sono un modo personale di
@@ -2477,6 +2482,99 @@ function App() {
     return (feedback || []).filter(f => f.status === 'new').length;
   }, [feedback]);
 
+  // I controlli di servizio dell'header, definiti una volta sola e riusati
+  // in due contenitori: in linea su desktop (sm+) e dentro il cassetto
+  // "Menu" su mobile. Divisi in "prima" e "dopo" per lasciare la barra delle
+  // cinque viste esattamente al centro dov'era, cosi' il desktop non cambia.
+  // Nota: qui va bene tenerli dentro uno Sheet (che a differenza di un
+  // DropdownMenu non si chiude al clic su un figlio) perche' molti di questi
+  // componenti aprono un proprio dialog.
+  const controlliServizioPrima = (
+    <>
+      <DesktopNotificationSettings />
+      {currentUser && <NotificationPreferences userId={currentUser.id} />}
+      <PermissionsOverview employee={currentEmployee} />
+      <Button
+        variant="outline"
+        onClick={() => setFeedbackDialogOpen(true)}
+        className="bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border-blue-300 hover:from-blue-500/20 hover:to-cyan-500/20"
+      >
+        <PaperPlaneTilt className="mr-2 h-5 w-5 text-blue-600" weight="fill" />{t('Give Feedback')}</Button>
+      {currentEmployee?.userRole === 'admin' && (
+        <Button
+          variant="outline"
+          onClick={() => setFeedbackBoardOpen(true)}
+          className="relative"
+        >
+          <Megaphone className="mr-2 h-5 w-5" weight="fill" />
+          {t('Feedback Board')}
+          {unreadFeedbackCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+              {unreadFeedbackCount}
+            </span>
+          )}
+        </Button>
+      )}
+    </>
+  );
+
+  const controlliServizioDopo = (
+    <>
+      <AnnouncementsDialog
+        announcements={announcements || []}
+        employees={employees || []}
+        currentUser={currentUser}
+        onCreateAnnouncement={handleCreateAnnouncement}
+        onEditAnnouncement={handleEditAnnouncement}
+        onDeleteAnnouncement={handleDeleteAnnouncement}
+        onPinAnnouncement={handlePinAnnouncement}
+        onMarkAsRead={handleMarkAnnouncementAsRead}
+      />
+      {aiAvailable && canPerformAction(currentEmployee, 'ai_features', 'use_assistant') && (
+        <Button
+          variant="outline"
+          onClick={() => setAiAssistantOpen(true)}
+          className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-300 hover:from-purple-500/20 hover:to-pink-500/20"
+        >
+          <Sparkle className="mr-2 h-5 w-5 text-purple-600" weight="fill" />{t('AI Assistant')}</Button>
+      )}
+      <HelpDocumentation />
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => { void signOut(); }}
+        aria-label={t('comune.esci')}
+        title={t('comune.esci')}
+      >
+        <SignOut className="mr-2 h-4 w-4" />
+        {t('comune.esci')}
+      </Button>
+      <OrganizationSwitcher />
+      <LanguageSwitcher compatto />
+      {/*
+        Una voce sola al posto di dieci. Vedi `strumentiAperti`.
+        Si mostra solo a chi ha davvero qualcosa dentro: per un
+        dipendente semplice il pannello sarebbe vuoto.
+      */}
+      {canPerformAction(currentEmployee, 'employees', 'view') && (
+        <Button
+          variant={strumentiAperti ? 'secondary' : 'outline'}
+          size="sm"
+          onClick={() => setStrumentiAperti((aperto) => !aperto)}
+          aria-expanded={strumentiAperti}
+        >
+          <Gear className="mr-2 h-4 w-4" weight={strumentiAperti ? 'fill' : 'regular'} />
+          {t('Administration')}
+          <CaretDown
+            className={cn('ml-2 h-3 w-3 transition-transform', strumentiAperti && 'rotate-180')}
+            weight="bold"
+            aria-hidden="true"
+          />
+        </Button>
+      )}
+    </>
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-secondary via-background to-muted/30">
       <Toaster position="top-right" />
@@ -2499,30 +2597,11 @@ function App() {
                 onDeleteAll={handleDeleteAllNotifications}
                 onNotificationClick={handleNotificationClick}
               />
-              <DesktopNotificationSettings />
-              {currentUser && <NotificationPreferences userId={currentUser.id} />}
-              <PermissionsOverview employee={currentEmployee} />
-              <Button
-                variant="outline"
-                onClick={() => setFeedbackDialogOpen(true)}
-                className="bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border-blue-300 hover:from-blue-500/20 hover:to-cyan-500/20"
-              >
-                <PaperPlaneTilt className="mr-2 h-5 w-5 text-blue-600" weight="fill" />{t('Give Feedback')}</Button>
-              {currentEmployee?.userRole === 'admin' && (
-                <Button
-                  variant="outline"
-                  onClick={() => setFeedbackBoardOpen(true)}
-                  className="relative"
-                >
-                  <Megaphone className="mr-2 h-5 w-5" weight="fill" />
-                  {t('Feedback Board')}
-                  {unreadFeedbackCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
-                      {unreadFeedbackCount}
-                    </span>
-                  )}
-                </Button>
-              )}
+              {/* Su sm+ i controlli di servizio restano in linea come prima:
+                  display:contents non crea un box, quindi ordine e gap del
+                  flex genitore non cambiano. Su mobile sono nascosti e
+                  vivono nel cassetto "Menu" piu' sotto. */}
+              <div className="hidden sm:contents">{controlliServizioPrima}</div>
               <div className="flex border rounded-lg">
                 <Button
                   variant={viewMode === 'dashboard' ? 'default' : 'ghost'}
@@ -2575,58 +2654,35 @@ function App() {
                 >
                   <ChartBar className="sm:mr-2 h-4 w-4" weight={viewMode === 'analytics' ? 'fill' : 'regular'} /><span className="hidden sm:inline">{t('Analytics')}</span></Button>
               </div>
-              <AnnouncementsDialog
-                announcements={announcements || []}
-                employees={employees || []}
-                currentUser={currentUser}
-                onCreateAnnouncement={handleCreateAnnouncement}
-                onEditAnnouncement={handleEditAnnouncement}
-                onDeleteAnnouncement={handleDeleteAnnouncement}
-                onPinAnnouncement={handlePinAnnouncement}
-                onMarkAsRead={handleMarkAnnouncementAsRead}
-              />
-              {aiAvailable && canPerformAction(currentEmployee, 'ai_features', 'use_assistant') && (
-                <Button
-                  variant="outline"
-                  onClick={() => setAiAssistantOpen(true)}
-                  className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-300 hover:from-purple-500/20 hover:to-pink-500/20"
-                >
-                  <Sparkle className="mr-2 h-5 w-5 text-purple-600" weight="fill" />{t('AI Assistant')}</Button>
-              )}
-              <HelpDocumentation />
+              {/* Su sm+ in linea come prima; su mobile dentro il cassetto. */}
+              <div className="hidden sm:contents">{controlliServizioDopo}</div>
+              {/* Mobile: un solo bottone "Menu" al posto dei controlli di servizio. */}
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => { void signOut(); }}
-                aria-label={t('comune.esci')}
-                title={t('comune.esci')}
+                className="sm:hidden"
+                onClick={() => setMenuMobileAperto(true)}
+                aria-label={t('Menu')}
+                aria-expanded={menuMobileAperto}
               >
-                <SignOut className="mr-2 h-4 w-4" />
-                {t('comune.esci')}
+                <List className="h-5 w-5" weight="bold" />
               </Button>
-              <OrganizationSwitcher />
-              <LanguageSwitcher compatto />
-              {/*
-                Una voce sola al posto di dieci. Vedi `strumentiAperti`.
-                Si mostra solo a chi ha davvero qualcosa dentro: per un
-                dipendente semplice il pannello sarebbe vuoto.
-              */}
-              {canPerformAction(currentEmployee, 'employees', 'view') && (
-                <Button
-                  variant={strumentiAperti ? 'secondary' : 'outline'}
-                  size="sm"
-                  onClick={() => setStrumentiAperti((aperto) => !aperto)}
-                  aria-expanded={strumentiAperti}
-                >
-                  <Gear className="mr-2 h-4 w-4" weight={strumentiAperti ? 'fill' : 'regular'} />
-                  {t('Administration')}
-                  <CaretDown
-                    className={cn('ml-2 h-3 w-3 transition-transform', strumentiAperti && 'rotate-180')}
-                    weight="bold"
-                    aria-hidden="true"
-                  />
-                </Button>
-              )}
+              <Sheet open={menuMobileAperto} onOpenChange={setMenuMobileAperto}>
+                <SheetContent side="right" className="sm:hidden w-4/5 max-w-xs overflow-y-auto">
+                  <SheetHeader>
+                    <SheetTitle>{t('Menu')}</SheetTitle>
+                  </SheetHeader>
+                  {/*
+                    Le STESSE istanze dei controlli, ora impilate. Uno Sheet
+                    (non un DropdownMenu) puo' contenere componenti che aprono
+                    un proprio dialog senza che il clic chiuda tutto.
+                  */}
+                  <div className="flex flex-col items-stretch gap-2 px-4 pb-6">
+                    {controlliServizioPrima}
+                    {controlliServizioDopo}
+                  </div>
+                </SheetContent>
+              </Sheet>
               {viewMode === 'tasks' && (
                 <>
                   {aiAvailable && canPerformAction(currentEmployee, 'ai_features', 'auto_assign') && (

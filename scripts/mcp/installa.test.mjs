@@ -50,7 +50,10 @@ function installa(contenuto, ambiente = {}, argomenti = []) {
 */
 const soloSuLinux = process.platform === 'linux' ? describe : describe.skip;
 
-soloSuLinux('installa il connettore', () => {
+// retry: ogni caso lancia `--installa` in un processo a se' con `spawnSync`;
+// riprovare il singolo caso toglie un eventuale sfarfallio da spawn sotto
+// carico senza cambiare cosa il test verifica.
+soloSuLinux('installa il connettore', { retry: 2 }, () => {
   it('crea la configurazione quando non esiste', () => {
     const { uscita, dopo } = installa(null);
     expect(uscita).toBe(0);

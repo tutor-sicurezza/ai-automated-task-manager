@@ -74,7 +74,12 @@ async function fintoServer(store, ruolo = 'admin') {
         }
         if (url.includes('id=in.(')) return ok([]);
         if (url.includes('or=(title.ilike')) {
-          const m = decodeURIComponent(url).match(/ilike\.\*([^*]+)\*/);
+          // Uno o piu' `*` per lato: cercaTask trasforma i caratteri
+          // strutturali di PostgREST (es. le parentesi di "(urgente)") nel
+          // jolly `*`, percio' il modello arriva come `**urgente**`. Con `\*+`
+          // il testo interno si estrae lo stesso invece di far fallire il
+          // match e cadere sul confronto con la stringa vuota.
+          const m = decodeURIComponent(url).match(/ilike\.\*+([^*]+)\*+/);
           const q = (m ? m[1] : '').toLowerCase();
           const trova = store.task.title.toLowerCase().includes(q) || (store.task.description || '').toLowerCase().includes(q);
           return ok(trova ? [{ id: store.task.id }] : []);
@@ -94,7 +99,13 @@ async function fintoServer(store, ruolo = 'admin') {
   return { server, url: `http://127.0.0.1:${server.address().port}` };
 }
 
-describe('gli strumenti aggiuntivi del connettore', () => {
+// retry: ogni caso avvia un processo MCP vero (avvia()) e lega una porta HTTP
+// al finto Supabase; sotto l'esecuzione parallela di vitest una prima chiamata
+// puo' arrivare prima che il figlio sia pronto, o i file pesanti possono
+// contendersi le risorse. Riprovare il singolo caso toglie lo sfarfallio senza
+// cambiare cosa il test verifica (l'hook afterEach gira a ogni tentativo,
+// quindi ogni ritentativo riparte da un processo e una porta puliti).
+describe('gli strumenti aggiuntivi del connettore', { retry: 2 }, () => {
   let finto, store, casa, cliente;
 
   const avvia = async ({ ruolo = 'admin', conAppUrl = true } = {}) => {
@@ -194,6 +205,18 @@ describe('gli strumenti aggiuntivi del connettore', () => {
     const { testo, errore } = await chiama('taskflow_cerca_task', { testo: 'contratto' });
     expect(errore).toBe(false);
     expect(testo).toContain('Acme —');
+    expect(testo).toContain('Rivedere il contratto');
+  });
+
+  it('cerca con parentesi nel testo non manda una query malformata (400)', async () => {
+    // Regressione di b6a21cf: un testo con caratteri strutturali di PostgREST
+    // come `(` `)` mandava un gruppo `or=(...)` malformato (400). Ora quei
+    // caratteri diventano il jolly `*`, quindi la ricerca deve riuscire e
+    // trovare comunque l'attivita' che contiene la parola.
+    await avvia({ ruolo: 'admin' });
+    store.task.description = 'Pratica urgente da chiudere';
+    const { testo, errore } = await chiama('taskflow_cerca_task', { testo: '(urgente)' });
+    expect(errore).toBe(false);
     expect(testo).toContain('Rivedere il contratto');
   });
 
