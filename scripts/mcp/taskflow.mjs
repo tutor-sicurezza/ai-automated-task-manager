@@ -53,16 +53,23 @@ import { z } from 'zod';
 import {
   ErroreUtente,
   aggiungiNota,
+  assegnaTask,
   attendeIlVisto,
   apriSessione,
   bloccantiApertiPerTask,
   cambiaStato,
+  cercaTask,
   configurazione,
+  creaTask,
   dettaglioTask,
   eChiusaDavvero,
+  elencoPersone,
+  impostaEtichette,
+  impostaPriorita,
   improntaSessione,
   mieAttivita,
   organizzazione,
+  riprogrammaTask,
   staPerScadere,
 } from '../taskflowCore.mjs';
 
@@ -425,6 +432,261 @@ server.registerTool(
       const { cfg, sessione, org } = await contesto({ perScrivere: true });
       const { task } = await aggiungiNota(cfg, sessione, org, { pezzo: id, testo: contenuto });
       return testo(`Nota aggiunta a "${task.title}".`, { id: task.id, titolo: task.title });
+    })
+);
+
+server.registerTool(
+  'taskflow_crea_task',
+  {
+    title: 'Crea un\'attivita\'',
+    description:
+      'Crea una nuova attivita\' passando dalla rotta del sito (gli stessi ' +
+      'controlli dell\'interfaccia), non scrivendo sul database. Serve almeno il ' +
+      'titolo. Assegnare ad altri richiede di essere responsabile; un membro ' +
+      'puo\' creare solo per se stesso; l\'assegnatario deve essere della tua ' +
+      'organizzazione. Nasce "non-iniziata". Richiede TASKFLOW_APP_URL o APP_URL ' +
+      'configurato (altrimenti lo dice).',
+    inputSchema: {
+      titolo: z.string().min(3).describe('Il titolo dell\'attivita\'. Obbligatorio.'),
+      descrizione: z.string().optional().describe('Dettagli in testo libero.'),
+      assegnatario: z
+        .string()
+        .optional()
+        .describe('A chi assegnarla: "me", email, nome o identificativo di un membro. Se omesso resta non assegnata.'),
+      priorita: z.enum(['low', 'medium', 'high']).optional().describe('Priorita\'. Predefinita: medium.'),
+      scadenza: z.string().optional().describe('Scadenza ISO (es. "2026-10-01").'),
+      etichette: z.array(z.string()).optional().describe('Etichette (minuscole, senza doppioni).'),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+  },
+  async ({ titolo, descrizione, assegnatario, priorita, scadenza, etichette }) =>
+    conErrori(async () => {
+      const { cfg, sessione, org } = await contesto({ perScrivere: true });
+      const riga = await creaTask(cfg, sessione, org, {
+        titolo,
+        descrizione,
+        assegnatario,
+        priorita,
+        scadenza,
+        etichette,
+      });
+      return testo(`Creata "${riga.title}" in ${org.name}.`, {
+        id: riga.id,
+        titolo: riga.title,
+        stato: riga.status,
+        priorita: riga.priority,
+        assegnatario: riga.assignee_id ?? null,
+        scadenza: riga.due_date ?? null,
+      });
+    })
+);
+
+server.registerTool(
+  'taskflow_assegna_task',
+  {
+    title: 'Assegna un\'attivita\'',
+    description:
+      'Cambia la persona a cui e\' assegnata un\'attivita\', o la libera con ' +
+      '"nessuno". Il destinatario (email, nome o identificativo) deve essere ' +
+      'della TUA organizzazione: fuori viene rifiutato dal database. Assegnare ' +
+      'ad altri richiede di essere responsabile; a te stesso o liberarla no. ' +
+      'Avvisa in app il nuovo assegnatario. Non manda email.',
+    inputSchema: {
+      id: z.string().min(2).describe('Identificativo, anche parziale.'),
+      assegnatario: z
+        .string()
+        .min(1)
+        .describe('"me", email, nome o identificativo di un membro; "nessuno" per liberare.'),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+  },
+  async ({ id, assegnatario }) =>
+    conErrori(async () => {
+      const { cfg, sessione, org } = await contesto({ perScrivere: true });
+      const esito = await assegnaTask(cfg, sessione, org, { pezzo: id, assegnatario });
+      if (!esito.cambiato) return testo(`"${esito.task.title}": assegnazione invariata.`, { cambiato: false });
+      return testo(`"${esito.task.title}" ${esito.assegnatario ? 'assegnata' : 'liberata'}.`, {
+        cambiato: true,
+        assegnatarioPrecedente: esito.assegnatarioPrecedente,
+        assegnatario: esito.assegnatario,
+      });
+    })
+);
+
+server.registerTool(
+  'taskflow_riprogramma_task',
+  {
+    title: 'Cambia la scadenza di un\'attivita\'',
+    description:
+      'Imposta o toglie la scadenza (ISO, es. 2026-10-01; "nessuna" la rimuove). ' +
+      'Scrive la cronologia e avvisa in app chi ce l\'ha in carico. La modifichi ' +
+      'solo se sei l\'assegnatario, chi l\'ha creata o un responsabile.',
+    inputSchema: {
+      id: z.string().min(2).describe('Identificativo, anche parziale.'),
+      scadenza: z.string().min(1).describe('Data ISO oppure "nessuna" per togliere la scadenza.'),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+  },
+  async ({ id, scadenza }) =>
+    conErrori(async () => {
+      const { cfg, sessione, org } = await contesto({ perScrivere: true });
+      const esito = await riprogrammaTask(cfg, sessione, org, { pezzo: id, scadenza });
+      if (!esito.cambiato) return testo(`"${esito.task.title}": scadenza invariata.`, { cambiato: false });
+      const q = esito.scadenza ? `spostata al ${esito.scadenza.slice(0, 10)}` : 'senza scadenza';
+      return testo(`"${esito.task.title}" ${q}.`, {
+        cambiato: true,
+        scadenzaPrecedente: esito.scadenzaPrecedente,
+        scadenza: esito.scadenza,
+      });
+    })
+);
+
+server.registerTool(
+  'taskflow_imposta_priorita',
+  {
+    title: 'Imposta la priorita\' di un\'attivita\'',
+    description:
+      'Cambia la priorita\' fra low, medium e high. Scrive la cronologia e avvisa ' +
+      'in app chi ce l\'ha in carico. La modifichi solo se sei l\'assegnatario, ' +
+      'chi l\'ha creata o un responsabile.',
+    inputSchema: {
+      id: z.string().min(2).describe('Identificativo, anche parziale.'),
+      priorita: z.enum(['low', 'medium', 'high']).describe('La nuova priorita\'.'),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+  },
+  async ({ id, priorita }) =>
+    conErrori(async () => {
+      const { cfg, sessione, org } = await contesto({ perScrivere: true });
+      const esito = await impostaPriorita(cfg, sessione, org, { pezzo: id, priorita });
+      if (!esito.cambiato) return testo(`"${esito.task.title}": priorita' gia' ${esito.priorita}.`, { cambiato: false });
+      return testo(`"${esito.task.title}" ora e' priorita' ${esito.priorita}.`, {
+        cambiato: true,
+        prioritaPrecedente: esito.prioritaPrecedente,
+        priorita: esito.priorita,
+      });
+    })
+);
+
+server.registerTool(
+  'taskflow_imposta_etichette',
+  {
+    title: 'Imposta le etichette di un\'attivita\'',
+    description:
+      'Sostituisce TUTTE le etichette con quelle date (elenco vuoto = nessuna). ' +
+      'Non e\' un\'aggiunta: quelle non elencate vengono tolte. Normalizzate come ' +
+      'nell\'interfaccia (minuscole, senza doppioni, max 32 caratteri). La ' +
+      'modifichi solo se sei l\'assegnatario, chi l\'ha creata o un responsabile.',
+    inputSchema: {
+      id: z.string().min(2).describe('Identificativo, anche parziale.'),
+      etichette: z
+        .array(z.string())
+        .describe('Elenco COMPLETO delle etichette. Elenco vuoto per toglierle tutte.'),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
+  },
+  async ({ id, etichette }) =>
+    conErrori(async () => {
+      const { cfg, sessione, org } = await contesto({ perScrivere: true });
+      const esito = await impostaEtichette(cfg, sessione, org, { pezzo: id, etichette });
+      if (!esito.cambiato) return testo(`"${esito.task.title}": etichette invariate.`, { cambiato: false });
+      const q = esito.etichette.length ? esito.etichette.join(', ') : '(nessuna)';
+      return testo(`"${esito.task.title}" — etichette: ${q}.`, {
+        cambiato: true,
+        etichettePrecedenti: esito.etichettePrecedenti,
+        etichette: esito.etichette,
+      });
+    })
+);
+
+server.registerTool(
+  'taskflow_elenco_persone',
+  {
+    title: 'Le persone dell\'organizzazione',
+    description:
+      'Elenca le persone della tua organizzazione, con nome e ruolo, per sapere ' +
+      'a chi affidare un\'attivita\'. Mostra solo i membri della TUA ' +
+      'organizzazione, con il tuo accesso.',
+    inputSchema: {},
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
+  },
+  async () =>
+    conErrori(async () => {
+      const { cfg, sessione, org } = await contesto();
+      const persone = await elencoPersone(cfg, sessione, org);
+      if (!persone.length) {
+        return testo(`Nessuna persona trovata in ${org.name}.`, { organizzazione: org.name, persone: [] });
+      }
+      const elenco = persone
+        .map((p) => `- ${p.nome} — ${p.ruolo}${p.email ? `  (${p.email})` : ''}`)
+        .join('\n');
+      return testo(`${org.name} — ${persone.length} persone:\n${elenco}`, {
+        organizzazione: org.name,
+        persone,
+      });
+    })
+);
+
+server.registerTool(
+  'taskflow_cerca_task',
+  {
+    title: 'Cerca fra le attivita\'',
+    description:
+      'Cerca le attivita\', non solo quelle assegnate a te. Filtra per testo ' +
+      '(nel titolo o nella descrizione), stato, e assegnatario ("me", email, ' +
+      'nome o identificativo). Se il tuo ruolo puo\' vedere tutto, cerca su tutta ' +
+      'l\'organizzazione; altrimenti solo fra le tue. Di base solo quelle aperte.',
+    inputSchema: {
+      testo: z.string().optional().describe('Testo da cercare nel titolo o nella descrizione (ignora maiuscole).'),
+      stato: z
+        .enum(['non-iniziata', 'in-corso', 'bloccata', 'completata'])
+        .optional()
+        .describe('Tiene solo le attivita\' in questo stato.'),
+      assegnatario: z.string().optional().describe('"me", un\'email, un nome o un identificativo.'),
+      soloAperti: z.boolean().optional().describe('Se false include anche le chiuse. Predefinito: true.'),
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
+  },
+  async ({ testo: cercato, stato, assegnatario, soloAperti = true }) =>
+    conErrori(async () => {
+      const { cfg, sessione, org } = await contesto();
+      const { righe, vedeTutto } = await cercaTask(cfg, sessione, org, {
+        testo: cercato,
+        stato,
+        assegnatario,
+        soloAperti,
+      });
+      const ambito = vedeTutto ? org.name : `le tue attivita' in ${org.name}`;
+      if (!righe.length) {
+        return testo(`Nessuna attivita' trovata in ${ambito}.`, {
+          organizzazione: org.name,
+          ambitoCompleto: vedeTutto,
+          task: [],
+        });
+      }
+      const aperti = await bloccantiApertiPerTask(cfg, sessione, org, righe);
+      const dati = righe.map((t) => ({
+        id: t.id,
+        titolo: t.title,
+        stato: t.status,
+        scadenza: t.due_date ? t.due_date.slice(0, 10) : null,
+        assegnatario: t.assignee_id ?? null,
+        attendeApprovazione: attendeIlVisto(t),
+        bloccataDa: aperti.get(t.id) ?? 0,
+      }));
+      const elenco = dati
+        .map(
+          (r) =>
+            `- ${r.id}  [${r.stato}]  ${r.scadenza ?? 'senza scadenza'}  ${r.titolo}` +
+            (r.attendeApprovazione ? '  (attende il visto)' : '') +
+            (r.bloccataDa ? `  (bloccata da ${r.bloccataDa})` : '')
+        )
+        .join('\n');
+      return testo(`${ambito} — ${dati.length} attivita':\n${elenco}`, {
+        organizzazione: org.name,
+        ambitoCompleto: vedeTutto,
+        task: dati,
+      });
     })
 );
 

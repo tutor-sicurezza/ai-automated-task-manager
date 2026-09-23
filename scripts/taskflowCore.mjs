@@ -89,6 +89,10 @@ function configurazione() {
   const email = prendi('TASKFLOW_EMAIL');
   const password = prendi('TASKFLOW_PASSWORD');
   const org = prendi('TASKFLOW_ORG');
+  // L'indirizzo dell'applicazione (Vercel): serve SOLO a creare task, che passa
+  // dalla rotta /api/tasks del sito e non da Supabase. Facoltativo — i tool di
+  // lettura e gli update diretti non lo toccano.
+  const appUrl = prendi('TASKFLOW_APP_URL') ?? prendi('APP_URL');
 
   /*
     Email e password NON sono piu' obbligatorie.
@@ -107,6 +111,7 @@ function configurazione() {
   const salvata = leggiSessioneSalvata();
   const urlFinale = url ?? salvata?.url;
   const chiaveFinale = chiave ?? salvata?.chiave;
+  const appUrlFinale = appUrl ?? salvata?.appUrl;
 
   if (!urlFinale || !chiaveFinale) {
     /*
@@ -125,7 +130,14 @@ function configurazione() {
     );
   }
 
-  return { url: urlFinale.replace(/\/+$/, ''), chiave: chiaveFinale, email, password, org };
+  return {
+    url: urlFinale.replace(/\/+$/, ''),
+    chiave: chiaveFinale,
+    appUrl: appUrlFinale ? appUrlFinale.replace(/\/+$/, '') : null,
+    email,
+    password,
+    org,
+  };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -559,7 +571,7 @@ async function organizzazione(cfg, sessione) {
 }
 
 const COLONNE =
-  'id,title,status,due_date,updated_at,assignee_id,watchers,blocked_by,requires_approval,' +
+  'id,title,status,priority,labels,due_date,updated_at,assignee_id,watchers,blocked_by,requires_approval,' +
   'approved_by,approved_at,comments,activities';
 
 /**
@@ -1445,6 +1457,387 @@ export async function dettaglioTask(cfg, sessione, org, pezzo) {
 }
 
 /* -------------------------------------------------------------------------- */
+
+/* -------------------------------------------------------------------------- */
+/* Strumenti aggiuntivi: crea, assegna, riprogramma, priorita', etichette,    */
+/* elenco persone, ricerca. Tutti sotto le regole del database (RLS + 0027).  */
+/* -------------------------------------------------------------------------- */
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Le persone dell'organizzazione: id, nome, ruolo, email.
+ *
+ * Si legge `organization_members` innestando `profiles` per FK, con il TOKEN
+ * dell'utente: valgono le sue policy. Un membro vede i colleghi del PROPRIO
+ * tenant e nessuno di un altro; non c'e' service role qui.
+ */
+export async function elencoPersone(cfg, sessione, org) {
+  const righe = await rest(
+    cfg,
+    sessione,
+    `/organization_members?organization_id=eq.${org.id}` +
+      '&select=user_id,role,profiles(id,full_name,avatar_url,email)'
+  );
+  return righe
+    .map((r) => ({
+      id: r.user_id,
+      nome: r.profiles?.full_name || r.profiles?.email || r.user_id,
+      email: r.profiles?.email ?? null,
+      ruolo: r.role,
+    }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+}
+
+/**
+ * Risolve "me"/"io" | email | nome (anche parziale) | uuid | "nessuno" in un
+ * user_id, oppure null. Traduce soltanto, con il token dell'utente: la barriera
+ * vera resta il database (per l'assegnazione, il trigger della 0027). Su
+ * ambiguita' si ferma invece di indovinare.
+ */
+async function risolviAssegnatario(cfg, sessione, org, valore) {
+  const grezzo = String(valore ?? '').trim();
+  const basso = grezzo.toLowerCase();
+  if (!grezzo || ['nessuno', 'nessuna', 'none', 'null'].includes(basso)) return null;
+  if (basso === 'me' || basso === 'io') return sessione.utente.id;
+  if (UUID_RE.test(grezzo)) return grezzo;
+
+  const persone = await elencoPersone(cfg, sessione, org);
+  const perEmail = persone.find((p) => (p.email ?? '').toLowerCase() === basso);
+  if (perEmail) return perEmail.id;
+
+  const esatti = persone.filter((p) => p.nome.toLowerCase() === basso);
+  const scelti = esatti.length
+    ? esatti
+    : persone.filter((p) => p.nome.toLowerCase().includes(basso));
+  if (scelti.length === 1) return scelti[0].id;
+  if (scelti.length > 1) {
+    throw new ErroreUtente(
+      `"${grezzo}" corrisponde a piu' persone in ${org.name}:\n` +
+        scelti.map((p) => `  ${p.nome}${p.email ? ` (${p.email})` : ''}`).join('\n') +
+        "\nIndica l'email o l'identificativo."
+    );
+  }
+  throw new ErroreUtente(
+    `Nessuna persona di ${org.name} corrisponde a "${grezzo}".\n` +
+      'Usa email, nome completo o identificativo, oppure "nessuno" per togliere l\'assegnazione.'
+  );
+}
+
+/**
+ * Vieta la modifica se una deroga per-organizzazione l'ha tolta. Come
+ * `cambiaStato`: il DATABASE (policy UPDATE della 0027) e' la barriera vera;
+ * qui si guarda solo la deroga esplicita a `false` (`edit_own` sul proprio,
+ * `edit_any` sull'altrui), l'unico caso che la policy non vede.
+ */
+function vietaModifica(org, task, sessione) {
+  const io = sessione.utente.id;
+  const mio = task.assignee_id === io || chiHaCreato(task) === io;
+  if (derogaNega(org, mio ? 'edit_own' : 'edit_any')) {
+    throw new ErroreUtente(
+      'Un amministratore ti ha tolto il permesso di modificare ' +
+        (mio ? "le tue attivita'" : "le attivita' altrui") +
+        ' in questa organizzazione.'
+    );
+  }
+}
+
+/** Etichetta canonica, come `normalizzaEtichetta` in src/lib/etichette.ts. */
+function normalizzaEtichetta(testo) {
+  return String(testo ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+    .slice(0, 32)
+    .trim();
+}
+
+/** Puo' vedere le attivita' di tutti? Ruolo view_all, con la deroga a decidere. */
+function puoVedereTutto(org) {
+  const deroga = org?.deroghe?.tasks?.view_all;
+  if (deroga === true) return true;
+  if (deroga === false) return false;
+  return ['owner', 'admin', 'manager'].includes(org?.ruolo);
+}
+
+/**
+ * Una chiamata alla ROTTA dell'applicazione (Vercel), non a Supabase.
+ *
+ * La creazione di un task passa da `/api/tasks`, l'unico percorso che fa i
+ * controlli su chi-assegna-a-chi. Serve `cfg.appUrl` (TASKFLOW_APP_URL
+ * nell'ambiente, o salvato all'accesso): se manca, si dice come impostarlo
+ * invece di indovinare un indirizzo.
+ */
+async function chiamataApp(cfg, sessione, percorso, opzioni = {}) {
+  if (!cfg.appUrl) {
+    throw new ErroreUtente(
+      "Non so a quale indirizzo dell'applicazione rivolgermi per creare un task.\n" +
+        'La creazione passa dalla rotta /api/tasks del sito, non da Supabase.\n' +
+        "Imposta TASKFLOW_APP_URL (es. https://iltuo.vercel.app) nell'ambiente,\n" +
+        'oppure rifai "accedi" da dentro il repository dove .env.local ha APP_URL.'
+    );
+  }
+  const richiesta = {
+    ...opzioni,
+    headers: {
+      authorization: `Bearer ${sessione.token}`,
+      'content-type': 'application/json',
+      ...(opzioni.headers ?? {}),
+    },
+  };
+  let risposta;
+  for (let tentativo = 0; ; tentativo++) {
+    try {
+      risposta = await fetch(`${cfg.appUrl}${percorso}`, richiesta);
+      break;
+    } catch (errore) {
+      const codice = errore?.cause?.code ?? errore?.code;
+      if (tentativo >= 2 || !(codice && CODICI_CONNESSIONE.has(codice))) throw errore;
+      await new Promise((ok) => setTimeout(ok, 50 * (tentativo + 1)));
+    }
+  }
+  const corpoTesto = await risposta.text();
+  let corpo = null;
+  if (corpoTesto) {
+    try {
+      corpo = JSON.parse(corpoTesto);
+    } catch {
+      corpo = corpoTesto;
+    }
+  }
+  if (!risposta.ok) {
+    const messaggio =
+      (corpo && (corpo.error || corpo.message)) || `richiesta fallita (${risposta.status})`;
+    throw new ErroreUtente(messaggio);
+  }
+  return corpo;
+}
+
+/**
+ * Crea un task passando da POST /api/tasks — mai un insert diretto.
+ *
+ * L'id lo genera qui come fa il client (src/lib/creazioneTask.ts); il titolo e'
+ * l'unico obbligatorio; created_by/created_at li decide il server, che valida
+ * anche l'assegnatario (in-org, e ad altri solo se sei responsabile). Torna la
+ * riga creata.
+ */
+export async function creaTask(
+  cfg,
+  sessione,
+  org,
+  { titolo, descrizione, assegnatario, priorita, scadenza, etichette } = {}
+) {
+  const title = String(titolo ?? '').trim();
+  if (!title) throw new ErroreUtente("Il titolo e' obbligatorio");
+  const assigneeId = await risolviAssegnatario(cfg, sessione, org, assegnatario);
+  const corpo = {
+    id: randomUUID(),
+    title,
+    description: descrizione ?? '',
+    assigneeId,
+    priority: priorita ?? 'medium',
+    status: 'not-started',
+    dueDate: scadenza || null,
+    labels: Array.isArray(etichette) ? etichette.map(normalizzaEtichetta).filter(Boolean) : [],
+    watchers: [],
+    subtasks: [],
+    blockedBy: [],
+    comments: [],
+    activities: [],
+    requiresApproval: false,
+  };
+  const payload = await chiamataApp(
+    cfg,
+    sessione,
+    `/api/tasks?tenantId=${encodeURIComponent(org.id)}`,
+    { method: 'POST', body: JSON.stringify(corpo) }
+  );
+  const riga = payload?.task;
+  if (!riga || typeof riga !== 'object') {
+    throw new ErroreUtente('Il server non ha restituito il task creato.');
+  }
+  return riga;
+}
+
+/** Cambia (o toglie) l'assegnatario. L'out-of-org lo rifiuta il database. */
+export async function assegnaTask(cfg, sessione, org, { pezzo, assegnatario }) {
+  const task = await trovaAttivita(cfg, sessione, org, pezzo);
+  const nuovo = await risolviAssegnatario(cfg, sessione, org, assegnatario);
+  const versoAltri = nuovo && nuovo !== sessione.utente.id;
+  if (versoAltri && derogaNega(org, 'assign')) {
+    throw new ErroreUtente(
+      "Un amministratore ti ha tolto il permesso di assegnare le attivita' ad altri in questa organizzazione."
+    );
+  }
+  if ((task.assignee_id ?? null) === (nuovo ?? null)) {
+    return { task, assegnatarioPrecedente: task.assignee_id ?? null, assegnatario: nuovo, cambiato: false };
+  }
+  const io = await identita(cfg, sessione);
+  const { cronologia } = await rileggiElenchi(cfg, sessione, task);
+  cronologia.push(
+    voceCronologia(io, task, 'assignee_changed', {
+      oldValue: task.assignee_id ?? 'Unassigned',
+      newValue: nuovo ?? 'Unassigned',
+    })
+  );
+  await scriviTask(cfg, sessione, task, {
+    assignee_id: nuovo,
+    activities: cronologia,
+    updated_at: adesso(),
+  });
+  if (nuovo && nuovo !== io.id) {
+    await notifica(cfg, sessione, org, io, task, {
+      destinatario: nuovo,
+      tipo: task.assignee_id ? 'task_reassigned' : 'task_assigned',
+      motivo: 'assegnazione',
+      messaggio: `${io.nome} ti ha assegnato "${task.title}"`,
+    });
+  }
+  return { task, assegnatarioPrecedente: task.assignee_id ?? null, assegnatario: nuovo, cambiato: true };
+}
+
+/** Imposta o toglie la scadenza (due_date e' nullable dalla 0020). */
+export async function riprogrammaTask(cfg, sessione, org, { pezzo, scadenza }) {
+  const task = await trovaAttivita(cfg, sessione, org, pezzo);
+  vietaModifica(org, task, sessione);
+  const grezzo = String(scadenza ?? '').trim();
+  const basso = grezzo.toLowerCase();
+  let nuova = null;
+  if (grezzo && !['nessuna', 'nessuno', 'none', 'null'].includes(basso)) {
+    const d = new Date(grezzo);
+    if (Number.isNaN(d.getTime())) {
+      throw new ErroreUtente(`Data non valida: "${scadenza}". Usa il formato ISO, es. 2026-10-01.`);
+    }
+    nuova = d.toISOString();
+  }
+  const stessoIstante =
+    (task.due_date ? new Date(task.due_date).getTime() : null) ===
+    (nuova ? new Date(nuova).getTime() : null);
+  if (stessoIstante) {
+    return { task, scadenzaPrecedente: task.due_date ?? null, scadenza: nuova, cambiato: false };
+  }
+  const io = await identita(cfg, sessione);
+  const { cronologia } = await rileggiElenchi(cfg, sessione, task);
+  const mostra = (v) => (v ? v.slice(0, 10) : '—');
+  cronologia.push(
+    voceCronologia(io, task, 'due_date_changed', {
+      oldValue: mostra(task.due_date),
+      newValue: mostra(nuova),
+    })
+  );
+  await scriviTask(cfg, sessione, task, {
+    due_date: nuova,
+    activities: cronologia,
+    updated_at: adesso(),
+  });
+  if (task.assignee_id && task.assignee_id !== io.id) {
+    await notifica(cfg, sessione, org, io, task, {
+      destinatario: task.assignee_id,
+      tipo: 'task_updated',
+      motivo: 'scadenza',
+      messaggio: `${io.nome} ha aggiornato la scadenza di "${task.title}"`,
+    });
+  }
+  return { task, scadenzaPrecedente: task.due_date ?? null, scadenza: nuova, cambiato: true };
+}
+
+const PRIORITA_VALIDE = new Set(['low', 'medium', 'high']);
+
+/** Imposta la priorita' (low | medium | high, dal CHECK della 0001). */
+export async function impostaPriorita(cfg, sessione, org, { pezzo, priorita }) {
+  const nuova = String(priorita ?? '').toLowerCase();
+  if (!PRIORITA_VALIDE.has(nuova)) {
+    throw new ErroreUtente(`Priorita' sconosciuta: "${priorita}". Usa low, medium o high.`);
+  }
+  const task = await trovaAttivita(cfg, sessione, org, pezzo);
+  vietaModifica(org, task, sessione);
+  if (task.priority === nuova) {
+    return { task, prioritaPrecedente: task.priority, priorita: nuova, cambiato: false };
+  }
+  const io = await identita(cfg, sessione);
+  const { cronologia } = await rileggiElenchi(cfg, sessione, task);
+  cronologia.push(voceCronologia(io, task, 'priority_changed', { oldValue: task.priority, newValue: nuova }));
+  await scriviTask(cfg, sessione, task, { priority: nuova, activities: cronologia, updated_at: adesso() });
+  if (task.assignee_id && task.assignee_id !== io.id) {
+    await notifica(cfg, sessione, org, io, task, {
+      destinatario: task.assignee_id,
+      tipo: 'task_priority_changed',
+      motivo: 'priorita',
+      messaggio: `${io.nome} ha messo "${task.title}" a priorita' ${nuova}`,
+    });
+  }
+  return { task, prioritaPrecedente: task.priority, priorita: nuova, cambiato: true };
+}
+
+/** Sostituisce l'intero insieme di etichette (elenco vuoto = nessuna). */
+export async function impostaEtichette(cfg, sessione, org, { pezzo, etichette }) {
+  if (!Array.isArray(etichette)) {
+    throw new ErroreUtente('Le etichette vanno passate come elenco di stringhe.');
+  }
+  const viste = new Set();
+  const pulite = [];
+  for (const grezza of etichette) {
+    const e = normalizzaEtichetta(grezza);
+    if (e && !viste.has(e)) {
+      viste.add(e);
+      pulite.push(e);
+    }
+  }
+  const task = await trovaAttivita(cfg, sessione, org, pezzo);
+  vietaModifica(org, task, sessione);
+  const attuali = Array.isArray(task.labels) ? task.labels : [];
+  const uguali = attuali.length === pulite.length && attuali.every((v, i) => v === pulite[i]);
+  if (uguali) return { task, etichettePrecedenti: attuali, etichette: pulite, cambiato: false };
+  // Niente voce di cronologia: ActivityType non ha un tipo per le etichette e
+  // l'interfaccia non lo scrive; inventarlo diverrebbe. labels e' NOT NULL
+  // default '{}', quindi vuoto = [], mai null.
+  await scriviTask(cfg, sessione, task, { labels: pulite, updated_at: adesso() });
+  return { task, etichettePrecedenti: attuali, etichette: pulite, cambiato: true };
+}
+
+/**
+ * Cerca fra le attivita', non solo fra le proprie.
+ *
+ * Chi puo' vedere tutto cerca su tutta l'organizzazione; chi no, solo fra le
+ * proprie. ATTENZIONE: `view_all` e' un concetto dell'interfaccia, non una
+ * barriera — la policy di SELECT (0001) guarda solo `is_org_member`, quindi il
+ * database lascerebbe leggere tutto anche a un member. Restringere e' fedelta',
+ * non garanzia. L'unico confine vero, e quello RLS lo tiene, e' l'organizzazione.
+ */
+export async function cercaTask(cfg, sessione, org, { testo, stato, assegnatario, soloAperti = true } = {}) {
+  const vedeTutto = puoVedereTutto(org);
+  let righe = vedeTutto
+    ? await tutteLeAttivita(cfg, sessione, org)
+    : await mieAttivita(cfg, sessione, org);
+
+  let canonico = null;
+  if (stato) canonico = statoCanonico(stato);
+  // Se si chiede uno stato preciso, `soloAperti` non deve nasconderlo (cercare
+  // "completata" con soloAperti=true darebbe sempre vuoto).
+  if (soloAperti && !canonico) righe = righe.filter((t) => !eChiusaDavvero(t));
+  if (canonico) righe = righe.filter((t) => t.status === canonico);
+
+  if (assegnatario) {
+    const chi = await risolviAssegnatario(cfg, sessione, org, assegnatario);
+    righe = righe.filter((t) => (t.assignee_id ?? null) === (chi ?? null));
+  }
+
+  const q = String(testo ?? '').trim();
+  if (q) {
+    const modello = encodeURIComponent(`*${q}*`);
+    const soloMie = vedeTutto ? '' : `&assignee_id=eq.${sessione.utente.id}`;
+    const colpiti = await rest(
+      cfg,
+      sessione,
+      `/tasks?organization_id=eq.${org.id}&archived_at=is.null${soloMie}` +
+        `&or=(title.ilike.${modello},description.ilike.${modello})&select=id`
+    );
+    const ids = new Set(colpiti.map((r) => r.id));
+    righe = righe.filter((t) => ids.has(t.id));
+  }
+
+  return { righe, vedeTutto };
+}
 
 export {
   ErroreUtente,

@@ -98,8 +98,42 @@ Adds a comment to a task without changing its status. Arguments: `id` and
 `testo`. Notifies watchers and the assignee in-app. `@mentions` are not resolved
 here.
 
-There is intentionally **no** create-task and **no** assign tool — those stay in
-the UI to avoid accidental changes.
+### `taskflow_crea_task`
+Creates a new task through the app's `/api/tasks` route (same checks as the UI —
+never a raw DB insert). Arguments: `titolo` (required), optional `descrizione`,
+`assegnatario` ("me", email, name or id), `priorita` (low|medium|high),
+`scadenza` (ISO), `etichette`. Assigning to someone else requires a manager role;
+the assignee must belong to your organization (the server rejects otherwise). It
+is born "not-started". **Requires `TASKFLOW_APP_URL` (or `APP_URL`) to be set** —
+`accedi` captures it from `.env.local` automatically; otherwise export it. The
+tool says so if it's missing.
+
+### `taskflow_assegna_task`
+Changes (or clears, with "nessuno") the assignee. The person must be in your org.
+Assigning to others needs a manager role; self-assign or releasing doesn't.
+
+### `taskflow_riprogramma_task`
+Sets or clears the due date (`scadenza` ISO, or "nessuna").
+
+### `taskflow_imposta_priorita`
+Sets the priority (`low` | `medium` | `high`).
+
+### `taskflow_imposta_etichette`
+Replaces the whole label set (empty list = none). Labels are lowercased and
+de-duplicated like the UI. Not additive — omitted labels are removed.
+
+### `taskflow_elenco_persone`
+Lists the people in your organization (name + role) so you know who to assign to.
+
+### `taskflow_cerca_task`
+Searches tasks beyond just yours: by `testo` (title/description), `stato`, and
+`assegnatario`. If your role can view all tasks it searches the whole org;
+otherwise only your own (a UI-faithful choice — the org boundary is the only
+guarantee RLS enforces).
+
+The four write tools above respect the same database rules as the UI: a viewer
+can't write, a member can only touch tasks they created or are assigned, and an
+out-of-org assign is rejected by the database — not by the connector.
 
 ## Permissions
 

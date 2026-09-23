@@ -148,6 +148,9 @@ async function comandoAccedi(cfg) {
   salvaSessione({
     url: cfg.url,
     chiave: cfg.chiave,
+    // L'indirizzo del sito viene salvato con la sessione: senza, "crea task"
+    // (che passa da /api/tasks) non saprebbe dove chiamare da fuori dal repo.
+    ...(cfg.appUrl ? { appUrl: cfg.appUrl } : {}),
     email: sessione.utente.email,
     utente: sessione.utente.id,
     rinnovo: sessione.rinnovo,

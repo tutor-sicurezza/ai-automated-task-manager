@@ -23,6 +23,16 @@ node taskflow.mjs --installa         # register with Claude Desktop
 - `taskflow_leggi_task` — full detail of one task
 - `taskflow_cambia_stato` — change status (+ optional note)
 - `taskflow_aggiungi_nota` — add a comment
+- `taskflow_crea_task` — create a task (via `/api/tasks`; needs `TASKFLOW_APP_URL`)
+- `taskflow_assegna_task` — set/clear the assignee
+- `taskflow_riprogramma_task` — set/clear the due date
+- `taskflow_imposta_priorita` — set priority (low/medium/high)
+- `taskflow_imposta_etichette` — replace the label set
+- `taskflow_elenco_persone` — list org members (name + role)
+- `taskflow_cerca_task` — search tasks (text / status / assignee)
+
+All run with your own permissions (RLS + per-person overrides); the four writers
+follow the same database rules as the UI.
 
 ## Tests
 
