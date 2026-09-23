@@ -16,10 +16,10 @@ export function WelcomeGuide({ open, onOpenChange, onComplete }: WelcomeGuidePro
 
   const steps = [
     {
-      title: 'Welcome to TaskFlow! 🎉',
+      title: 'Welcome to AI Automated Task Manager! 🎉',
       description: 'Your complete employee task management solution',
       icon: CheckCircle,
-      content: 'TaskFlow helps teams organize work, track progress, and collaborate effectively. Let\'s take a quick tour of the key features.',
+      content: 'AI Automated Task Manager helps teams organize work, track progress, and collaborate effectively. Let\'s take a quick tour of the key features.',
     },
     {
       title: 'Manage Your Team',

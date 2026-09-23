@@ -288,8 +288,8 @@ export const PARTE_GENERALE: Record<string, string> = {
   'Organization': 'Organizzazione',
   '(no description)': '(nessuna descrizione)',
   'Careful: this task is waiting for {quante} other tasks to be closed. Until that happens, the database refuses to mark it complete.': 'Attenzione: questa attivita\' aspetta che se ne chiudano altre {quante}. Finche\' non succede, il database rifiuta di segnarla completata.',
-  'When we are done, I will record the result in TaskFlow myself (id {id}).': 'Quando abbiamo finito, segno io il risultato su TaskFlow (id {id}).',
-  'Open TaskFlow task {id} and help me work on it.': 'Apri il task {id} di TaskFlow e aiutami a farlo.',
+  'When we are done, I will record the result in AI Automated Task Manager myself (id {id}).': 'Quando abbiamo finito, segno io il risultato su AI Automated Task Manager (id {id}).',
+  'Open AI Automated Task Manager task {id} and help me work on it.': 'Apri il task {id} di AI Automated Task Manager e aiutami a farlo.',
   'Work on this with Claude': 'Lavoraci con Claude',
   'This page prepares the work; it cannot start a program on your computer. Pick how you want to hand it over.': 'Questa pagina prepara il lavoro; non può avviare un programma sul tuo computer. Scegli come consegnarlo.',
   'Ready-made prompt': 'Testo pronto',
@@ -326,7 +326,7 @@ export const TESTI_IT: Record<string, string> = {
  */
 export const TESTI_EN_EXTRA: Record<string, string> = {
   'Accesso revocato e membro rimosso': 'Access revoked and member removed',
-  'Apri TaskFlow per vedere i dettagli.': 'Open TaskFlow to see the details.',
+  'Apri AI Automated Task Manager per vedere i dettagli.': 'Open AI Automated Task Manager to see the details.',
   'Assegna una nuova password provvisoria': 'Set a new temporary password',
   'Backup ripristinato. Ricarico la pagina...': 'Backup restored. Reloading...',
 };

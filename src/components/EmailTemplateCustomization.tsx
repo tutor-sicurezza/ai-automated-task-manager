@@ -29,7 +29,7 @@ const TEMPLATE_VARIABLES: Record<string, EmailTemplateVariable[]> = {
   common: [
     { name: '{{recipientName}}', description: 'Name of the email recipient', example: 'John Doe' },
     { name: '{{recipientEmail}}', description: 'Email address of the recipient', example: 'john@example.com' },
-    { name: '{{applicationName}}', description: 'Name of the application', example: 'TaskFlow' },
+    { name: '{{applicationName}}', description: 'Name of the application', example: 'AI Automated Task Manager' },
     { name: '{{companyName}}', description: 'Name of the company', example: 'Acme Corp' },
     { name: '{{currentDate}}', description: 'Current date', example: 'January 15, 2024' },
     { name: '{{currentYear}}', description: 'Current year', example: '2024' },
@@ -168,7 +168,7 @@ export function EmailTemplateCustomization({ currentUserId, currentUserName }: E
     const sampleData: Record<string, string> = {
       '{{recipientName}}': 'John Doe',
       '{{recipientEmail}}': 'john.doe@example.com',
-      '{{applicationName}}': 'TaskFlow',
+      '{{applicationName}}': 'AI Automated Task Manager',
       '{{companyName}}': 'Acme Corporation',
       '{{currentDate}}': dataEstesa(new Date(), lingua),
       '{{currentYear}}': new Date().getFullYear().toString(),

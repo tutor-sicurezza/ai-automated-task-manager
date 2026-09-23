@@ -109,13 +109,13 @@ export function SendGridConfiguration() {
           // esistente: 403 garantito.
           tenantId: organization.id,
           to: testEmail.trim(),
-          subject: t('TaskFlow — test email'),
+          subject: t('AI Automated Task Manager — test email'),
           textContent: t(
-            'This is a test email sent by TaskFlow. If you are reading it, the server-side setup works.'
+            'This is a test email sent by AI Automated Task Manager. If you are reading it, the server-side setup works.'
           ),
           htmlContent:
             '<div style="font-family:system-ui,-apple-system,sans-serif;line-height:1.6">' +
-            `<h2>${t('TaskFlow — test email')}</h2>` +
+            `<h2>${t('AI Automated Task Manager — test email')}</h2>` +
             `<p>${t('If you are reading this message, server-side email delivery works.')}</p>` +
             '</div>',
           provider: config?.provider,

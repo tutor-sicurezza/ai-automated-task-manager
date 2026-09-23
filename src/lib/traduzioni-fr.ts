@@ -359,7 +359,7 @@ export const TESTI_FR: Record<string, string> = {
   'Export Report': 'Exporter le rapport',
   'Export as CSV': 'Exporter en CSV',
   'Export as PDF': 'Exporter en PDF',
-  'Export, import, or clear your TaskFlow data':
+  'Export, import, or clear your AI Automated Task Manager data':
     'Exportez, importez ou effacez vos données',
   'Import Data': 'Importer des données',
   'Failed to clear data': "Échec de l'effacement des données",
@@ -550,10 +550,10 @@ export const TESTI_FR: Record<string, string> = {
 
   // aiuto e riscontri
   'Help': 'Aide',
-  'Help us improve TaskFlow by sharing your thoughts, suggestions, or reporting issues.':
-    'Aidez-nous à améliorer TaskFlow : dites-nous ce que vous en pensez, proposez une idée ou signalez un problème.',
-  'Everything you need to know about using TaskFlow effectively':
-    "Tout ce qu'il faut savoir pour bien utiliser TaskFlow",
+  'Help us improve AI Automated Task Manager by sharing your thoughts, suggestions, or reporting issues.':
+    'Aidez-nous à améliorer AI Automated Task Manager : dites-nous ce que vous en pensez, proposez une idée ou signalez un problème.',
+  'Everything you need to know about using AI Automated Task Manager effectively':
+    "Tout ce qu'il faut savoir pour bien utiliser AI Automated Task Manager",
   'Feature Request': 'Demande de fonctionnalité',
   'Feature Requests': 'Demandes de fonctionnalités',
   'Features': 'Fonctionnalités',
@@ -1061,18 +1061,18 @@ export const TESTI_FR: Record<string, string> = {
   'Top Clicked Links': 'Liens les plus cliqués',
   'Visual reference for department color coding and icons used throughout the app':
     "Référence visuelle des couleurs et des icônes des services utilisés dans l'application",
-  'TaskFlow Help & Documentation': 'Aide et documentation',
-  'TaskFlow is Production Ready!': 'TaskFlow est prêt pour la production',
+  'AI Automated Task Manager Help & Documentation': 'Aide et documentation',
+  'AI Automated Task Manager is Production Ready!': 'AI Automated Task Manager est prêt pour la production',
   "Get your webhook URL from Slack's Incoming Webhooks app":
     "Trouvez l'URL du webhook dans l'application Incoming Webhooks de Slack",
-  'TaskFlow Analytics - Team Performance Report':
-    "TaskFlow - Rapport sur les performances de l'équipe",
-  'TaskFlow Analytics - Department Performance Report':
-    'TaskFlow - Rapport sur les performances par service',
+  'AI Automated Task Manager Analytics - Team Performance Report':
+    "AI Automated Task Manager - Rapport sur les performances de l'équipe",
+  'AI Automated Task Manager Analytics - Department Performance Report':
+    'AI Automated Task Manager - Rapport sur les performances par service',
 
   // testi la cui lingua di partenza e' l'italiano
   'Accesso revocato e membro rimosso': 'Accès révoqué et membre supprimé',
-  'Apri TaskFlow per vedere i dettagli.': 'Ouvrez TaskFlow pour voir les détails.',
+  'Apri AI Automated Task Manager per vedere i dettagli.': 'Ouvrez AI Automated Task Manager pour voir les détails.',
   'Assegna una nuova password provvisoria':
     'Définir un nouveau mot de passe provisoire',
   'Backup ripristinato. Ricarico la pagina...':
@@ -1502,7 +1502,7 @@ export const TESTI_FR: Record<string, string> = {
   'The departments in the {category} template already exist': 'Les départements du modèle {category} existent déjà',
   'This department cannot be archived: it still has {count} assigned people': "Impossible d'archiver ce département : {count} personnes y sont encore affectées",
   'This department cannot be deleted: it still has {count} assigned people': 'Impossible de supprimer ce département : {count} personnes y sont encore affectées',
-  'This is a test notification from TaskFlow!': 'Ceci est une notification de test de TaskFlow.',
+  'This is a test notification from AI Automated Task Manager!': 'Ceci est une notification de test de AI Automated Task Manager.',
   'This user has {count} assigned tasks. Those tasks will become unassigned.': 'Cette personne a {count} tâches attribuées, qui se retrouveront sans responsable.',
   'This will permanently delete "{name}". This action cannot be undone.': '« {name} » sera supprimé définitivement. Cette action est irréversible.',
   'Three warning tones': "Trois tonalités d'alerte",
@@ -1539,9 +1539,9 @@ export const TESTI_FR: Record<string, string> = {
   'Warning:': 'Attention :',
   'Warning: this department has {count} assigned people.': 'Attention : {count} personnes sont affectées à ce département.',
   "We'll notify you when something important happens": "Nous vous préviendrons dès qu'il se passe quelque chose d'important",
-  "We've built TaskFlow to help teams work smarter, collaborate better, and achieve more together. Your feedback during this launch phase is invaluable and will help us shape the future of this platform.": 'Nous avons conçu TaskFlow pour aider les équipes à mieux travailler, mieux collaborer et accomplir davantage ensemble. Pendant cette phase de lancement, votre avis compte énormément et nous aide à faire évoluer la plateforme.',
+  "We've built AI Automated Task Manager to help teams work smarter, collaborate better, and achieve more together. Your feedback during this launch phase is invaluable and will help us shape the future of this platform.": 'Nous avons conçu AI Automated Task Manager pour aider les équipes à mieux travailler, mieux collaborer et accomplir davantage ensemble. Pendant cette phase de lancement, votre avis compte énormément et nous aide à faire évoluer la plateforme.',
   'Welcome back, {name}!': 'Bon retour, {name} !',
-  'Welcome to TaskFlow! 🎉': 'Bienvenue dans TaskFlow ! 🎉',
+  'Welcome to AI Automated Task Manager! 🎉': 'Bienvenue dans AI Automated Task Manager ! 🎉',
   'When a task becomes overdue': 'Quand une tâche est en retard',
   'When a task is assigned to you': 'Quand une tâche vous est attribuée',
   'When a task is due within 24 hours': 'Quand une tâche arrive à échéance dans les 24 heures',
@@ -1566,7 +1566,7 @@ export const TESTI_FR: Record<string, string> = {
   "You're all caught up!": 'Vous êtes à jour.',
   'Your complete employee task management solution': "Votre solution complète pour gérer le travail de l'équipe",
   'Your data is automatically saved in your browser. Use "{label}" to export your data before making major changes. You can also import data from previous backups.': 'Les données sont enregistrées automatiquement dans le navigateur. Utilisez « {label} » pour les exporter avant des changements importants ; vous pouvez aussi réimporter une sauvegarde précédente.',
-  'Your experience matters! Please take a moment to share your thoughts, report any issues, or suggest improvements. Every piece of feedback helps us make TaskFlow better for everyone.': 'Votre expérience compte. Prenez un instant pour nous dire ce que vous en pensez, signaler un problème ou proposer une amélioration : chaque retour nous aide à améliorer TaskFlow pour tout le monde.',
+  'Your experience matters! Please take a moment to share your thoughts, report any issues, or suggest improvements. Every piece of feedback helps us make AI Automated Task Manager better for everyone.': 'Votre expérience compte. Prenez un instant pour nous dire ce que vous en pensez, signaler un problème ou proposer une amélioration : chaque retour nous aide à améliorer AI Automated Task Manager pour tout le monde.',
   'added a comment': 'a ajouté un commentaire',
   'assigned to {name}': "l'a attribuée à {name}",
   'attached {file}': 'a joint {file}',
@@ -1613,7 +1613,7 @@ export const TESTI_FR: Record<string, string> = {
   '• Include steps to reproduce (for bugs)': "• S'il s'agit d'un bug, indiquez comment le reproduire",
   '• Suggest potential solutions if you have ideas': '• Si vous avez une idée de solution, proposez-la',
   '🎉 Desktop Notifications Enabled': '🎉 Notifications sur le bureau activées',
-  '🎉 TaskFlow is Now Live! 🎉': '🎉 TaskFlow est en ligne ! 🎉',
+  '🎉 AI Automated Task Manager is Now Live! 🎉': '🎉 AI Automated Task Manager est en ligne ! 🎉',
   '🎉 Time to Celebrate!': "🎉 C'est le moment de fêter ça !",
   '📊 By The Numbers:': '📊 En chiffres :',
   '📋 Launch Checklist': '📋 Liste de contrôle avant lancement',
@@ -1651,7 +1651,7 @@ export const TESTI_FR: Record<string, string> = {
   'Get started by creating your first task': 'Commencez par créer votre première tâche',
   'Try adjusting your filters': 'Essayez de modifier vos filtres',
   "Organize your team's work": "Organisez le travail de votre équipe",
-  "TaskFlow helps teams organize work, track progress, and collaborate effectively. Let's take a quick tour of the key features.": "TaskFlow aide les équipes à organiser le travail, en suivre l'avancement et mieux collaborer. Faisons un tour rapide des fonctions principales.",
+  "AI Automated Task Manager helps teams organize work, track progress, and collaborate effectively. Let's take a quick tour of the key features.": "AI Automated Task Manager aide les équipes à organiser le travail, en suivre l'avancement et mieux collaborer. Faisons un tour rapide des fonctions principales.",
   'approved this task': 'a approuvé cette tâche',
   'sent it back for changes': 'l’a renvoyée pour modifications',
   'sent it back for changes: {reason}': 'l’a renvoyée pour modifications : {reason}',
@@ -1670,8 +1670,8 @@ export const TESTI_FR: Record<string, string> = {
   'Add your first team member to get started': 'Ajoutez une première personne pour commencer',
   'Try adjusting your search or filters': 'Essayez de modifier votre recherche ou vos filtres',
   'Removed an API key saved by the previous version: keys live only on the server.': 'Une clé API enregistrée par la version précédente a été retirée de la configuration : les clés ne vivent que côté serveur.',
-  'TaskFlow — test email': 'TaskFlow — e-mail de test',
-  'This is a test email sent by TaskFlow. If you are reading it, the server-side setup works.': 'Ceci est un e-mail de test envoyé par TaskFlow. Si vous le lisez, la configuration côté serveur fonctionne.',
+  'AI Automated Task Manager — test email': 'AI Automated Task Manager — e-mail de test',
+  'This is a test email sent by AI Automated Task Manager. If you are reading it, the server-side setup works.': 'Ceci est un e-mail de test envoyé par AI Automated Task Manager. Si vous le lisez, la configuration côté serveur fonctionne.',
   'If you are reading this message, server-side email delivery works.': "Si vous lisez ce message, la configuration d'envoi côté serveur fonctionne.",
   'Sending failed: {reason}': "Échec de l'envoi : {reason}",
   'Test email sent to {address}': 'E-mail de test envoyé à {address}',
@@ -1804,8 +1804,8 @@ export const TESTI_FR: Record<string, string> = {
   'Organization': 'Organisation',
   '(no description)': '(aucune description)',
   'Careful: this task is waiting for {quante} other tasks to be closed. Until that happens, the database refuses to mark it complete.': 'Attention : cette tache attend la cloture de {quante} autres taches. Tant que ce n\'est pas fait, la base de donnees refuse de la marquer comme terminee.',
-  'When we are done, I will record the result in TaskFlow myself (id {id}).': 'Quand nous aurons fini, c\'est moi qui noterai le resultat dans TaskFlow (id {id}).',
-  'Open TaskFlow task {id} and help me work on it.': 'Ouvre la tache {id} de TaskFlow et aide-moi a la faire.',
+  'When we are done, I will record the result in AI Automated Task Manager myself (id {id}).': 'Quand nous aurons fini, c\'est moi qui noterai le resultat dans AI Automated Task Manager (id {id}).',
+  'Open AI Automated Task Manager task {id} and help me work on it.': 'Ouvre la tache {id} de AI Automated Task Manager et aide-moi a la faire.',
   'Work on this with Claude': 'Travailler dessus avec Claude',
   'This page prepares the work; it cannot start a program on your computer. Pick how you want to hand it over.': 'Cette page prépare le travail ; elle ne peut pas lancer un programme sur votre ordinateur. Choisissez comment le transmettre.',
   'Ready-made prompt': 'Texte prêt',

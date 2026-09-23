@@ -93,7 +93,7 @@ export function LaunchAnnouncement({ open, onOpenChange, onGiveFeedback }: Launc
             </div>
           </motion.div>
           <DialogTitle className="text-center text-3xl sm:text-4xl">
-            {t('🎉 TaskFlow is Now Live! 🎉')}
+            {t('🎉 AI Automated Task Manager is Now Live! 🎉')}
           </DialogTitle>
           <DialogDescription className="text-center text-lg pt-2">{t('Welcome to your new team productivity platform')}</DialogDescription>
         </DialogHeader>
@@ -108,7 +108,7 @@ export function LaunchAnnouncement({ open, onOpenChange, onGiveFeedback }: Launc
             <h3 className="text-xl font-semibold mb-3 flex items-center gap-2">
               <Heart className="h-6 w-6 text-primary" weight="fill" />{t('Thank You for Being Part of Our Launch')}</h3>
             <p className="text-muted-foreground leading-relaxed">
-              {t("We've built TaskFlow to help teams work smarter, collaborate better, and achieve more together. Your feedback during this launch phase is invaluable and will help us shape the future of this platform.")}
+              {t("We've built AI Automated Task Manager to help teams work smarter, collaborate better, and achieve more together. Your feedback during this launch phase is invaluable and will help us shape the future of this platform.")}
             </p>
           </motion.div>
 
@@ -141,7 +141,7 @@ export function LaunchAnnouncement({ open, onOpenChange, onGiveFeedback }: Launc
             <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
               <Sparkle className="h-5 w-5 text-accent" weight="fill" />{t('We Need Your Feedback!')}</h3>
             <p className="text-muted-foreground mb-4">
-              {t('Your experience matters! Please take a moment to share your thoughts, report any issues, or suggest improvements. Every piece of feedback helps us make TaskFlow better for everyone.')}
+              {t('Your experience matters! Please take a moment to share your thoughts, report any issues, or suggest improvements. Every piece of feedback helps us make AI Automated Task Manager better for everyone.')}
             </p>
             <div className="flex flex-col sm:flex-row gap-3">
               <Button onClick={handleClose} className="flex-1 bg-accent hover:bg-accent/90">

@@ -149,7 +149,7 @@ export function promptPerTask(task: Task, opzioni: OpzioniPrompt = {}): string {
 
   righe.push('');
   righe.push(
-    t('When we are done, I will record the result in TaskFlow myself (id {id}).', {
+    t('When we are done, I will record the result in AI Automated Task Manager myself (id {id}).', {
       id: task.id.slice(0, 8),
     })
   );
@@ -258,5 +258,5 @@ export function comandiInstallazione(organizzazione?: string | null): string {
 
 /** La frase da dire a Claude quando il connettore MCP e' installato. */
 export function frasePerMcp(task: Task, t: Traduttore = SENZA_TRADUZIONE): string {
-  return t('Open TaskFlow task {id} and help me work on it.', { id: task.id.slice(0, 8) });
+  return t('Open AI Automated Task Manager task {id} and help me work on it.', { id: task.id.slice(0, 8) });
 }

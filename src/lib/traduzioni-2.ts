@@ -18,7 +18,7 @@ export const PARTE_2: Record<string, string> = {
   'Export Report': 'Esporta report',
   'Export as CSV': 'Esporta in CSV',
   'Export as PDF': 'Esporta in PDF',
-  'Export, import, or clear your TaskFlow data': 'Esporta, importa o cancella i dati',
+  'Export, import, or clear your AI Automated Task Manager data': 'Esporta, importa o cancella i dati',
   'Import Data': 'Importa dati',
   'Failed to clear data': 'Cancellazione dei dati fallita',
   'Failed to export data': 'Esportazione fallita',
@@ -206,10 +206,10 @@ export const PARTE_2: Record<string, string> = {
 
   // --- aiuto e riscontri ---
   'Help': 'Aiuto',
-  'Help us improve TaskFlow by sharing your thoughts, suggestions, or reporting issues.':
-    'Aiutaci a migliorare TaskFlow: raccontaci cosa pensi, suggerisci o segnala un problema.',
-  'Everything you need to know about using TaskFlow effectively':
-    'Tutto quello che serve per usare bene TaskFlow',
+  'Help us improve AI Automated Task Manager by sharing your thoughts, suggestions, or reporting issues.':
+    'Aiutaci a migliorare AI Automated Task Manager: raccontaci cosa pensi, suggerisci o segnala un problema.',
+  'Everything you need to know about using AI Automated Task Manager effectively':
+    'Tutto quello che serve per usare bene AI Automated Task Manager',
   'Feature Request': 'Richiesta di funzionalità',
   'Feature Requests': 'Richieste di funzionalità',
   'Features': 'Funzionalità',

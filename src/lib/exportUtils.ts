@@ -115,7 +115,7 @@ export interface DepartmentAnalyticsData {
 export function exportTeamAnalyticsToCSV(data: TeamAnalyticsData, t: Traduci, lingua: string): void {
   const timestamp = format(new Date(), 'yyyy-MM-dd_HH-mm-ss');
   
-  let csvContent = `${t('TaskFlow Analytics - Team Performance Report')}\n`;
+  let csvContent = `${t('AI Automated Task Manager Analytics - Team Performance Report')}\n`;
   csvContent += `${t('Generated')}: ${dataGenerazione(lingua)}\n\n`;
   
   csvContent += `${t('Overall Summary')}\n`;
@@ -146,7 +146,7 @@ export function exportTeamAnalyticsToCSV(data: TeamAnalyticsData, t: Traduci, li
 export function exportDepartmentAnalyticsToCSV(data: DepartmentAnalyticsData, t: Traduci, lingua: string): void {
   const timestamp = format(new Date(), 'yyyy-MM-dd_HH-mm-ss');
   
-  let csvContent = `${t('TaskFlow Analytics - Department Performance Report')}\n`;
+  let csvContent = `${t('AI Automated Task Manager Analytics - Department Performance Report')}\n`;
   csvContent += `${t('Generated')}: ${dataGenerazione(lingua)}\n\n`;
   
   csvContent += `${t('Overall Summary')}\n`;
@@ -400,7 +400,7 @@ export function exportTeamAnalyticsToPDF(data: TeamAnalyticsData, t: Traduci, li
       </div>
 
       <div class="footer">
-        <p>${t('TaskFlow Analytics - Team Performance Report')}</p>
+        <p>${t('AI Automated Task Manager Analytics - Team Performance Report')}</p>
         <!-- Forma a etichetta e non frase: il progetto non ha pluralizzazione,
              e "1 team members" o un plurale sbagliato in tedesco sarebbero
              usciti a ogni report. Cosi' regge qualunque numero. -->
@@ -581,7 +581,7 @@ export function exportDepartmentAnalyticsToPDF(data: DepartmentAnalyticsData, t:
       </div>
 
       <div class="footer">
-        <p>${t('TaskFlow Analytics - Department Performance Report')}</p>
+        <p>${t('AI Automated Task Manager Analytics - Department Performance Report')}</p>
         <p>${t('Departments: {departments} · Assigned tasks: {tasks}', { departments: data.totalDepartments, tasks: data.totalAssignedTasks })}</p>
       </div>
     </body>

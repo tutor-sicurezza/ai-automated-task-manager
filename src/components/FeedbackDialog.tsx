@@ -93,7 +93,7 @@ export function FeedbackDialog({ open, onOpenChange, currentUser, onSubmitFeedba
         <DialogHeader>
           <DialogTitle className="text-2xl flex items-center gap-2">
             <PaperPlaneTilt className="h-6 w-6 text-primary" weight="fill" />{t('Share Your Feedback')}</DialogTitle>
-          <DialogDescription>{t('Help us improve TaskFlow by sharing your thoughts, suggestions, or reporting issues.')}</DialogDescription>
+          <DialogDescription>{t('Help us improve AI Automated Task Manager by sharing your thoughts, suggestions, or reporting issues.')}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">

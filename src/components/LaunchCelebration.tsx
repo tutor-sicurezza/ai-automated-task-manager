@@ -82,7 +82,7 @@ export function LaunchCelebration({ open, onOpenChange }: LaunchCelebrationProps
             >
               <Rocket className="w-24 h-24 mx-auto mb-4 text-primary" weight="fill" />
             </motion.div>
-            <h3 className="text-2xl font-semibold mb-2">{t('TaskFlow is Production Ready!')}</h3>
+            <h3 className="text-2xl font-semibold mb-2">{t('AI Automated Task Manager is Production Ready!')}</h3>
             <p className="text-muted-foreground">{t('After 81 iterations, your application is ready to deploy.')}</p>
           </div>
           

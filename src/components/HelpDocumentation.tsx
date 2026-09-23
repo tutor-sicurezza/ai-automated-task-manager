@@ -18,8 +18,8 @@ export function HelpDocumentation() {
       </DialogTrigger>
       <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{t('TaskFlow Help & Documentation')}</DialogTitle>
-          <DialogDescription>{t('Everything you need to know about using TaskFlow effectively')}</DialogDescription>
+          <DialogTitle>{t('AI Automated Task Manager Help & Documentation')}</DialogTitle>
+          <DialogDescription>{t('Everything you need to know about using AI Automated Task Manager effectively')}</DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="tasks" className="w-full">

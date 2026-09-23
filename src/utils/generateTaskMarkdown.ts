@@ -73,7 +73,7 @@ export function generateTaskMarkdown(
 
   // Introduzione
   lines.push(
-    t('Help me complete this task in TaskFlow. Ask if anything is unclear.')
+    t('Help me complete this task in AI Automated Task Manager. Ask if anything is unclear.')
   );
   lines.push('');
 
@@ -155,7 +155,7 @@ export function generateTaskMarkdown(
  */
 export function getInstallationCommands(organizationId?: string | null): string {
   const lines = [
-    '# Step 1: Login to TaskFlow',
+    '# Step 1: Login to AI Automated Task Manager',
     'node scripts/taskflow.mjs accedi',
     '',
     '# Step 2: Install the MCP Connector',
@@ -236,7 +236,7 @@ export function taskAsJSON(task: Task) {
 export function getClaudePrompt(task: Task, t?: Translator): string {
   const translator = t ?? DEFAULT_TRANSLATOR;
   return translator(
-    'Open TaskFlow task {id} using the MCP Connector and help me work on it.',
+    'Open AI Automated Task Manager task {id} using the MCP Connector and help me work on it.',
     { id: task.id.slice(0, 8) }
   );
 }
@@ -258,7 +258,7 @@ export function getQuickPrompt(
   const t = options.t ?? DEFAULT_TRANSLATOR;
 
   return (
-    `${t('Work on this task in TaskFlow:')} ${task.title}\n` +
+    `${t('Work on this task in AI Automated Task Manager:')} ${task.title}\n` +
     `${t('ID')}: ${task.id.slice(0, 8)}\n` +
     `${t('Status')}: ${task.status}\n` +
     `${t('Priority')}: ${task.priority ?? 'medium'}\n` +

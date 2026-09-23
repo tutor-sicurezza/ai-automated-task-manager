@@ -136,7 +136,7 @@ export function DataManagement({ onExportData, onImportData, onClearAllData }: D
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{t('Data Management')}</DialogTitle>
-          <DialogDescription>{t('Export, import, or clear your TaskFlow data')}</DialogDescription>
+          <DialogDescription>{t('Export, import, or clear your AI Automated Task Manager data')}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">

@@ -154,11 +154,11 @@ describe('la lingua del testo', () => {
   });
 
   it('la frase per MCP e tradotta e porta l identificativo', () => {
-    expect(frasePerMcp(task, finto)).toBe('[Open TaskFlo {"id":"3f2a9c10"}]');
+    expect(frasePerMcp(task, finto)).toBe('[Open AI Auto {"id":"3f2a9c10"}]');
   });
 
   it('senza traduttore resta in inglese, con i segnaposto sostituiti', () => {
-    expect(frasePerMcp(task)).toBe('Open TaskFlow task 3f2a9c10 and help me work on it.');
+    expect(frasePerMcp(task)).toBe('Open AI Automated Task Manager task 3f2a9c10 and help me work on it.');
   });
 });
 

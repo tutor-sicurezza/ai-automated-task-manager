@@ -48,7 +48,7 @@ export function DesktopNotificationSettings() {
   const handleTestNotification = async () => {
     await desktopNotificationManager.showNotification({
       title: t('🔔 Test Notification'),
-      body: t('This is a test notification from TaskFlow!'),
+      body: t('This is a test notification from AI Automated Task Manager!'),
       requireInteraction: false,
     });
     toast.success(t('Test notification sent!'));
