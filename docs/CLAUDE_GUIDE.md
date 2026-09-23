@@ -4,6 +4,8 @@ A single, honest reference to what the app does and the three ways you can drive
 it with Claude. Everything here is a feature that exists in the code today; there
 are no roadmap promises or benchmark claims in this document.
 
+> 🇮🇹 Versione italiana: [CLAUDE_GUIDE.it.md](CLAUDE_GUIDE.it.md)
+
 - **New to the project?** Start with [../QUICKSTART.md](../QUICKSTART.md).
 - **Just want Claude Desktop connected?** Jump to
   [The MCP connector](#b-the-mcp-connector-claude-desktop) or the full

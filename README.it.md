@@ -68,10 +68,12 @@ Con più di un'organizzazione, aggiungi `--org <identificativo o nome>`: Claude
 Desktop lo lancia un'icona, non un terminale, quindi la scelta va scritta nella
 configurazione invece che esportata in una shell.
 
-Quattro strumenti: elenca le tue attività, leggine una, cambia uno stato,
-aggiungi una nota.
+Undici strumenti: elencare e leggere le attività, cambiarne lo stato e aggiungere
+note, e poi crearle, assegnarle, riprogrammarle, cambiare priorità ed etichette,
+elencare le persone e cercare fra le attività. L'elenco completo con i nomi esatti
+è nella guida qui sotto.
 
-Scrivono la cronologia e mandano le notifiche **in app** — a chi segue
+Gli strumenti di scrittura scrivono la cronologia e mandano le notifiche **in app** — a chi segue
 l'attività, a chi ce l'ha in carico, a chi l'aveva chiesta. **Non** mandano le
 email e non riconoscono le menzioni con `@Nome`: quelle restano
 all'interfaccia, e le descrizioni degli strumenti lo dicono invece di
@@ -97,6 +99,9 @@ node scripts/taskflow.mjs accedi     # una volta sola
 node scripts/taskflow.mjs elenco
 node scripts/taskflow.mjs stato 3f2a9c10 completata "cosa ho fatto"
 ```
+
+📘 **Guida completa** (tutte le funzionalità e i tre modi per usare Claude):
+[docs/CLAUDE_GUIDE.it.md](docs/CLAUDE_GUIDE.it.md).
 
 ---
 
