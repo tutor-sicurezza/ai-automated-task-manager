@@ -591,7 +591,7 @@ export function exportDepartmentAnalyticsToPDF(data: DepartmentAnalyticsData, t:
   downloadPDF(htmlContent, `department-analytics_${timestamp}.pdf`);
 }
 
-function downloadPDF(htmlContent: string, filename: string): void {
+function downloadPDF(htmlContent: string, _filename: string): void {
   const printWindow = window.open('', '', 'width=800,height=600');
   
   if (!printWindow) {

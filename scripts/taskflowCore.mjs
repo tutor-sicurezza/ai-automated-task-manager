@@ -1824,7 +1824,13 @@ export async function cercaTask(cfg, sessione, org, { testo, stato, assegnatario
 
   const q = String(testo ?? '').trim();
   if (q) {
-    const modello = encodeURIComponent(`*${q}*`);
+    // I caratteri strutturali di PostgREST — parentesi, virgola, virgolette,
+    // backslash — romperebbero il gruppo `or=(...)`: li si trasforma nel jolly
+    // `*` di ilike, che allarga di pochissimo la ricerca invece di mandare una
+    // query malformata (400). La virgola encodeURIComponent la scapperebbe da
+    // sola, ma tenerla qui rende la regola una sola cosa leggibile.
+    const sicuro = q.replace(/[(),"\\]/g, '*');
+    const modello = encodeURIComponent(`*${sicuro}*`);
     const soloMie = vedeTutto ? '' : `&assignee_id=eq.${sessione.utente.id}`;
     const colpiti = await rest(
       cfg,

@@ -77,7 +77,18 @@ node scripts/taskflow.mjs elenco                 # list the tasks assigned to yo
 node scripts/taskflow.mjs stato <id> completata  # change status: non-iniziata | in-corso | bloccata | completata
 node scripts/taskflow.mjs nota <id> "note text"  # add a comment
 node scripts/taskflow.mjs esci                   # forget the session and revoke it server-side
+
+# Same operations the Claude Desktop connector exposes, from the terminal:
+node scripts/taskflow.mjs crea "Title" --assegna <who> --priorita high --scadenza 2026-10-01
+node scripts/taskflow.mjs assegna <id> <who|nessuno>   # (re)assign or release
+node scripts/taskflow.mjs scadenza <id> 2026-10-01     # set/clear the due date
+node scripts/taskflow.mjs priorita <id> high           # low | medium | high
+node scripts/taskflow.mjs etichette <id> a b c         # replace the whole label set
+node scripts/taskflow.mjs persone                      # list org members (name + role)
+node scripts/taskflow.mjs cerca "text" --stato in-corso --di me  # search beyond your own
 ```
+
+`crea` needs `APP_URL` (or `TASKFLOW_APP_URL`) — `accedi` captures it from `.env.local`.
 
 `<id>` is the leading characters shown by `elenco` — enough to identify a single task.
 
