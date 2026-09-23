@@ -74,7 +74,8 @@ to be more specific instead of guessing.
 
 ## Available tools
 
-The connector exposes exactly four tools:
+The connector exposes eleven tools — four read/status tools and seven for
+creating and editing tasks:
 
 ### `taskflow_elenco_task`
 Lists the tasks assigned to you (id, status, due date, title). Optional
@@ -131,7 +132,7 @@ Searches tasks beyond just yours: by `testo` (title/description), `stato`, and
 otherwise only your own (a UI-faithful choice — the org boundary is the only
 guarantee RLS enforces).
 
-The four write tools above respect the same database rules as the UI: a viewer
+The write tools above respect the same database rules as the UI: a viewer
 can't write, a member can only touch tasks they created or are assigned, and an
 out-of-org assign is rejected by the database — not by the connector.
 

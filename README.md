@@ -123,6 +123,7 @@ Tests cover:
 ## Documentation
 
 - **[QUICKSTART.md](QUICKSTART.md)** — 5-minute setup guide
+- **[docs/CLAUDE_GUIDE.md](docs/CLAUDE_GUIDE.md)** — all features and the three ways to use Claude
 - **[docs/INSTALLATION.md](docs/INSTALLATION.md)** — detailed installation
 - **[docs/API_REFERENCE.md](docs/API_REFERENCE.md)** — API endpoints
 - **[docs/MCP_GUIDE.md](docs/MCP_GUIDE.md)** — Claude Desktop integration
