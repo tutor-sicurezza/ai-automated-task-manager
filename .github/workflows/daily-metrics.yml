@@ -141,7 +141,7 @@ jobs:
           cat metrics_report.json
 
       - name: Upload Metrics Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: daily-metrics-${{ github.run_id }}
           path: metrics_report.json
