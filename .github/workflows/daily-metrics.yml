@@ -10,6 +10,12 @@ on:
 permissions:
   contents: read
   repository-projects: read
+  # issues e pull-requests in lettura servono su repo PRIVATI: lì issue e PR
+  # non sono pubblicamente leggibili, quindi senza questi permessi le chiamate
+  # issues.listForRepo / pulls.list danno "Resource not accessible by
+  # integration". Su un repo pubblico sarebbero superflui, ma non fanno danno.
+  issues: read
+  pull-requests: read
 
 jobs:
   collect_metrics:
