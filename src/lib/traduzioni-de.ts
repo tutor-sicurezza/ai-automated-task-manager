@@ -1,5 +1,8 @@
 /** Traduzioni tedesche. Chiavi identiche a quelle italiane/inglesi. */
 export const TESTI_DE: Record<string, string> = {
+  'Install': 'Installieren',
+  'Install this app on your desktop for faster access.':
+    'Installieren Sie diese App auf Ihrem Desktop für schnelleren Zugriff.',
   // --- chiavi semantiche (partendo dall'italiano di i18n.ts) ---
   'app.sottotitolo': 'Verwalten Sie die Arbeit Ihres Teams',
   'login.titolo': 'Anmelden',

@@ -26,6 +26,7 @@ import { AIInsights } from '@/components/AIInsights';
 import { AIAutoAssign } from '@/components/AIAutoAssign';
 import { AnnouncementsDialog } from '@/components/AnnouncementsDialog';
 import { TaskNotifications } from '@/components/TaskNotifications';
+import { InstallaApp } from '@/components/InstallaApp';
 import { NotificationPreferences } from '@/components/NotificationPreferences';
 import { PermissionsOverview } from '@/components/PermissionsOverview';
 const DepartmentManagement = lazy(() => import('@/components/DepartmentManagement').then((m) => ({ default: m.DepartmentManagement })));
@@ -2578,6 +2579,7 @@ function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-secondary via-background to-muted/30">
       <Toaster position="top-right" />
+      <InstallaApp />
       
       <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 max-w-7xl">
         <div className="mb-8">

@@ -1,5 +1,8 @@
 /** Traduzioni spagnole. Chiavi identiche a quelle italiane/inglesi. */
 export const TESTI_ES: Record<string, string> = {
+  'Install': 'Instalar',
+  'Install this app on your desktop for faster access.':
+    'Instala esta aplicación en tu escritorio para un acceso más rápido.',
   // === chiavi semantiche (partendo dall'italiano di i18n.ts) ===
 
   // --- accesso ---

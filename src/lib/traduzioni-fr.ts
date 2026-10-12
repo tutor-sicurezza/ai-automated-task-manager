@@ -1,5 +1,8 @@
 /** Traduzioni francesi. Chiavi identiche a quelle italiane/inglesi. */
 export const TESTI_FR: Record<string, string> = {
+  'Install': 'Installer',
+  'Install this app on your desktop for faster access.':
+    "Installez cette application sur votre bureau pour un accès plus rapide.",
   // --- chiavi semantiche (partendo dall'italiano di i18n.ts) ---
   // accesso
   'app.sottotitolo': 'Gérez le travail de votre équipe',

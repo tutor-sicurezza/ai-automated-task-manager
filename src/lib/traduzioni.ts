@@ -40,6 +40,9 @@ export const PARTE_GENERALE: Record<string, string> = {
   // --- generale, azioni ricorrenti ---
   'Cancel': 'Annulla',
   'Close': 'Chiudi',
+  'Install': 'Installa',
+  'Install this app on your desktop for faster access.':
+    'Installa questa app sul desktop per un accesso più veloce.',
   'Delete': 'Elimina',
   'Edit': 'Modifica',
   'Apply': 'Applica',
