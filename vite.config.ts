@@ -63,8 +63,8 @@ export default defineConfig({
       injectRegister: null,
       includeAssets: ['icone/favicon-32.png', 'icone/icona-apple-180.png', 'icone/taskflow.svg'],
       manifest: {
-        name: 'TaskFlow',
-        short_name: 'TaskFlow',
+        name: 'AI Automated Task Manager',
+        short_name: 'Task Manager',
         description: 'Gestisci il lavoro del tuo team',
         // La lingua predefinita del prodotto e' l'italiano, e il manifesto e'
         // l'unico posto in cui non si puo' scegliere a runtime.
